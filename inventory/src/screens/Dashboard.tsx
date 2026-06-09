@@ -38,7 +38,7 @@ export default function Dashboard() {
   const { heldCarts: storedCarts } = useCart();
 
   const catById = new Map(categories.map((c) => [c._id, c.label]));
-  const onStartSale = () => navigate('/venta');
+  const onStartSale = () => void navigate('/venta');
 
   const now = new Date();
   const yesterday = new Date(now);yesterday.setDate(now.getDate() - 1);
@@ -50,7 +50,7 @@ export default function Dashboard() {
   const revenue = todaySales.reduce((a, s) => a + s.total, 0);
   const yRevenue = yesterSales.reduce((a, s) => a + s.total, 0);
   const units = todaySales.reduce((a, s) => a + s.items.reduce((u, i) => u + i.qty, 0), 0);
-  const avg = todaySales.length ? revenue / todaySales.length : 0;
+  const _avg = todaySales.length ? revenue / todaySales.length : 0;
   const trend = yRevenue > 0 ? Math.round((revenue - yRevenue) / yRevenue * 100) : null;
 
   const dollars = Math.floor(revenue);
@@ -69,11 +69,11 @@ export default function Dashboard() {
   const dateCap = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
 
   const actions = [
-  { show: true, cls: 'scan', icon: 'scan-barcode', title: 'Escanear', sub: 'Consultar producto', onClick: () => navigate('/escanear') },
-  { show: true, cls: '', icon: 'pause-circle', title: 'En espera', sub: `${storedCarts.length} ventas`, onClick: () => navigate('/ventas-en-espera') },
-  { show: can('view_reports'), cls: '', icon: 'receipt', title: 'Historial', sub: `${todaySales.length} ventas hoy`, onClick: () => navigate('/historial') },
-  { show: can('manage_products'), cls: '', icon: 'package', title: 'Productos', sub: `${products.length} en catálogo`, onClick: () => navigate('/productos') },
-  { show: can('manage_clients'), cls: '', icon: 'users', title: 'Clientes', sub: `${clients.length} registrados`, onClick: () => navigate('/clientes') }].
+  { show: true, cls: 'scan', icon: 'scan-barcode', title: 'Escanear', sub: 'Consultar producto', onClick: () => void navigate('/escanear') },
+  { show: true, cls: '', icon: 'pause-circle', title: 'En espera', sub: `${storedCarts.length} ventas`, onClick: () => void navigate('/ventas-en-espera') },
+  { show: can('view_reports'), cls: '', icon: 'receipt', title: 'Historial', sub: `${todaySales.length} ventas hoy`, onClick: () => void navigate('/historial') },
+  { show: can('manage_products'), cls: '', icon: 'package', title: 'Productos', sub: `${products.length} en catálogo`, onClick: () => void navigate('/productos') },
+  { show: can('manage_clients'), cls: '', icon: 'users', title: 'Clientes', sub: `${clients.length} registrados`, onClick: () => void navigate('/clientes') }].
   filter((a) => a.show);
 
   return (
@@ -136,7 +136,7 @@ export default function Dashboard() {
           <section className="dash-col">
             <div className="sec-head">
               <h2>Productos con bajo stock</h2>
-              {can('manage_products') && <button className="link" onClick={() => navigate('/productos', { state: { stock: 'low' } })}>Ver todos</button>}
+              {can('manage_products') && <button className="link" onClick={() => void navigate('/productos', { state: { stock: 'low' } })}>Ver todos</button>}
             </div>
             <div className="card">
               {lowStock.length === 0 ?
@@ -159,7 +159,7 @@ export default function Dashboard() {
           <section className="dash-col">
             <div className="sec-head">
               <h2>Últimas ventas</h2>
-              {can('view_reports') && <button className="link" onClick={() => navigate('/historial')}>Ver todas</button>}
+              {can('view_reports') && <button className="link" onClick={() => void navigate('/historial')}>Ver todas</button>}
             </div>
             <div className="card">
               {recent.length === 0 ?

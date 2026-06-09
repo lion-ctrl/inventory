@@ -60,7 +60,7 @@ export interface PaymentSheetProps {
   bsRate: number;
 }
 
-export function PaymentSheet({ total, onClose, onConfirm, salesType, splits, setSplits, nextIdRef, bsRate }: PaymentSheetProps) {
+export function PaymentSheet({ total, onClose, onConfirm, salesType: _salesType, splits, setSplits, nextIdRef, bsRate }: PaymentSheetProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const rate = bsRate > 0 ? bsRate : 0;
 
@@ -86,7 +86,7 @@ export function PaymentSheet({ total, onClose, onConfirm, salesType, splits, set
     const cleanSplits: CleanSplit[] = splits.
     filter((r) => parseFloat(r.amount) > 0).
     map((r) => ({ method: r.method, amount: rowUsd(r), entered: parseFloat(r.amount), currency: METHOD_CURRENCY[r.method] }));
-    onConfirm(cleanSplits[0].method, total, cleanSplits);
+    void onConfirm(cleanSplits[0].method, total, cleanSplits);
   };
 
   const canConfirm = splitComplete && splits.every((r) => parseFloat(r.amount) > 0);
@@ -109,7 +109,7 @@ export function PaymentSheet({ total, onClose, onConfirm, salesType, splits, set
 
       <div className="pay-split">
         <div className="pay-split-list">
-            {splits.map((row, i) =>
+            {splits.map((row) =>
             <div className="pay-split-row" key={row.id} style={{ margin: "4px 0px 0px" }}>
                 <select
                 className="input"
@@ -229,12 +229,12 @@ export interface SuccessScreenProps {
   onDash: () => void;
 }
 
-export function SuccessScreen({ invoice, total, items, method, splits, salesType, tendered, client, ivaPct, bsRate, onNew, onPrint, onDash, online }: SuccessScreenProps) {
+export function SuccessScreen({ invoice, total, items, method, splits, salesType, tendered, client, ivaPct, bsRate, onNew, onPrint, onDash: _onDash, online }: SuccessScreenProps) {
   const settings = useSettingsDoc();
-  const methodLabel = METHOD_LABEL[method] || 'Efectivo';
+  const _methodLabel = METHOD_LABEL[method] || 'Efectivo';
   // Splits is always an array now — single-method sales arrive as length-1 arrays,
   // so "no splits" (prototype `!splits`) means "not a real multi-method split".
-  const change = !(splits && splits.length > 1) && method === 'cash' && (tendered ?? 0) > total ? (tendered ?? 0) - total : 0;
+  const _change = !(splits && splits.length > 1) && method === 'cash' && (tendered ?? 0) > total ? (tendered ?? 0) - total : 0;
   const docPrefix = salesType === 'invoice' ? 'Factura' : 'Ticket';
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const exemptBase = items.reduce((s, i) => s + (i.exempt === true ? i.price * i.qty : 0), 0);

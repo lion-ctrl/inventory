@@ -4,7 +4,7 @@
 // Data wiring: api.employees.list (server already excludes the logged-in actor) +
 // employees.create / employees.update / employees.remove mutations — Convex
 // reactivity refreshes the list. createdAt / lastActive are epoch ms.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -22,7 +22,7 @@ function initials(name?: string) {
 }
 
 // Prototype took ISO date strings; Convex stores epoch ms (new Date(ms) works directly).
-function fmtCreatedShort(ms?: number) {
+function _fmtCreatedShort(ms?: number) {
   if (!ms) return '';
   const d = new Date(ms);
   const m = d.toLocaleDateString('es', { month: 'short' }).replace('.', '');
@@ -96,7 +96,7 @@ interface EmployeeFormValues {
 }
 
 // --- Add / edit form ---------------------------------------------------------
-function EmployeeForm({ initial, onSave, onDelete, onCancel }: {
+function EmployeeForm({ initial, onSave, onDelete: _onDelete, onCancel }: {
   initial?: Employee | null;
   onSave: (form: EmployeeFormValues) => void;
   onDelete?: (emp: Employee) => void;
@@ -129,7 +129,7 @@ function EmployeeForm({ initial, onSave, onDelete, onCancel }: {
 
   // Dirty check — for an existing employee, only enable Save when something changed.
   const initialPerms: Partial<PermissionMap> = initial?.permissions === 'all'
-    ? (Object.fromEntries(PERMISSIONS.map((p) => [p.id, true])) as PermissionMap)
+    ? (Object.fromEntries(PERMISSIONS.map((p) => [p.id, true])))
     : (initial?.permissions || {});
   const dirty = !initial ? true : (
     form.name !== (initial.name || '') ||
@@ -564,7 +564,7 @@ export default function EmployeesScreen() {
       <Sheet onClose={() => setEditorOpen(false)} title={editing ? editing.role === 'owner' ? 'Propietario' : 'Editar empleado' : 'Nuevo empleado'}>
           <EmployeeForm
           initial={editing}
-          onSave={save}
+          onSave={(...args: Parameters<typeof save>) => { void save(...args); }}
           onDelete={(emp) => setConfirmDel(emp)}
           onCancel={() => setEditorOpen(false)} />
         </Sheet>
@@ -576,7 +576,7 @@ export default function EmployeesScreen() {
         message={`Se eliminará la cuenta de ${confirmDel.name}. Ya no podrá iniciar sesión en la caja.`}
         confirmLabel="Eliminar"
         tone="danger"
-        onConfirm={() => remove(confirmDel)}
+        onConfirm={() => void remove(confirmDel)}
         onCancel={() => setConfirmDel(null)} />
       }
     </>);

@@ -179,7 +179,7 @@ export default function ScanScreen() {
         <ProductInfoSheet
           product={selected}
           bsRate={bsRate}
-          catLabel={catLabelById.get(selected.categoryId as string) || ''}
+          catLabel={catLabelById.get(selected.categoryId) || ''}
           ivaPct={ivaPct}
           onClose={() => setSelected(null)} />
       )}

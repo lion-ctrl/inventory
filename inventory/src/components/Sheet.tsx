@@ -59,11 +59,11 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
     if (sheetRef.current) sheetRef.current.style.transition = '';
     // Tap on grip (no movement) → close
     if (fromGrip && !wasMoved) {
-      onClose && onClose();
+      onClose?.();
       return;
     }
     if (drag > 120) {
-      onClose && onClose();
+      onClose?.();
     } else {
       setDrag(0);
     }
@@ -103,6 +103,9 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
       grip.removeEventListener('touchend', onTouchEnd);
       grip.removeEventListener('touchcancel', onTouchEnd);
     };
+    // Ported prototype deps: endDrag is recreated per render but re-binding the
+    // listeners on [isDraggable, drag] matches the original behavior exactly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDraggable, drag]);
 
   // Body drag (mouse) — only from grip/title header area
@@ -113,7 +116,7 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
     const fromGrip = !!(gripRef.current && gripRef.current.contains(target as Node));
     if (!fromGrip) return; // only drag from the header zone
     beginDrag(e.clientY, true);
-    try {sheetRef.current.setPointerCapture(e.pointerId);} catch (_) {}
+    try {sheetRef.current.setPointerCapture(e.pointerId);} catch { /* capture is best-effort */ }
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragging.current || e.pointerType === 'touch') return;
@@ -121,7 +124,7 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
   };
   const onPointerFinish = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragging.current || e.pointerType === 'touch') return;
-    try {sheetRef.current && sheetRef.current.releasePointerCapture(e.pointerId);} catch (_) {}
+    try {sheetRef.current?.releasePointerCapture(e.pointerId);} catch { /* release is best-effort */ }
     endDrag();
   };
 

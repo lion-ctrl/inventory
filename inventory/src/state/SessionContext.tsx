@@ -32,10 +32,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   });
   // auth.me takes a plain string and normalizes server-side, so a stale id from an
   // older deployment resolves to null instead of throwing.
-  const me = useQuery(api.auth.me, employeeId ? { employeeId } : 'skip') as
-    | Employee
-    | null
-    | undefined;
+  const me = useQuery(api.auth.me, employeeId ? { employeeId } : 'skip');
   const loginMut = useMutation(api.auth.login);
 
   // Persisted session no longer valid (deleted/deactivated employee) → clear it.

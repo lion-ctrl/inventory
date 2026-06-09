@@ -12,7 +12,7 @@ import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
 import { useBsRate } from '@/state/hooks';
 import type { PermissionId } from '@/lib/rbac';
-import type { CartItem, CleanSplit, Sale, SalesType } from './types';
+import type { CartItem, CleanSplit, SalesType } from './types';
 
 import LoginScreen from '@/screens/Login';
 import Dashboard from '@/screens/Dashboard';
@@ -75,8 +75,8 @@ function SuccessRoute({ online }: { online: boolean }) {
       ivaPct={completedSale.ivaPct}
       bsRate={completedSale.exchangeRate}
       online={online}
-      onNew={() => { setCompletedSale(null); navigate('/venta'); }}
-      onDash={() => { setCompletedSale(null); navigate('/'); }}
+      onNew={() => { setCompletedSale(null); void navigate('/venta'); }}
+      onDash={() => { setCompletedSale(null); void navigate('/'); }}
       onPrint={() => window.print()}
     />
   );
@@ -107,16 +107,16 @@ export default function AppShell() {
       id: string; label: string; icon: string; onClick: () => void;
       badge?: number | null; tone?: 'danger'; perm?: PermissionId;
     }> = [
-      { id: 'dashboard', label: 'Inicio', icon: 'home', onClick: () => navigate('/') },
-      { id: 'scan', label: 'Escanear', icon: 'scan-barcode', onClick: () => navigate('/escanear') },
-      { id: 'sale', label: 'Venta', icon: 'scan-line', onClick: () => navigate('/venta') },
-      { id: 'stored', label: 'Ventas en espera', icon: 'pause-circle', onClick: () => navigate('/ventas-en-espera'), badge: cart.heldCarts.length || null },
-      { id: 'history', label: 'Historial de ventas', icon: 'receipt', onClick: () => navigate('/historial'), perm: 'view_reports' },
-      { id: 'products', label: 'Productos', icon: 'package', onClick: () => navigate('/productos'), perm: 'manage_products' },
-      { id: 'clients', label: 'Clientes', icon: 'users', onClick: () => navigate('/clientes'), perm: 'manage_clients' },
-      { id: 'employees', label: 'Empleados', icon: 'user-cog', onClick: () => navigate('/empleados'), perm: 'manage_employees' },
-      { id: 'settings', label: 'Ajustes', icon: 'settings', onClick: () => navigate('/ajustes'), perm: 'manage_settings' },
-      { id: 'profile', label: 'Mi perfil', icon: 'user-round', onClick: () => navigate('/perfil') },
+      { id: 'dashboard', label: 'Inicio', icon: 'home', onClick: () => void navigate('/') },
+      { id: 'scan', label: 'Escanear', icon: 'scan-barcode', onClick: () => void navigate('/escanear') },
+      { id: 'sale', label: 'Venta', icon: 'scan-line', onClick: () => void navigate('/venta') },
+      { id: 'stored', label: 'Ventas en espera', icon: 'pause-circle', onClick: () => void navigate('/ventas-en-espera'), badge: cart.heldCarts.length || null },
+      { id: 'history', label: 'Historial de ventas', icon: 'receipt', onClick: () => void navigate('/historial'), perm: 'view_reports' },
+      { id: 'products', label: 'Productos', icon: 'package', onClick: () => void navigate('/productos'), perm: 'manage_products' },
+      { id: 'clients', label: 'Clientes', icon: 'users', onClick: () => void navigate('/clientes'), perm: 'manage_clients' },
+      { id: 'employees', label: 'Empleados', icon: 'user-cog', onClick: () => void navigate('/empleados'), perm: 'manage_employees' },
+      { id: 'settings', label: 'Ajustes', icon: 'settings', onClick: () => void navigate('/ajustes'), perm: 'manage_settings' },
+      { id: 'profile', label: 'Mi perfil', icon: 'user-round', onClick: () => void navigate('/perfil') },
       { id: 'logout', label: 'Cerrar sesión', icon: 'log-out', onClick: () => setConfirmLogout(true), tone: 'danger' },
     ];
     return items.filter((i) => (i.perm ? can(i.perm) : true));
@@ -134,7 +134,7 @@ export default function AppShell() {
   const handlePaymentConfirm = async (method: string, tendered: number, splits: CleanSplit[]) => {
     if (!user || !cart.selectedClient) { setPaymentOpen(false); return; }
     try {
-      const sale = (await checkout({
+      const sale = await checkout({
         actorId: user._id,
         clientId: cart.selectedClient._id,
         items: pendingCart.map((i) => ({ productId: i._id, qty: i.qty })),
@@ -142,7 +142,7 @@ export default function AppShell() {
         splits,
         type: pendingType,
         tendered,
-      })) as unknown as Sale;
+      });
       setPaymentOpen(false);
       cart.setCompletedSale({
         invoice: sale.invoiceNumber,
@@ -151,7 +151,7 @@ export default function AppShell() {
         method: sale.method,
         salesType: sale.type,
         tendered,
-        splits: (sale.splits as CleanSplit[] | undefined) ?? splits,
+        splits: (sale.splits) ?? splits,
         client: sale.client,
         ivaPct: sale.ivaPct,
         exchangeRate: sale.exchangeRate,
@@ -159,7 +159,7 @@ export default function AppShell() {
       cart.setCart([]);
       cart.setSelectedClientId(null);
       cart.resetPayment();
-      navigate('/venta/exito');
+      void navigate('/venta/exito');
     } catch (e: any) {
       alert(typeof e?.data === 'string' ? e.data : 'No se pudo registrar la venta. Intenta de nuevo.');
     }
@@ -212,7 +212,7 @@ export default function AppShell() {
           message="Volverás a la pantalla de inicio. Las ventas en curso se perderán."
           confirmLabel="Cerrar sesión"
           tone="danger"
-          onConfirm={() => { setConfirmLogout(false); logout(); navigate('/login'); }}
+          onConfirm={() => { setConfirmLogout(false); logout(); void navigate('/login'); }}
           onCancel={() => setConfirmLogout(false)}
         />
       )}

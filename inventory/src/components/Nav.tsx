@@ -68,7 +68,7 @@ export function NavSidebar({ nav, currentRoute, user, online, onClose, collapsed
           key={item.id}
           title={item.label}
           className={`navside-item ${currentRoute === item.id ? 'on' : ''} ${item.tone === 'danger' ? 'danger' : ''}`}
-          onClick={() => {if (onClose) onClose();item.onClick && item.onClick();}}>
+          onClick={() => {if (onClose) onClose();item.onClick?.();}}>
             <Icon name={item.icon} size={20} />
             <span className="navside-label">{item.label}</span>
             {item.badge != null && <span className="navside-badge">{item.badge}</span>}

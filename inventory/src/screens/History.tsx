@@ -17,7 +17,7 @@ const METHOD_LABELS: Record<string, string> = { cash: 'Efectivo dólar', cash_bs
 const METHOD_ICONS: Record<string, string> = { cash: 'banknote', cash_bs: 'banknote', card: 'credit-card', transfer: 'arrow-left-right', mobile: 'smartphone', zelle: 'dollar-sign' };
 const METHOD_TONES: Record<string, string> = { cash: 'ok', cash_bs: 'ok', card: 'info', transfer: 'neutral', mobile: 'purple', zelle: 'ok' };
 
-const DATE_RANGES = [
+const _DATE_RANGES = [
 { id: 'today', label: 'Hoy' },
 { id: 'yesterday', label: 'Ayer' },
 { id: 'week', label: '7 días' },
@@ -222,7 +222,7 @@ interface SaleDetailSheetProps {
   bsRate: number;
 }
 
-function SaleDetailSheet({ sale, onClose, onReprint, onRefund, canRefund, online, bsRate }: SaleDetailSheetProps) {
+function SaleDetailSheet({ sale, onClose, onReprint, onRefund, canRefund, online: _online, bsRate }: SaleDetailSheetProps) {
   if (!sale) return null;
   const taxDisplay = sale.client?.taxId ?
   `${sale.client.taxPrefix || ''}-${sale.client.taxId}` :
@@ -408,7 +408,7 @@ export default function HistoryScreen() {
   const { user, can } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const refund = useMutation(api.sales.refund);
   const [q, setQ] = useState('');
   const [range, setRange] = useState('today');
@@ -435,7 +435,7 @@ export default function HistoryScreen() {
     setRefunding(null);
     setDetail(null);
   };
-  const [customOpen, setCustomOpen] = useState(false);
+  const [_customOpen, _setCustomOpen] = useState(false);
 
   // Filters
   const norm = (s?: string) => (s || '').toLowerCase();
@@ -492,7 +492,7 @@ export default function HistoryScreen() {
       <AppBar
         title="Historial de ventas"
         online={online}
-        /* left={<IconButton icon="chevron-left" onClick={() => navigate('/')} ariaLabel="Volver" />} */
+        /* left={<IconButton icon="chevron-left" onClick={() => void navigate('/')} ariaLabel="Volver" />} */
         right={<Button size="sm" icon="download">Exportar</Button>} />
 
       <div className="content hist-content">
@@ -645,7 +645,7 @@ export default function HistoryScreen() {
       <RefundSheet
         sale={refunding}
         bsRate={bsRate}
-        onConfirm={doRefund}
+        onConfirm={(...args: Parameters<typeof doRefund>) => { void doRefund(...args); }}
         onCancel={() => setRefunding(null)} />
       }
     </>);

@@ -96,7 +96,7 @@ export default function StoredCartsScreen() {
   const handleResume = async (id: HeldCart['_id']) => {
     try {
       await resumeSale(id);
-      navigate('/venta');
+      void navigate('/venta');
     } catch (e: any) {
       alert(typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.');
     }
@@ -155,7 +155,7 @@ export default function StoredCartsScreen() {
         title="Ventas en espera"
         sub={carts.length === 0 ? 'Sin ventas pausadas' : `${carts.length} en espera`}
         online={online}
-        /* left={<IconButton icon="chevron-left" onClick={() => navigate('/venta')} ariaLabel="Volver" />} */ />
+        /* left={<IconButton icon="chevron-left" onClick={() => void navigate('/venta')} ariaLabel="Volver" />} */ />
 
       <div className="content stored-content" style={{ padding: "5px", textAlign: "left" }}>
         {carts.length === 0 ?
@@ -247,7 +247,7 @@ export default function StoredCartsScreen() {
                     Ver productos ({itemCount})
                   </button>
                   <div className="stored-card-actions">
-                    <Button size="sm" icon="play" onClick={() => handleResume(s._id)}>
+                    <Button size="sm" icon="play" onClick={() => void handleResume(s._id)}>
                       Reanudar
                     </Button>
                     <Button variant="danger" size="sm" icon="trash-2" onClick={() => setConfirmDiscard(s)}>
@@ -300,7 +300,7 @@ export default function StoredCartsScreen() {
         message={`Se eliminará ${confirmDiscard.code} con ${confirmDiscard.items.length} producto${confirmDiscard.items.length === 1 ? '' : 's'}. Esta acción no se puede deshacer.`}
         confirmLabel="Sí, descartar"
         tone="danger"
-        onConfirm={() => { handleDiscard(confirmDiscard._id); setConfirmDiscard(null); }}
+        onConfirm={() => { void handleDiscard(confirmDiscard._id); setConfirmDiscard(null); }}
         onCancel={() => setConfirmDiscard(null)} />
       }
       {detailCart &&
@@ -326,7 +326,7 @@ export default function StoredCartsScreen() {
         </div>
         <div className="row" style={{ gap: 10, marginTop: 14 }}>
           <Button variant="secondary" onClick={() => setDetailCart(null)}>Cerrar</Button>
-          <Button icon="play" onClick={() => { const id = detailCart._id; setDetailCart(null); handleResume(id); }}>Reanudar</Button>
+          <Button icon="play" onClick={() => { const id = detailCart._id; setDetailCart(null); void handleResume(id); }}>Reanudar</Button>
         </div>
       </Sheet>
       }

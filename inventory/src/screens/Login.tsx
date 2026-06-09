@@ -24,7 +24,7 @@ export default function LoginScreen() {
     const res = await login(email.trim(), pw.trim());
     setLoading(false);
     if (!res.ok) { setErr(res.error); return; }
-    navigate('/');
+    void navigate('/');
   };
 
   return (
@@ -38,7 +38,7 @@ export default function LoginScreen() {
           </div>
           {err && <Banner tone="danger" icon={err.includes('conexión') ? 'wifi-off' : 'alert-triangle'} message={err} />}
           {!online && !err && <Banner tone="warn" icon="wifi-off" title="Sin conexión" message="Conéctate a internet para iniciar sesión." />}
-          <form onSubmit={submit}>
+          <form onSubmit={(e) => void submit(e)}>
             <div>
               <label>Email o usuario</label>
               <Input value={email} onChange={(e) => setEmail(e.target.value)} />

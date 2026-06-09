@@ -43,10 +43,14 @@ export default defineConfig([
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": [
-        "warn",
-        { allowConstantExport: true },
-      ],
+      // Screens deliberately export shared helpers/constants alongside components
+      // (1:1 port of the prototype's shared modules). Only affects HMR granularity.
+      "react-refresh/only-export-components": "off",
+      // The ported prototype uses sync state-adjustment effects (pagination clamps,
+      // resize mirrors, cart/product sync). Refactoring them risks behavior drift
+      // in design-verified code; the React Compiler is not enabled in this build.
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/preserve-manual-memoization": "off",
       // All of these overrides ease getting into
       // TypeScript, and can be removed for stricter
       // linting down the line.

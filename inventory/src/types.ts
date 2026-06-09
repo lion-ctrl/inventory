@@ -21,7 +21,8 @@ export type SalesType = 'invoice' | 'ticket';
 /** Editable split row as typed in the PaymentSheet (amount is the raw input string). */
 export interface SplitRow {
   id: number;
-  method: MethodId | string;
+  /** One of MethodId — typed as string because rows round-trip through <select>/storage. */
+  method: string;
   amount: string;
 }
 

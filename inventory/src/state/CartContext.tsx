@@ -33,8 +33,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const products = useProducts();
   const clients = useClients();
-  const heldCarts =
-    (useQuery(api.heldCarts.list, user ? {} : 'skip') as HeldCart[] | undefined) ?? [];
+  const heldCartsQuery = useQuery(api.heldCarts.list, user ? {} : 'skip');
+  // Memoized so the `?? []` fallback doesn't invalidate downstream memo deps every render.
+  const heldCarts = useMemo<HeldCart[]>(() => heldCartsQuery ?? [], [heldCartsQuery]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<Id<'clients'> | null>(null);
@@ -104,7 +105,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (cart.length === 0 || !user) return;
         const cleanSplits = splits
           .filter((r) => parseFloat(r.amount) > 0)
-          .map((r) => ({ method: r.method as string, amount: parseFloat(r.amount) || 0 }));
+          .map((r) => ({ method: r.method, amount: parseFloat(r.amount) || 0 }));
         await park({
           actorId: user._id,
           clientId: selectedClientId ?? undefined,
@@ -126,7 +127,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           if (live && live.sellable !== false) items.push({ ...live, qty: it.qty });
         }
         setCart(items);
-        setSelectedClientId((res.client?._id as Id<'clients'> | undefined) ?? null);
+        setSelectedClientId((res.client?._id) ?? null);
         const restored = (res.splits ?? []) as { method: string; amount: number }[];
         if (restored.length > 0) {
           setSplits(

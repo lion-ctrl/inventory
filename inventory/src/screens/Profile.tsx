@@ -144,7 +144,7 @@ export default function ProfileScreen() {
       </div>
 
       {editOpen &&
-      <ProfileEditSheet me={me} onSave={save} onCancel={() => setEditOpen(false)} />
+      <ProfileEditSheet me={me} onSave={(...args: Parameters<typeof save>) => { void save(...args); }} onCancel={() => setEditOpen(false)} />
       }
     </>);
 

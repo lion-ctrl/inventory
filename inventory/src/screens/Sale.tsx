@@ -39,7 +39,7 @@ export interface ScanResult {
   code?: string;
 }
 
-export function BarcodeViz({ code, locked }: { code: string | null; locked?: boolean }) {
+export function BarcodeViz({ code, locked: _locked }: { code: string | null; locked?: boolean }) {
   // Deterministic bar widths driven by the code so it always looks like a real
   // EAN-13. ~58 bars to fill the frame nicely.
   const seed = (code || '7591000000000').replace(/\D/g, '').padEnd(13, '0');
@@ -87,7 +87,7 @@ export function ScannerView({ onScanResult, mode = 'scroll', density = 'roomy', 
   // Prototype scan simulation, kept for future camera wiring. The demo
   // "Simular escaneo / Forzar fallo" buttons that invoked it were stripped
   // (no demo controls in production).
-  const trigger = useCallback((forceMiss = false) => {
+  const _trigger = useCallback((forceMiss = false) => {
     const cycle = scanIdx % 5;
     setScanIdx((s) => s + 1);
     setState(SCAN_STATES.READING);
@@ -517,7 +517,7 @@ export function ManualSearchSheet({ onPick, onClose, catalog }: {
 
 }
 
-function CartContent({ cart, inc, dec, remove, setQty, density, salesType, onConfirm, onCancel, pendingSplits, selectedClient, onPickClient, itemCount, onClear, onPause, bsRate }: {
+function CartContent({ cart, inc, dec, remove, setQty, density: _density, salesType, onConfirm, onCancel, pendingSplits, selectedClient, onPickClient, itemCount, onClear, onPause, bsRate }: {
   cart: CartItem[];
   inc: (id: Id<'products'>) => void;
   dec: (id: Id<'products'>) => void;
@@ -614,7 +614,7 @@ function CartContent({ cart, inc, dec, remove, setQty, density, salesType, onCon
       <div className="cart-actions">
         <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
         <Button onClick={() => {
-          if (!selectedClient) {onPickClient && onPickClient();return;}
+          if (!selectedClient) {onPickClient?.();return;}
           onConfirm(cart, total, salesType);
         }}>
           <span className="btn-stack">
@@ -752,7 +752,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
   const isWide = w >= 1000;
 
   // Wirings that replaced the prototype's props
-  const onBack = () => navigate('/');
+  const onBack = () => void navigate('/');
   const onResetPayment = resetPayment;
   const onSelectClient = (id: Id<'clients'>) => setSelectedClientId(id);
   const onCreateClient = async (form: { name: string; taxPrefix: string; taxId: string; kind: string; email?: string; phone?: string; address?: string }) => {
@@ -876,7 +876,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
           <Sheet onClose={() => {setClientFormOpen(false);setPrefillCreate(null);}} title="Nuevo cliente">
               <ClientForm
               initial={prefillCreate ? { taxPrefix: prefillCreate.prefix, taxId: prefillCreate.taxId } : null}
-              onSave={(form: any) => {onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
+              onSave={(form: any) => {void onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
               onCancel={() => {setClientFormOpen(false);setPrefillCreate(null);}} />
             </Sheet>
           }
@@ -954,7 +954,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
                 </div>
                 {cart.length > 0 &&
                 <div className="cart-card-head-actions">
-                    {onPauseSale && <Button variant="secondary" size="sm" icon="pause" onClick={() => onPauseSale()}>Pausar</Button>}
+                    {onPauseSale && <Button variant="secondary" size="sm" icon="pause" onClick={() => void onPauseSale()}>Pausar</Button>}
                     <Button variant="danger" size="sm" icon="trash-2" onClick={() => setConfirmClear(true)}>Limpiar</Button>
                   </div>
                 }
@@ -1066,7 +1066,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
           message="Se eliminarán todos los productos y los pagos parciales registrados."
           confirmLabel="Sí, vaciar"
           tone="danger"
-          onConfirm={() => {setConfirmClear(false);setCart([]);onResetPayment && onResetPayment();}}
+          onConfirm={() => {setConfirmClear(false);setCart([]);onResetPayment?.();}}
           onCancel={() => setConfirmClear(false)} />
         }
 
@@ -1077,7 +1077,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
           confirmLabel="Sí"
           cancelLabel="No"
           tone="danger"
-          onConfirm={() => {setConfirmCancel(false);setCart([]);onResetPayment && onResetPayment();onBack();}}
+          onConfirm={() => {setConfirmCancel(false);setCart([]);onResetPayment?.();onBack();}}
           onCancel={() => setConfirmCancel(false)} />
         }
         {insufficientStockProduct &&
@@ -1107,7 +1107,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
         <Sheet onClose={() => {setClientFormOpen(false);setPrefillCreate(null);}} title="Nuevo cliente">
             <ClientForm
             initial={prefillCreate ? { taxPrefix: prefillCreate.prefix, taxId: prefillCreate.taxId } : null}
-            onSave={(form: any) => {onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
+            onSave={(form: any) => {void onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
             onCancel={() => {setClientFormOpen(false);setPrefillCreate(null);}} />
           </Sheet>
         }
@@ -1132,7 +1132,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
         <Sheet onClose={() => {setClientFormOpen(false);setPrefillCreate(null);}} title="Nuevo cliente">
             <ClientForm
             initial={prefillCreate ? { taxPrefix: prefillCreate.prefix, taxId: prefillCreate.taxId } : null}
-            onSave={(form: any) => {onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
+            onSave={(form: any) => {void onCreateClient(form);setClientFormOpen(false);setPrefillCreate(null);}}
             onCancel={() => {setClientFormOpen(false);setPrefillCreate(null);}} />
           </Sheet>
         }
@@ -1174,7 +1174,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
             onPickClient={() => setClientPickerOpen(true)}
             itemCount={itemCount}
             onClear={() => setConfirmClear(true)}
-            onPause={onPauseSale ? () => onPauseSale() : null}
+            onPause={onPauseSale ? () => void onPauseSale() : null}
             onCancel={tryClose}
             onConfirm={onConfirm} />
         </div>
@@ -1203,7 +1203,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
         message="Se eliminarán todos los productos y los pagos parciales registrados."
         confirmLabel="Sí, vaciar"
         tone="danger"
-        onConfirm={() => {setConfirmClear(false);setCart([]);onResetPayment && onResetPayment();}}
+        onConfirm={() => {setConfirmClear(false);setCart([]);onResetPayment?.();}}
         onCancel={() => setConfirmClear(false)} />
       }
 
@@ -1214,7 +1214,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
         confirmLabel="Sí"
         cancelLabel="No"
         tone="danger"
-        onConfirm={() => {setConfirmCancel(false);setCart([]);onResetPayment && onResetPayment();onBack();}}
+        onConfirm={() => {setConfirmCancel(false);setCart([]);onResetPayment?.();onBack();}}
         onCancel={() => setConfirmCancel(false)} />
       }
       {insufficientStockProduct &&
@@ -1243,7 +1243,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
       {clientFormOpen &&
       <Sheet onClose={() => setClientFormOpen(false)} title="Nuevo cliente">
           <ClientForm
-          onSave={(form: any) => {onCreateClient(form);setClientFormOpen(false);}}
+          onSave={(form: any) => {void onCreateClient(form);setClientFormOpen(false);}}
           onCancel={() => setClientFormOpen(false)} />
         </Sheet>
       }

@@ -16,7 +16,9 @@ export interface AppBarProps {
   online?: boolean;
 }
 
-export function AppBar({ title, sub, left, right, brand, online = true }: AppBarProps) {
+// `online` stays in the props contract (screens pass it, prototype parity) but the
+// bar itself doesn't render it — the connection chip lives in the sidebar.
+export function AppBar({ title, sub, left, right, brand }: AppBarProps) {
   const nav = useContext(NavContext);
 
   return (

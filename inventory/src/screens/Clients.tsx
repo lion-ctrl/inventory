@@ -3,7 +3,7 @@
 // Data wiring: useClients() (cached-while-offline list) + Convex mutations
 // (clients.create / clients.update / clients.remove) — no local setClients plumbing,
 // reactivity refreshes the list. createdAt is epoch ms.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -518,7 +518,7 @@ export default function ClientsScreen() {
       <Sheet onClose={() => setEditorOpen(false)} title={editing ? 'Editar cliente' : 'Nuevo cliente'}>
           <ClientForm
           initial={editing}
-          onSave={save}
+          onSave={(...args: Parameters<typeof save>) => { void save(...args); }}
           onCancel={() => setEditorOpen(false)} />
         </Sheet>
       }
@@ -530,7 +530,7 @@ export default function ClientsScreen() {
           confirmLabel="Sí, eliminar"
           cancelLabel="Cancelar"
           tone="danger"
-          onConfirm={() => remove(confirmDel)}
+          onConfirm={() => void remove(confirmDel)}
           onCancel={() => setConfirmDel(null)} />
       }
     </>);

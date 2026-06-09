@@ -199,14 +199,14 @@ export default function SettingsScreen() {
           <SettingRow icon="dollar-sign" label="Valor del dólar" value={`Bs ${Number(bsRate).toFixed(2)}`} onClick={() => setEditor({ kind: 'bsrate' })} />
           <SettingRow icon="coins" label="Moneda" value={CURRENCY_LABEL[currency] || currency} onClick={() => setEditor({ kind: 'currency' })} />
           <SettingRow icon="file-text" label="Próxima factura" value={nextInvoice} />
-          <SettingToggleRow icon="printer" label="Imprimir automáticamente" sub="Imprime el recibo al cobrar" value={printAuto} onChange={(v) => save({ printAuto: v })} />
-          <SettingToggleRow icon="mail" label="Enviar recibo por email" sub="Si el cliente tiene email registrado" value={emailReceipt} onChange={(v) => save({ emailReceipt: v })} last />
+          <SettingToggleRow icon="printer" label="Imprimir automáticamente" sub="Imprime el recibo al cobrar" value={printAuto} onChange={(v) => void save({ printAuto: v })} />
+          <SettingToggleRow icon="mail" label="Enviar recibo por email" sub="Si el cliente tiene email registrado" value={emailReceipt} onChange={(v) => void save({ emailReceipt: v })} last />
         </SettingsSection>
 
         {/* Preferences */}
         <SettingsSection title="Preferencias">
-          <SettingToggleRow icon="bell" label="Alertas de bajo stock" sub="Avisar cuando un producto baje del mínimo" value={lowStockAlerts} onChange={(v) => save({ lowStockAlerts: v })} />
-          <SettingToggleRow icon="volume-2" label="Sonido al escanear" sub="Bip de confirmación de lectura" value={soundScan} onChange={(v) => save({ soundScan: v })} />
+          <SettingToggleRow icon="bell" label="Alertas de bajo stock" sub="Avisar cuando un producto baje del mínimo" value={lowStockAlerts} onChange={(v) => void save({ lowStockAlerts: v })} />
+          <SettingToggleRow icon="volume-2" label="Sonido al escanear" sub="Bip de confirmación de lectura" value={soundScan} onChange={(v) => void save({ soundScan: v })} />
           <SettingRow icon="globe" label="Idioma" value="Español" last />
         </SettingsSection>
 
@@ -261,7 +261,7 @@ export default function SettingsScreen() {
             { key: 'phone', label: 'Teléfono', placeholder: '+507 0000-0000' },
             { key: 'address', label: 'Dirección', type: 'textarea', placeholder: 'Calle / edificio / ciudad' },
           ]}
-          onSave={(v) => { save({ storeName: v.name, storeRif: v.taxId, phone: v.phone, address: v.address }); setEditor(null); }}
+          onSave={(v) => { void save({ storeName: v.name, storeRif: v.taxId, phone: v.phone, address: v.address }); setEditor(null); }}
           onClose={() => setEditor(null)} />
       )}
 
@@ -277,7 +277,7 @@ export default function SettingsScreen() {
             const n = parseFloat(v.taxRate);
             const patch: SettingsPatch = { taxName: v.taxName };
             if (!isNaN(n)) patch.ivaPct = n;
-            save(patch);
+            void save(patch);
             setEditor(null);
           }}
           onClose={() => setEditor(null)} />
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
           fields={[
             { key: 'bsRate', label: 'Bolívares por dólar (Bs/$)', placeholder: '36.50', type: 'number', inputMode: 'decimal', min: '0' },
           ]}
-          onSave={(v) => { const n = parseFloat(v.bsRate); if (!isNaN(n) && n > 0) save({ bsRate: n }); setEditor(null); }}
+          onSave={(v) => { const n = parseFloat(v.bsRate); if (!isNaN(n) && n > 0) void save({ bsRate: n }); setEditor(null); }}
           onClose={() => setEditor(null)} />
       )}
 
@@ -303,7 +303,7 @@ export default function SettingsScreen() {
               { value: 'USD', label: 'US$ Dólar estadounidense' },
             ] },
           ]}
-          onSave={(v) => { save({ currency: v.currency }); setEditor(null); }}
+          onSave={(v) => { void save({ currency: v.currency }); setEditor(null); }}
           onClose={() => setEditor(null)} />
       )}
     </>

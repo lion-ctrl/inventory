@@ -436,7 +436,7 @@ function CategoriesSheet({ categories, onClose }: {
           <Button variant="secondary" onClick={() => setDeleting(null)}>Cancelar</Button>
           <Button variant="danger" icon="trash-2"
           disabled={count > 0 && (targets.length === 0 || !reassignTo)}
-          onClick={confirmDelete}>
+          onClick={() => void confirmDelete()}>
             {count > 0 ? 'Reasignar y eliminar' : 'Eliminar'}
           </Button>
         </div>
@@ -449,8 +449,8 @@ function CategoriesSheet({ categories, onClose }: {
       <div className="cat-add-row">
         <Input value={newName} onChange={(e) => setNewName(e.target.value)}
         placeholder="Nueva categoría"
-        onKeyDown={(e) => {if (e.key === 'Enter') addCategory();}} />
-        <Button icon="plus" onClick={addCategory} disabled={newName.trim().length < 2}>Crear</Button>
+        onKeyDown={(e) => {if (e.key === 'Enter') void addCategory();}} />
+        <Button icon="plus" onClick={() => void addCategory()} disabled={newName.trim().length < 2}>Crear</Button>
       </div>
 
       <div className="cat-list">
@@ -461,9 +461,9 @@ function CategoriesSheet({ categories, onClose }: {
             {editingId === cat._id ?
           <>
                 <Input value={draft} onChange={(e) => setDraft(e.target.value)} autoFocus
-            onKeyDown={(e) => {if (e.key === 'Enter') saveRename(cat);if (e.key === 'Escape') setEditingId(null);}} />
+            onKeyDown={(e) => {if (e.key === 'Enter') void saveRename(cat);if (e.key === 'Escape') setEditingId(null);}} />
                 <div className="cat-item-actions">
-                  <IconButton icon="check" ariaLabel="Guardar" onClick={() => saveRename(cat)} />
+                  <IconButton icon="check" ariaLabel="Guardar" onClick={() => void saveRename(cat)} />
                   <IconButton icon="x" ariaLabel="Cancelar" onClick={() => setEditingId(null)} />
                 </div>
               </> :
@@ -495,11 +495,11 @@ export default function ProductsScreen() {
   const { user } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
-  const navigate = useNavigate();
+  const _navigate = useNavigate();
   const location = useLocation();
   // Dashboard navigates here with router state (e.g. { stock: 'low' }) — the
   // prototype's initialStock/stockKey props.
-  const initialStock = ((location.state as any)?.stock as string | undefined) ?? 'all';
+  const initialStock = ((location.state)?.stock as string | undefined) ?? 'all';
 
   const createProduct = useMutation(api.products.create);
   const updateProduct = useMutation(api.products.update);
@@ -511,6 +511,9 @@ export default function ProductsScreen() {
   const [cat, setCat] = useState('all');
   const [stockFilter, setStockFilter] = useState(initialStock);
   const [taxFilter, setTaxFilter] = useState('all');
+  // Re-sync only when navigation happens (location.key) — initialStock is derived
+  // from the same navigation state, so listing it would be redundant.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {setStockFilter(initialStock);}, [location.key]);
   const [sort, setSort] = useState('name-asc');
   const [page, setPage] = useState(1);
@@ -646,7 +649,7 @@ export default function ProductsScreen() {
       <AppBar
         title="Productos"
         online={online}
-        /* left={<IconButton icon="chevron-left" onClick={() => navigate('/')} ariaLabel="Volver" />} */
+        /* left={<IconButton icon="chevron-left" onClick={() => void navigate('/')} ariaLabel="Volver" />} */
         right={<>
           <Button size="sm" variant="secondary" icon="folder-cog" onClick={() => setCatManagerOpen(true)}>Categorías</Button>
           <Button size="sm" icon="plus" onClick={openNew}>Nuevo producto</Button>
@@ -778,7 +781,7 @@ export default function ProductsScreen() {
         bsRate={bsRate}
         catMap={catMap}
         onEdit={openEdit}
-        onAdjustStock={adjustStock}
+        onAdjustStock={(...args: Parameters<typeof adjustStock>) => { void adjustStock(...args); }}
         onDelete={(p) => setConfirmDelete(p)} />
       }
 
@@ -793,7 +796,7 @@ export default function ProductsScreen() {
           <ProductForm
           initial={editing}
           categories={categories}
-          onSave={save}
+          onSave={(...args: Parameters<typeof save>) => { void save(...args); }}
           onCancel={() => {setEditorOpen(false);setEditing(null);}} />
         </Sheet>
       }
@@ -805,7 +808,7 @@ export default function ProductsScreen() {
         confirmLabel="Sí, eliminar"
         cancelLabel="Cancelar"
         tone="danger"
-        onConfirm={() => remove(confirmDelete)}
+        onConfirm={() => void remove(confirmDelete)}
         onCancel={() => setConfirmDelete(null)} />
       }
     </>);
