@@ -1,0 +1,270 @@
+/* ============================================================
+   Smart Inventory POS — Foundations
+   Color, type, spacing, radius, shadow tokens.
+   Imported by every UI kit, slide, and preview card.
+   ============================================================ */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap");
+
+:root {
+  /* ---------- BASE COLOR PALETTE -----------------------------
+     Warm-paper background, deep ink foreground, one confident
+     "vender" green, plus minimal semantic colors. The palette is
+     intentionally narrow — POS UIs should feel calm under
+     fluorescent shop lights, not flashy. */
+
+  /* Paper / surface */
+  --paper:        #F7F4EE;   /* app background — warm paper */
+  --paper-2:      #EFEAE0;   /* subtle stripes / inactive rows */
+  --surface:      #FFFFFF;   /* cards, modals, inputs */
+  --surface-ink:  #15161A;   /* ink panels (dashboards, ticket) */
+
+  /* Ink (foreground) */
+  --ink:          #15161A;   /* primary text */
+  --ink-2:        #3A3D45;   /* secondary text */
+  --ink-3:        #6E727B;   /* tertiary / placeholder */
+  --ink-4:        #A9ACB3;   /* disabled / hairlines on dark */
+  --ink-on-dark:  #F7F4EE;   /* text on --surface-ink */
+
+  /* Lines */
+  --line:         #E2DCCE;   /* hairlines on paper */
+  --line-strong:  #C9C2B0;
+  --line-on-dark: #2A2C33;
+
+  /* Accent — single brand green: confident, grocer-ish, NOT minty */
+  --accent:        #1F8A5B;
+  --accent-2:      #15703F;   /* hover / pressed */
+  --accent-soft:   #DDEFE3;   /* tinted bg */
+  --accent-ink:    #0C3F23;   /* text on --accent-soft */
+  --on-accent:     #FFFFFF;   /* text on --accent */
+
+  /* Secondary accent — warm terracotta, used SPARINGLY for
+     "atención" affordances (low-stock chips, cancel ticket) */
+  --warn:          #C2410C;
+  --warn-2:        #9A330A;
+  --warn-soft:     #FCE7DA;
+  --warn-ink:      #5A1C04;
+
+  /* Semantic */
+  --danger:        #B42318;
+  --danger-soft:   #FCE4E1;
+  --info:          #1F5FB7;
+  --info-soft:     #DDE8F8;
+  --success:       var(--accent);
+  --success-soft:  var(--accent-soft);
+
+  /* Receipt yellow — used for ticket/factura paper only */
+  --receipt:       #FFF9E8;
+  --receipt-ink:   #2A2516;
+
+  /* ---------- TYPE -------------------------------------------
+     - Inter — UI sans (variable weights 400/500/600/700/800)
+     - JetBrains Mono — codes, barcodes, SKUs, totals
+     - Fraunces — display only (logos, hero numbers, slide titles).
+       Use sparingly for editorial moments.
+  */
+  --font-sans:    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: "Fraunces", "Inter", ui-serif, Georgia, serif;
+
+  /* Type scale — POS density: numbers run BIG, body stays modest */
+  --fs-12: 12px;  --lh-12: 16px;
+  --fs-13: 13px;  --lh-13: 18px;
+  --fs-14: 14px;  --lh-14: 20px;
+  --fs-16: 16px;  --lh-16: 24px;
+  --fs-18: 18px;  --lh-18: 26px;
+  --fs-20: 20px;  --lh-20: 28px;
+  --fs-24: 24px;  --lh-24: 32px;
+  --fs-32: 32px;  --lh-32: 38px;
+  --fs-44: 44px;  --lh-44: 48px;
+  --fs-64: 64px;  --lh-64: 64px;
+  --fs-96: 96px;  --lh-96: 96px;
+
+  /* Letter spacing */
+  --tracking-tight:   -0.02em;
+  --tracking-snug:    -0.01em;
+  --tracking-normal:   0;
+  --tracking-wide:     0.04em;
+  --tracking-caps:     0.08em;
+
+  /* ---------- SPACING (4px base) ----------------------------- */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+  --s-16: 64px;
+  --s-20: 80px;
+  --s-24: 96px;
+
+  /* ---------- RADIUS ----------------------------------------- */
+  --r-sm:   4px;
+  --r-md:   8px;
+  --r-lg:   12px;
+  --r-xl:   16px;
+  --r-2xl:  24px;
+  --r-pill: 999px;
+
+  /* ---------- SHADOWS / ELEVATION ----------------------------
+     Subtle, paper-on-paper feel. Avoid glowy drop shadows. */
+  --shadow-1: 0 1px 0 rgba(21,22,26,0.04), 0 1px 2px rgba(21,22,26,0.06);
+  --shadow-2: 0 1px 0 rgba(21,22,26,0.04), 0 4px 12px rgba(21,22,26,0.08);
+  --shadow-3: 0 2px 0 rgba(21,22,26,0.04), 0 12px 28px rgba(21,22,26,0.12);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.6), inset 0 -1px 0 rgba(21,22,26,0.06);
+
+  /* Focus ring — green, NOT blue browser default */
+  --ring: 0 0 0 3px rgba(31,138,91,0.28);
+
+  /* ---------- MOTION ----------------------------------------- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast:    120ms;
+  --dur-base:    200ms;
+  --dur-slow:    320ms;
+}
+
+/* ============================================================
+   SEMANTIC TYPE CLASSES
+   Use these in components instead of hand-rolling font sizes.
+   ============================================================ */
+
+.t-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-64);
+  line-height: var(--lh-64);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.t-display-xl {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-96);
+  line-height: var(--lh-96);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+.t-h1 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: var(--fs-44);
+  line-height: var(--lh-44);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+.t-h2 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: var(--fs-32);
+  line-height: var(--lh-32);
+  letter-spacing: var(--tracking-snug);
+  color: var(--ink);
+}
+.t-h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--fs-24);
+  line-height: var(--lh-24);
+  letter-spacing: var(--tracking-snug);
+  color: var(--ink);
+}
+.t-h4 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--fs-18);
+  line-height: var(--lh-18);
+  color: var(--ink);
+}
+
+.t-body {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: var(--fs-14);
+  line-height: var(--lh-14);
+  color: var(--ink-2);
+}
+.t-body-lg {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: var(--fs-16);
+  line-height: var(--lh-16);
+  color: var(--ink-2);
+}
+.t-body-sm {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: var(--fs-13);
+  line-height: var(--lh-13);
+  color: var(--ink-3);
+}
+
+.t-label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: var(--fs-12);
+  line-height: var(--lh-12);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.t-mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--fs-13);
+  line-height: var(--lh-13);
+  letter-spacing: var(--tracking-normal);
+  color: var(--ink);
+}
+.t-mono-lg {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--fs-16);
+  line-height: var(--lh-16);
+  color: var(--ink);
+}
+
+/* Tabular numbers — totals, prices, stock counts ALWAYS use this */
+.t-num {
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+.t-num-display {
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: var(--fs-44);
+  line-height: var(--lh-44);
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink);
+}
+
+/* ============================================================
+   GLOBAL RESET (mild)
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: var(--lh-14);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-sm);
+}

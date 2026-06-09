@@ -1,0 +1,171 @@
+// Dashboard — greeting, today's performance, quick actions, low stock & recent sales.
+// Pulls live data from app state (sales history, products, clients, stored carts).
+
+function greetingFor(d) {
+  const h = d.getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+function firstName(name) {
+  return String(name || '').trim().split(/\s+/)[0] || 'Usuario';
+}
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+function money(n) {
+  return n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function Dashboard({ user, online, salesHistory = [], products = [], clients = [],
+  storedCarts = [], employees = [], bsRate = 0,
+  onStartSale, goScan, goProducts, goClients, goHistory, goStored, goEmployees, onLowStock }) {
+
+  const now = new Date();
+  const yesterday = new Date(now);yesterday.setDate(now.getDate() - 1);
+
+  const notRefunded = (s) => s.status !== 'refunded';
+  const todaySales = salesHistory.filter((s) => sameDay(new Date(s.date), now) && notRefunded(s));
+  const yesterSales = salesHistory.filter((s) => sameDay(new Date(s.date), yesterday) && notRefunded(s));
+
+  const revenue = todaySales.reduce((a, s) => a + s.total, 0);
+  const yRevenue = yesterSales.reduce((a, s) => a + s.total, 0);
+  const units = todaySales.reduce((a, s) => a + s.items.reduce((u, i) => u + i.qty, 0), 0);
+  const avg = todaySales.length ? revenue / todaySales.length : 0;
+  const trend = yRevenue > 0 ? Math.round((revenue - yRevenue) / yRevenue * 100) : null;
+
+  const dollars = Math.floor(revenue);
+  const cents = (revenue - dollars).toFixed(2).slice(1); // ".50"
+
+  const lowStock = products.
+  filter((p) => p.sellable !== false && p.stock <= (p.minStock ?? 5)).
+  sort((a, b) => a.stock - b.stock);
+
+  const recent = [...salesHistory].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
+
+  const METHOD_LABEL = { cash: 'Efectivo', cash_bs: 'Efectivo Bs', card: 'Tarjeta', transfer: 'Transferencia', mobile: 'Pago móvil', zelle: 'Zelle' };
+  const timeOf = (iso) => new Date(iso).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+
+  const dateLabel = now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dateCap = dateLabel.charAt(0).toUpperCase() + dateLabel.slice(1);
+
+  const actions = [
+  { show: true, cls: 'scan', icon: 'scan-barcode', title: 'Escanear', sub: 'Consultar producto', onClick: goScan },
+  { show: true, cls: '', icon: 'pause-circle', title: 'En espera', sub: `${storedCarts.length} ventas`, onClick: goStored },
+  { show: can(user, 'view_reports'), cls: '', icon: 'receipt', title: 'Historial', sub: `${todaySales.length} ventas hoy`, onClick: goHistory },
+  { show: can(user, 'manage_products'), cls: '', icon: 'package', title: 'Productos', sub: `${products.length} en catálogo`, onClick: goProducts },
+  { show: can(user, 'manage_clients'), cls: '', icon: 'users', title: 'Clientes', sub: `${clients.length} registrados`, onClick: goClients }].
+  filter((a) => a.show);
+
+  return (
+    <>
+      <AppBar title="Inicio" online={online} />
+
+      <div className="content dash">
+        {!online &&
+        <Banner tone="warn" icon="wifi-off" title="Sin conexión"
+        message="Trabajando en modo limitado. Las ventas se sincronizarán al reconectarse." />
+        }
+
+        <div className="dash-greet">
+          <div className="dash-greet-text">
+            <h1 className="dash-hello">{greetingFor(now)}, {firstName(user?.name)}</h1>
+            <p className="dash-date">{dateCap}</p>
+          </div>
+          <button className="dash-new-sale hide-mobile" onClick={onStartSale} style={{ textAlign: "center" }}>
+            <Icon name="scan-line" size={20} />
+            <span className="dash-new-sale-label">Nueva venta</span>
+          </button>
+        </div>
+
+        <div className="dash-hero">
+          <div className="dash-hero-main">
+            <div className="label">Vendido hoy</div>
+            <div className="num">${money(dollars).replace(/,00$/, '')}<span>{cents}</span></div>
+            {bsRate > 0 && <div className="dash-hero-bs">Bs {money(revenue * bsRate)}</div>}
+            {trend !== null &&
+            <div className={`dash-trend ${trend >= 0 ? 'up' : 'down'}`}>
+              <Icon name={trend >= 0 ? 'trending-up' : 'trending-down'} size={14} />
+              {trend >= 0 ? '+' : ''}{trend}% vs ayer
+            </div>}
+          </div>
+          <div className="dash-hero-stats">
+            <div><div className="k">Ventas</div><div className="v">{todaySales.length}</div></div>
+            <div><div className="k">Productos</div><div className="v">{units}</div></div>
+          </div>
+        </div>
+
+        <button className="dash-cta force-mobile-only" onClick={onStartSale}>
+          <Icon name="scan-line" size={24} />
+          <span>
+            <span className="dash-cta-title">Nueva venta</span>
+            <span className="dash-cta-sub">Escanear · cobrar</span>
+          </span>
+        </button>
+
+        <div className="dash-actions">
+          {actions.map((a) =>
+          <button className={`dash-act ${a.cls}`} key={a.title} onClick={a.onClick}>
+            <span className="dash-act-ic"><Icon name={a.icon} size={22} /></span>
+            <span className="dash-act-title">{a.title}</span>
+            <span className="dash-act-sub">{a.sub}</span>
+          </button>
+          )}
+        </div>
+
+        <div className="dash-cols">
+          <section className="dash-col">
+            <div className="sec-head">
+              <h2>Productos con bajo stock</h2>
+              {can(user, 'manage_products') && <button className="link" onClick={onLowStock}>Ver todos</button>}
+            </div>
+            <div className="card">
+              {lowStock.length === 0 ?
+              <div className="dash-empty"><Icon name="check-circle" size={20} /> Todo en niveles saludables</div> :
+              lowStock.slice(0, 5).map((p) =>
+              <div className="lrow" key={p.id || p.sku}>
+                  <div className="thumb dash-low-thumb">{p.glyph || '📦'}</div>
+                  <div>
+                    <p className="pname">{p.name}</p>
+                    <div className="pmeta mono">{p.sku} · {p.cat}</div>
+                  </div>
+                  <div className="pright">
+                    <Chip tone={p.stock <= 2 ? 'danger' : 'warn'}>{p.stock} / {p.minStock ?? 5}</Chip>
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="dash-col">
+            <div className="sec-head">
+              <h2>Últimas ventas</h2>
+              {can(user, 'view_reports') && <button className="link" onClick={goHistory}>Ver todas</button>}
+            </div>
+            <div className="card">
+              {recent.length === 0 ?
+              <div className="dash-empty"><Icon name="receipt" size={20} /> Aún no hay ventas</div> :
+              recent.map((s) =>
+              <div className="lrow" key={s.id}>
+                  <div className={`thumb dash-sale-thumb ${s.status === 'refunded' ? 'refunded' : ''}`}>
+                    <Icon name={s.status === 'refunded' ? 'rotate-ccw' : 'receipt'} size={18} />
+                  </div>
+                  <div>
+                    <p className="pname mono" style={{ fontWeight: 600 }}>N° {s.id}</p>
+                    <div className="pmeta">{s.client?.name || 'Sin cliente'} · {METHOD_LABEL[s.method] || s.method} · {timeOf(s.date)}</div>
+                  </div>
+                  <div className="pright">
+                    <div className={`dash-sale-amt ${s.status === 'refunded' ? 'refunded' : ''}`}>${s.total.toFixed(2)}</div>
+                    {s.status === 'refunded' && <div className="dash-sale-tag">Reembolsada</div>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    </>);
+
+}
+
+window.Dashboard = Dashboard;

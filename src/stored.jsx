@@ -1,0 +1,304 @@
+// StoredCartsScreen — list of paused/parked sales the cashier can resume
+
+function relativeTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return 'hace un momento';
+  if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+  if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
+  return d.toLocaleString('es', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+// Date field that shows DD/MM/YYYY but stores YYYY-MM-DD, backed by the native picker.
+function DateField({ value, min, max, onChange }) {
+  const ref = React.useRef(null);
+  const display = value
+    ? value.split('-').reverse().join('/')   // YYYY-MM-DD → DD/MM/YYYY
+    : '';
+  const openPicker = () => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.showPicker) { try { el.showPicker(); return; } catch (_) {} }
+    el.focus(); el.click();
+  };
+  return (
+    <div className="datefield" onClick={openPicker}>
+      <input
+        className="input datefield-display"
+        type="text"
+        readOnly
+        placeholder="dd/mm/aaaa"
+        value={display} />
+      {value ? (
+        <button
+          type="button"
+          className="datefield-clear"
+          aria-label="Limpiar fecha"
+          onClick={(e) => { e.stopPropagation(); onChange(''); }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      ) : (
+        <svg className="datefield-cal" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+      )}
+      <input
+        ref={ref}
+        className="datefield-native"
+        type="date"
+        value={value}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function StoredCartsScreen({ carts, onResume, onDiscard, onBack, online, bsRate }) {
+  const [confirmDiscard, setConfirmDiscard] = React.useState(null);
+  const [detailCart, setDetailCart] = React.useState(null);
+  const [q, setQ] = React.useState('');
+  const [fromDate, setFromDate] = React.useState('');
+  const [toDate, setToDate] = React.useState('');
+  const [sort, setSort] = React.useState('date-desc');
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(6);
+
+  const norm = (s) => (s || '').toLowerCase();
+  const taxOf = (c) => c?.taxId ? (c.taxPrefix ? `${c.taxPrefix}-${c.taxId}` : c.taxId) : '';
+  const localDay = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const filtered = carts.filter((s) => {
+    const term = norm(q);
+    if (term) {
+      const hit =
+        norm(s.id).includes(term) ||
+        norm(s.client?.name).includes(term) ||
+        norm(taxOf(s.client)).includes(term);
+      if (!hit) return false;
+    }
+    const created = localDay(s.createdAt);
+    // Only apply the date range when BOTH dates are selected.
+    if (fromDate && toDate && created) {
+      if (created < fromDate || created > toDate) return false;
+    }
+    return true;
+  });
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sort) {
+      case 'date-asc':   return a.createdAt < b.createdAt ? -1 : 1;
+      case 'total-desc': return b.total - a.total;
+      case 'total-asc':  return a.total - b.total;
+      default:           return a.createdAt < b.createdAt ? 1 : -1; // date-desc
+    }
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  React.useEffect(() => {if (page !== safePage) setPage(safePage);}, [safePage, page]);
+  const start = (safePage - 1) * pageSize;
+  const visible = sorted.slice(start, start + pageSize);
+  const showingFrom = sorted.length === 0 ? 0 : start + 1;
+  const showingTo = Math.min(start + pageSize, sorted.length);
+
+  return (
+    <>
+      <AppBar
+        title="Ventas en espera"
+        sub={carts.length === 0 ? 'Sin ventas pausadas' : `${carts.length} en espera`}
+        online={online}
+        /* left={<IconButton icon="chevron-left" onClick={onBack} ariaLabel="Volver" />} */ />
+
+      <div className="content stored-content" style={{ padding: "5px", textAlign: "left" }}>
+        {carts.length === 0 ?
+        <div className="card empty" style={{ padding: '40px 20px' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 999, background: 'var(--paper-2)', color: 'var(--ink-3)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+              <Icon name="pause-circle" size={28} />
+            </div>
+            <h4>Ninguna venta pausada</h4>
+            <p>Cuando un cliente se retire un momento, toca "Pausar" en la venta para guardarla aquí y atender al siguiente.</p>
+          </div> :
+        <>
+        <div className="catalog-head" style={{ margin: '0 0 14px' }}>
+          <Input
+            placeholder="Buscar por recibo, cliente o identificación"
+            value={q}
+            onChange={(e) => { setQ(e.target.value); setPage(1); }} />
+          <div className="catalog-filters">
+            <label className="catalog-filter">
+              <span>Desde</span>
+              <DateField value={fromDate} max={toDate || todayStr} onChange={(v) => { setFromDate(v); setPage(1); }} />
+            </label>
+            <label className="catalog-filter">
+              <span>Hasta</span>
+              <DateField value={toDate} min={fromDate || undefined} max={todayStr} onChange={(v) => { setToDate(v); setPage(1); }} />
+            </label>
+            <label className="catalog-filter">
+              <span>Ordenar por</span>
+              <select className="input cat-select" value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="date-desc">Fecha (más reciente)</option>
+                <option value="date-asc">Fecha (más antigua)</option>
+                <option value="total-desc">Total (mayor a menor)</option>
+                <option value="total-asc">Total (menor a mayor)</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        {sorted.length === 0 ?
+        <div className="card empty" style={{ padding: '32px 16px' }}>
+          <h4>Sin resultados</h4>
+          <p>Ninguna venta en espera coincide con los filtros.</p>
+        </div> :
+        <div className="stored-grid">
+            {visible.map((s) => {
+            const itemCount = s.cart.reduce((acc, i) => acc + i.qty, 0);
+            const paidSoFar = (s.splits || []).reduce((acc, r) => acc + (window.splitUsd ? window.splitUsd(r, bsRate) : (parseFloat(r.amount) || 0)), 0);
+            const remaining = Math.max(0, s.total - paidSoFar);
+            return (
+              <div className="stored-card" key={s.id}>
+                  <div className="stored-card-head">
+                    <div className="stored-card-id mono">N° {s.id}</div>
+                    <div className="stored-card-time">{relativeTime(s.createdAt)}</div>
+                  </div>
+                  <div className="stored-card-client">
+                    <div className="stored-card-avatar">{(s.client?.name?.[0] || '?').toUpperCase()}</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="stored-card-name">{s.client?.name || 'Sin cliente'}</div>
+                      {s.client?.taxId &&
+                    <div className="stored-card-tax mono">{s.client.taxPrefix ? `${s.client.taxPrefix}-${s.client.taxId}` : s.client.taxId}</div>
+                    }
+                    </div>
+                  </div>
+                  <div className="stored-card-summary">
+                    <div className="stored-card-cell">
+                      <span className="k">Productos</span>
+                      <span className="v">{itemCount}</span>
+                    </div>
+                    <div className="stored-card-cell">
+                      <span className="k">Total</span>
+                      <span className="v tabular">${s.total.toFixed(2)}</span>
+                      {bsRate > 0 && <span className="v-bs tabular">Bs {(s.total * bsRate).toFixed(2)}</span>}
+                    </div>
+                    {paidSoFar > 0.005 &&
+                  <div className="stored-card-cell">
+                        <span className="k">Pagado</span>
+                        <span className="v tabular ok">${paidSoFar.toFixed(2)}</span>
+                        {bsRate > 0 && <span className="v-bs tabular ok">Bs {(paidSoFar * bsRate).toFixed(2)}</span>}
+                      </div>
+                  }
+                    {paidSoFar > 0.005 &&
+                  <div className="stored-card-cell">
+                        <span className="k">Falta por cobrar</span>
+                        <span className="v tabular warn">${remaining.toFixed(2)}</span>
+                        {bsRate > 0 && <span className="v-bs tabular warn">Bs {(remaining * bsRate).toFixed(2)}</span>}
+                      </div>
+                  }
+                  </div>
+                  <button className="stored-card-products" onClick={() => setDetailCart(s)}>
+                    <Icon name="package" size={16} />
+                    Ver productos ({itemCount})
+                  </button>
+                  <div className="stored-card-actions">
+                    <Button size="sm" icon="play" onClick={() => onResume(s.id)}>
+                      Reanudar
+                    </Button>
+                    <Button variant="danger" size="sm" icon="trash-2" onClick={() => setConfirmDiscard(s)}>
+                      Descartar
+                    </Button>
+                  </div>
+                </div>);
+
+          })}
+          </div>
+        }
+        </>
+        }
+        {carts.length > 0 && sorted.length > 0 &&
+        <div className="pager pager-sticky">
+            <div className="pager-info">
+              {sorted.length <= pageSize ? (
+                <>{sorted.length} {sorted.length === 1 ? 'venta en espera' : 'ventas en espera'}</>
+              ) : (
+                <>Ventas <strong>{showingFrom}–{showingTo}</strong> de <strong>{sorted.length}</strong></>
+              )}
+            </div>
+            <div className="pager-size">
+              <label htmlFor="pager-size">Por página</label>
+              <select
+              id="pager-size"
+              className="input cat-select pager-size-select"
+              value={pageSize}
+              onChange={(e) => {setPageSize(parseInt(e.target.value, 10));setPage(1);}}>
+                <option value="6">6</option>
+                <option value="12">12</option>
+                <option value="24">24</option>
+                <option value="48">48</option>
+              </select>
+            </div>
+            <div className="pager-nav">
+              <IconButton icon="chevrons-left" ariaLabel="Primera página" onClick={() => setPage(1)} disabled={safePage === 1} />
+              <IconButton icon="chevron-left" ariaLabel="Anterior" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1} />
+              <div className="pager-current">Página {safePage} de {totalPages}</div>
+              <IconButton icon="chevron-right" ariaLabel="Siguiente" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages} />
+              <IconButton icon="chevrons-right" ariaLabel="Última página" onClick={() => setPage(totalPages)} disabled={safePage === totalPages} />
+            </div>
+          </div>
+        }
+      </div>
+
+      {confirmDiscard &&
+      <ConfirmDialog
+        title="¿Descartar venta en espera?"
+        message={`Se eliminará ${confirmDiscard.id} con ${confirmDiscard.cart.length} producto${confirmDiscard.cart.length === 1 ? '' : 's'}. Esta acción no se puede deshacer.`}
+        confirmLabel="Sí, descartar"
+        tone="danger"
+        onConfirm={() => {onDiscard(confirmDiscard.id);setConfirmDiscard(null);}}
+        onCancel={() => setConfirmDiscard(null)} />
+      }
+      {detailCart &&
+      <Sheet onClose={() => setDetailCart(null)} title={`Productos · ${detailCart.id}`}>
+        <div className="stored-products-list">
+          {detailCart.cart.map((i) =>
+          <div className="stored-product-row" key={i.id}>
+            <div className="thumb" aria-hidden="true">{i.glyph}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="stored-product-name">{i.name}</div>
+              <div className="stored-product-meta mono">{i.sku} · {i.qty} × ${i.price.toFixed(2)}</div>
+            </div>
+            <div className="stored-product-amt">
+              <div className="tabular">${(i.price * i.qty).toFixed(2)}</div>
+              {bsRate > 0 && <div className="tabular stored-product-bs">Bs {(i.price * i.qty * bsRate).toFixed(2)}</div>}
+            </div>
+          </div>
+          )}
+        </div>
+        <div className="stored-products-total">
+          <span>Total</span>
+          <span className="tabular">${detailCart.total.toFixed(2)}{bsRate > 0 ? ` · Bs ${(detailCart.total * bsRate).toFixed(2)}` : ''}</span>
+        </div>
+        <div className="row" style={{ gap: 10, marginTop: 14 }}>
+          <Button variant="secondary" onClick={() => setDetailCart(null)}>Cerrar</Button>
+          <Button icon="play" onClick={() => { const id = detailCart.id; setDetailCart(null); onResume(id); }}>Reanudar</Button>
+        </div>
+      </Sheet>
+      }
+    </>);
+
+}
+
+window.StoredCartsScreen = StoredCartsScreen;
+window.DateField = DateField;
