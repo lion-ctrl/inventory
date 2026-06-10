@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "convex dev --start 'vite --open'",
+    "dev": "convex dev --start \"vite --open\"",
     "build": "tsc -b && vite build",
     "lint": "tsc -b && eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
