@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Convex snapshot backups (pnpm backup / nightly task) — never in git
+backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
