@@ -20,10 +20,13 @@ Rules for reviewing staged changes in this repository. The app lives in `invento
 
 6. Imports: use `@/` for src and `@convex/` for convex/_generated; cross-directory
    relative imports (`../`) are not allowed. Same-folder `./Sibling` imports are fine.
-7. No new RUNTIME dependencies (the `dependencies` block in package.json).
-   Dev tooling (devDependencies: test runners, linters, type packages) is
-   acceptable when justified by the change. Especially: never an auth package —
-   login is a plain `employees` table check (email + 6-digit PIN).
+7. No new RUNTIME dependencies (the `dependencies` block in package.json),
+   UNLESS the owner explicitly requested a feature that requires one and the
+   commit message documents that request (e.g. @zxing for owner-requested
+   camera scanning). Dev tooling (devDependencies: test runners, linters,
+   type packages) is acceptable when justified by the change. Especially:
+   never an auth package — login is a plain `employees` table check
+   (email + 6-digit PIN).
 8. Screens own their data: `useQuery`/`useMutation` inside the screen (or the cached
    hooks in `src/state/hooks.ts`); no prop-drilling of server data through AppShell.
 

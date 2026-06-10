@@ -77,7 +77,8 @@ export default function ScanScreen() {
   // Escanear is info-only: paused products stay visible here (unlike Venta).
   const catalog = useProducts();
   const categories = useCategories();
-  const ivaPct = useSettingsDoc()?.ivaPct ?? 13;
+  const settings = useSettingsDoc();
+  const ivaPct = settings?.ivaPct ?? 13;
 
   const catLabelById = useMemo(
     () => new Map(categories.map((c) => [c._id as string, c.label])),
@@ -124,7 +125,8 @@ export default function ScanScreen() {
             onScanResult={handleScanResult}
             mode="split"
             density="roomy"
-            catalog={catalog} />
+            catalog={catalog}
+            scannerMode={settings?.scannerMode} />
         </div>
 
         <div className="catalog-head scan-catalog-head">

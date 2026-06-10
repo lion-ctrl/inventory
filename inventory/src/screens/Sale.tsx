@@ -13,6 +13,7 @@ import { useOnline } from '@/state/useOnline';
 import type { CartItem, Client, Product, SalesType, SplitRow } from '@/types';
 import { splitUsd } from './Payment';
 import { ClientForm, ClientPickerSheet, formatTaxId } from './Clients';
+import { CameraScanner } from './CameraScanner';
 
 // Ported from prototype app.jsx — drives the >= 1000px two-pane layout.
 function useViewport() {
@@ -76,9 +77,18 @@ export interface ScannerViewProps {
   mode?: 'scroll' | 'split';
   density?: string;
   catalog: Product[];
+  /** Owner-configured input (Ajustes → "Modo de escaneo"); absent = physical. */
+  scannerMode?: 'physical' | 'camera';
 }
 
-export function ScannerView({ onScanResult, mode = 'scroll', density = 'roomy', catalog }: ScannerViewProps) {
+// Dispatcher (hook-free on purpose): swapping the mode swaps the child component,
+// so React remounts cleanly when the owner changes the setting mid-session.
+export function ScannerView({ scannerMode = 'physical', ...props }: ScannerViewProps) {
+  if (scannerMode === 'camera') return <CameraScanner {...props} />;
+  return <PhysicalScannerView {...props} />;
+}
+
+function PhysicalScannerView({ onScanResult, mode = 'scroll', density = 'roomy', catalog }: Omit<ScannerViewProps, 'scannerMode'>) {
   // mode: 'scroll' (mobile inline) | 'split' (desktop top-left)
   const [state, setState] = useState<ScanState>(SCAN_STATES.AIMING);
   const [fakeCode, setFakeCode] = useState<string | null>(null);
@@ -899,7 +909,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
             <div className="pos-main-scroll">
               {!online && <Banner tone="warn" icon="wifi-off" title="Sin conexión" message="Las ventas se sincronizarán al reconectarse al servidor." />}
               <div className="pos-scanner-sticky" style={{ margin: "0px" }}>
-                <ScannerView onScanResult={handleScanResult} mode="split" density={density} catalog={catalog} />
+                <ScannerView onScanResult={handleScanResult} mode="split" density={density} catalog={catalog} scannerMode={settings?.scannerMode} />
               </div>
 
             <div className="catalog-head" style={{ margin: "14px 4px 14px" }}>
@@ -1154,7 +1164,7 @@ export default function SaleScreen({ onConfirm }: { onConfirm: (cart: CartItem[]
         <div className="pos-mobile-scroll" style={{ padding: "0px" }}>
           {!online && <Banner tone="warn" icon="wifi-off" title="Sin conexión" message="Las ventas se sincronizarán al reconectarse." />}
           <div className="pos-scanner-sticky">
-            <ScannerView onScanResult={handleScanResult} mode="scroll" density={density} catalog={catalog} />
+            <ScannerView onScanResult={handleScanResult} mode="scroll" density={density} catalog={catalog} scannerMode={settings?.scannerMode} />
           </div>
 
           <Button variant="secondary" icon="search" onClick={() => setSearchOpen(true)} style={{ marginTop: 10 }} block>

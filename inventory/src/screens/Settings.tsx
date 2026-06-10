@@ -14,7 +14,8 @@ import type { Settings } from '@/types';
 
 type SettingsPatch = Partial<Pick<Settings,
   'storeName' | 'storeRif' | 'phone' | 'address' | 'currency' | 'taxName' | 'ivaPct' |
-  'bsRate' | 'salesType' | 'printAuto' | 'emailReceipt' | 'lowStockAlerts' | 'soundScan'>>;
+  'bsRate' | 'salesType' | 'printAuto' | 'emailReceipt' | 'lowStockAlerts' | 'soundScan' |
+  'scannerMode'>>;
 
 interface SettingRowProps {
   icon?: string;
@@ -149,6 +150,8 @@ export default function SettingsScreen() {
   const emailReceipt = settings?.emailReceipt ?? false;
   const lowStockAlerts = settings?.lowStockAlerts ?? false;
   const soundScan = settings?.soundScan ?? false;
+  // Absent on legacy rows → physical scanner (today's behavior).
+  const scannerMode = settings?.scannerMode ?? 'physical';
   const nextInvoice = String(settings?.nextInvoiceNumber ?? 0).padStart(8, '0');
 
   const [editor, setEditor] = useState<{ kind: string } | null>(null); // {kind}
@@ -207,6 +210,7 @@ export default function SettingsScreen() {
         <SettingsSection title="Preferencias">
           <SettingToggleRow icon="bell" label="Alertas de bajo stock" sub="Avisar cuando un producto baje del mínimo" value={lowStockAlerts} onChange={(v) => void save({ lowStockAlerts: v })} />
           <SettingToggleRow icon="volume-2" label="Sonido al escanear" sub="Bip de confirmación de lectura" value={soundScan} onChange={(v) => void save({ soundScan: v })} />
+          <SettingRow icon="scan-line" label="Modo de escaneo" value={scannerMode === 'camera' ? 'Cámara del dispositivo' : 'Escáner físico'} onClick={() => setEditor({ kind: 'scanner' })} />
           <SettingRow icon="globe" label="Idioma" value="Español" last />
         </SettingsSection>
 
@@ -304,6 +308,20 @@ export default function SettingsScreen() {
             ] },
           ]}
           onSave={(v) => { void save({ currency: v.currency }); setEditor(null); }}
+          onClose={() => setEditor(null)} />
+      )}
+
+      {editor?.kind === 'scanner' && (
+        <SettingsEditSheet
+          title="Modo de escaneo"
+          values={{ scanner: scannerMode }}
+          fields={[
+            { key: 'scanner', label: 'Escáner', type: 'select', options: [
+              { value: 'physical', label: 'Escáner físico' },
+              { value: 'camera', label: 'Cámara del dispositivo' },
+            ] },
+          ]}
+          onSave={(v) => { void save({ scannerMode: v.scanner as 'physical' | 'camera' }); setEditor(null); }}
           onClose={() => setEditor(null)} />
       )}
     </>

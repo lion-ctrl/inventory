@@ -152,6 +152,12 @@ export const heldCartFields = {
   createdAt: v.number(),
 };
 
+// Owner-configured barcode input: physical HID scanner (default) or device camera.
+export const scannerModeValidator = v.union(
+  v.literal("physical"),
+  v.literal("camera"),
+);
+
 export const settingsFields = {
   storeName: v.string(),
   storeRif: v.string(),
@@ -168,6 +174,8 @@ export const settingsFields = {
   emailReceipt: v.boolean(),
   lowStockAlerts: v.boolean(),
   soundScan: v.boolean(),
+  // Optional so pre-existing rows stay valid; absent means "physical".
+  scannerMode: v.optional(scannerModeValidator),
 };
 
 // ---------------------------------------------------------------------------

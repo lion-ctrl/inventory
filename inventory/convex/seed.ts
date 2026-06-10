@@ -290,6 +290,7 @@ export const run = internalMutation({
       emailReceipt: false,
       lowStockAlerts: true,
       soundScan: true,
+      scannerMode: "physical",
     });
 
     // 6. Sales — MOCK math on purpose (subtotal·0.13, NOT exempt-aware) and

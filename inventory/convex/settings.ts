@@ -1,7 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getSettings, requirePerm } from "./permissions";
-import { salesTypeValidator, settingsDocValidator } from "./schema";
+import {
+  salesTypeValidator,
+  scannerModeValidator,
+  settingsDocValidator,
+} from "./schema";
 
 export const get = query({
   args: {},
@@ -28,6 +32,7 @@ export const update = mutation({
       emailReceipt: v.optional(v.boolean()),
       lowStockAlerts: v.optional(v.boolean()),
       soundScan: v.optional(v.boolean()),
+      scannerMode: v.optional(scannerModeValidator),
     }),
   },
   returns: v.null(),
