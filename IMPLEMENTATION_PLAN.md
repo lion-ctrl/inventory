@@ -62,20 +62,20 @@ Porting mechanics per screen file: delete the `Object.assign(window, {...})` foo
 
 ## 4. Routes & RBAC guard
 
-| Prototype `route` value | Path | Permission required |
-|---|---|---|
-| `dashboard` | `/` | none (any logged-in user) |
-| `scan` | `/escanear` | none |
-| `sale` | `/venta` | none |
-| `payment`, `success` | `/venta/pago`, `/venta/exito` | none (reached from /venta) |
-| `stored` | `/ventas-en-espera` | none |
-| `history` | `/historial` | `view_reports` |
-| `products` | `/productos` | `manage_products` |
-| `clients` | `/clientes` | `manage_clients` |
-| `employees` | `/empleados` | `manage_employees` |
-| `profile` | `/perfil` | none |
-| `settings` | `/ajustes` | `manage_settings` |
-| `login` | `/login` | public |
+| Prototype `route` value | Path                          | Permission required        |
+| ----------------------- | ----------------------------- | -------------------------- |
+| `dashboard`             | `/`                           | none (any logged-in user)  |
+| `scan`                  | `/escanear`                   | none                       |
+| `sale`                  | `/venta`                      | none                       |
+| `payment`, `success`    | `/venta/pago`, `/venta/exito` | none (reached from /venta) |
+| `stored`                | `/ventas-en-espera`           | none                       |
+| `history`               | `/historial`                  | `view_reports`             |
+| `products`              | `/productos`                  | `manage_products`          |
+| `clients`               | `/clientes`                   | `manage_clients`           |
+| `employees`             | `/empleados`                  | `manage_employees`         |
+| `profile`               | `/perfil`                     | none                       |
+| `settings`              | `/ajustes`                    | `manage_settings`          |
+| `login`                 | `/login`                      | public                     |
 
 - Guard = the `ROUTE_PERMS` + redirect-to-dashboard effect in `app.jsx`; reimplement as a `<RequirePerm>` wrapper. Sidebar items are ALSO filtered by the same `can()` — both must stay in sync (share the table above).
 - `void_sales` (Reembolsar ventas) gates the refund button inside Historial, not a route.
@@ -84,13 +84,16 @@ Porting mechanics per screen file: delete the `Object.assign(window, {...})` foo
 ## 5. Convex schema (`convex/schema.ts`)
 
 ```ts
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 const permissions = v.object({
-  view_reports: v.boolean(),    void_sales: v.boolean(),
-  manage_products: v.boolean(), manage_clients: v.boolean(),
-  manage_employees: v.boolean(),manage_settings: v.boolean(),
+  view_reports: v.boolean(),
+  void_sales: v.boolean(),
+  manage_products: v.boolean(),
+  manage_clients: v.boolean(),
+  manage_employees: v.boolean(),
+  manage_settings: v.boolean(),
 });
 
 export default defineSchema({
@@ -99,75 +102,89 @@ export default defineSchema({
   }),
 
   products: defineTable({
-    barcode: v.string(),          // EAN-13 etc. — scanner matches on this
+    barcode: v.string(), // EAN-13 etc. — scanner matches on this
     sku: v.string(),
     name: v.string(),
-    priceUsd: v.number(),         // catalog prices are USD
+    priceUsd: v.number(), // catalog prices are USD
     stock: v.number(),
-    minStock: v.number(),         // low-stock threshold (chip "N EN STOCK")
-    categoryId: v.id("categories"),
-    paused: v.boolean(),          // hidden from Venta, visible in Escanear
-    exempt: v.boolean(),          // Exento de IVA
-    glyph: v.optional(v.string()),// emoji placeholder until real images
-  }).index("by_barcode", ["barcode"]).index("by_category", ["categoryId"]),
+    minStock: v.number(), // low-stock threshold (chip "N EN STOCK")
+    categoryId: v.id('categories'),
+    paused: v.boolean(), // hidden from Venta, visible in Escanear
+    exempt: v.boolean(), // Exento de IVA
+    glyph: v.optional(v.string()), // emoji placeholder until real images
+  })
+    .index('by_barcode', ['barcode'])
+    .index('by_category', ['categoryId']),
 
   clients: defineTable({
     name: v.string(),
-    taxPrefix: v.union(v.literal("V"), v.literal("J")), // cédula | RIF
+    taxPrefix: v.union(v.literal('V'), v.literal('J')), // cédula | RIF
     taxId: v.string(),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
-  }).index("by_taxId", ["taxPrefix", "taxId"]),
+  }).index('by_taxId', ['taxPrefix', 'taxId']),
 
   employees: defineTable({
     name: v.string(),
     email: v.string(),
     phone: v.string(),
-    role: v.union(v.literal("owner"), v.literal("admin"), v.literal("cajero")),
-    permissions,                  // EVERY role is individually limitable
-    pin: v.string(),              // 6 digits — hash in production
+    role: v.union(v.literal('owner'), v.literal('admin'), v.literal('cajero')),
+    permissions, // EVERY role is individually limitable
+    pin: v.string(), // 6 digits — hash in production
     active: v.boolean(),
   }),
 
   sales: defineTable({
-    invoiceNumber: v.string(),    // "00000001" — 8-digit zero-padded
-    clientId: v.id("clients"),    // sales ALWAYS have a client
-    cashierId: v.id("employees"),
-    items: v.array(v.object({
-      productId: v.id("products"),
-      name: v.string(),           // snapshot at sale time
-      unitPriceUsd: v.number(),   // snapshot
-      qty: v.number(),
-      exempt: v.boolean(),        // snapshot
-    })),
-    exchangeRate: v.number(),     // Bs per USD at sale time (snapshot!)
-    ivaPct: v.number(),           // snapshot
-    payments: v.array(v.object({  // split payments
-      method: v.union(
-        v.literal("cash_usd"), v.literal("cash_bs"), v.literal("card"),
-        v.literal("pago_movil"), v.literal("zelle"), v.literal("transfer")),
-      amountUsd: v.number(),
-    })),
+    invoiceNumber: v.string(), // "00000001" — 8-digit zero-padded
+    clientId: v.id('clients'), // sales ALWAYS have a client
+    cashierId: v.id('employees'),
+    items: v.array(
+      v.object({
+        productId: v.id('products'),
+        name: v.string(), // snapshot at sale time
+        unitPriceUsd: v.number(), // snapshot
+        qty: v.number(),
+        exempt: v.boolean(), // snapshot
+      })
+    ),
+    exchangeRate: v.number(), // Bs per USD at sale time (snapshot!)
+    ivaPct: v.number(), // snapshot
+    payments: v.array(
+      v.object({
+        // split payments
+        method: v.union(
+          v.literal('cash_usd'),
+          v.literal('cash_bs'),
+          v.literal('card'),
+          v.literal('pago_movil'),
+          v.literal('zelle'),
+          v.literal('transfer')
+        ),
+        amountUsd: v.number(),
+      })
+    ),
     refund: v.optional(v.object({ date: v.number(), reason: v.string() })),
-  }).index("by_invoice", ["invoiceNumber"]),
+  }).index('by_invoice', ['invoiceNumber']),
 
-  heldCarts: defineTable({        // "Ventas en espera"
-    clientId: v.id("clients"),
-    cashierId: v.id("employees"),
-    items: v.array(v.object({ productId: v.id("products"), qty: v.number() })),
+  heldCarts: defineTable({
+    // "Ventas en espera"
+    clientId: v.id('clients'),
+    cashierId: v.id('employees'),
+    items: v.array(v.object({ productId: v.id('products'), qty: v.number() })),
     note: v.optional(v.string()),
   }),
 
-  settings: defineTable({         // singleton row
+  settings: defineTable({
+    // singleton row
     storeName: v.string(),
-    storeRif: v.string(),         // shown on receipt header (single place)
+    storeRif: v.string(), // shown on receipt header (single place)
     phone: v.string(),
     address: v.string(),
-    ivaPct: v.number(),           // label in UI: "Impuestos"
-    exchangeRate: v.number(),     // Bs per USD
-    nextInvoiceNumber: v.number(),// starts at 1 → prints "00000001"
-    currency: v.string(),         // fixed: "Dólar estadounidense"
+    ivaPct: v.number(), // label in UI: "Impuestos"
+    exchangeRate: v.number(), // Bs per USD
+    nextInvoiceNumber: v.number(), // starts at 1 → prints "00000001"
+    currency: v.string(), // fixed: "Dólar estadounidense"
   }),
 });
 ```

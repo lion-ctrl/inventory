@@ -6,6 +6,7 @@ Authoritative contract for everyone porting screens. The prototype lives in `des
 (except the explicit whitelist below), never restructure JSX beyond what these rules require.**
 
 Project rules:
+
 - Package manager is **pnpm**. React is **v19** (the prototype's React 18 APIs are all fine).
 - Before writing ANY code in `convex/`, read `convex/_generated/ai/guidelines.md` (project
   CLAUDE.md mandate — those rules override training data).
@@ -40,20 +41,20 @@ Project rules:
 
 ## Mechanical port rules
 
-| Prototype | Port |
-|---|---|
-| `window.X` globals / `Object.assign(window,...)` footer | ES module `import`/`export` |
-| `React.useState` etc. | `import { useState, ... } from 'react'` (or keep `React.` with `import React`) — pick one per file, prefer named imports |
-| Mock doc `.id` (`'P-0001'`, `'C-0002'`…) | Convex `._id` |
-| Date fields as ISO strings | epoch **ms numbers** (`new Date(x)` still works — keep formatters as-is) |
-| `CATALOG`, `CLIENTS`, `EMPLOYEES`, `SALES_HISTORY`, `CATEGORIES` globals | Convex `useQuery` data (see API surface) |
-| Product pause flag | `sellable === false` means paused (field `sellable?: boolean`, undefined = sellable) |
-| `tweaks` / `useTweaks` / `TweaksPanel` / `demoControls` props | **strip entirely**; `tweaks.salesType` → `settings.salesType`; `tweaks.density` → `'roomy'` literal |
-| `class="shell force-mobile"` logic | removed; responsive behavior is pure CSS media queries + `window.innerWidth` checks |
-| Lucide CDN `<i data-lucide>` hack | `<Icon name="kebab-name" />` from `components` (registry-based, same prop API) |
-| `ds/logo-mark.svg` img src | `logoUrl` import from `src/assets/logo-mark.svg` |
-| `alert('… (demo)')` placeholders | keep, **except** receipt printing: `onPrint` → `window.print()` |
-| Local array mutations (`setClients(prev => …)`) | Convex mutation call + let `useQuery` reactivity update the UI |
+| Prototype                                                                | Port                                                                                                                     |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `window.X` globals / `Object.assign(window,...)` footer                  | ES module `import`/`export`                                                                                              |
+| `React.useState` etc.                                                    | `import { useState, ... } from 'react'` (or keep `React.` with `import React`) — pick one per file, prefer named imports |
+| Mock doc `.id` (`'P-0001'`, `'C-0002'`…)                                 | Convex `._id`                                                                                                            |
+| Date fields as ISO strings                                               | epoch **ms numbers** (`new Date(x)` still works — keep formatters as-is)                                                 |
+| `CATALOG`, `CLIENTS`, `EMPLOYEES`, `SALES_HISTORY`, `CATEGORIES` globals | Convex `useQuery` data (see API surface)                                                                                 |
+| Product pause flag                                                       | `sellable === false` means paused (field `sellable?: boolean`, undefined = sellable)                                     |
+| `tweaks` / `useTweaks` / `TweaksPanel` / `demoControls` props            | **strip entirely**; `tweaks.salesType` → `settings.salesType`; `tweaks.density` → `'roomy'` literal                      |
+| `class="shell force-mobile"` logic                                       | removed; responsive behavior is pure CSS media queries + `window.innerWidth` checks                                      |
+| Lucide CDN `<i data-lucide>` hack                                        | `<Icon name="kebab-name" />` from `components` (registry-based, same prop API)                                           |
+| `ds/logo-mark.svg` img src                                               | `logoUrl` import from `src/assets/logo-mark.svg`                                                                         |
+| `alert('… (demo)')` placeholders                                         | keep, **except** receipt printing: `onPrint` → `window.print()`                                                          |
+| Local array mutations (`setClients(prev => …)`)                          | Convex mutation call + let `useQuery` reactivity update the UI                                                           |
 
 TypeScript: `strict` is on but `noUnusedLocals/Parameters` are off. Type props with small
 interfaces or inline types; use `any` pragmatically where prototype shapes are dynamic.
@@ -71,18 +72,36 @@ Everything else: byte-identical Spanish copy.
 ## Foundation components (exact APIs — already match prototype)
 
 ```tsx
-Icon({ name, size = 22, color, style, ...rest })          // kebab-case lucide name
-IconButton({ icon, onClick, ariaLabel, ...rest })
-Button({ variant='primary', size, children, icon, onClick, disabled, type='button', block, style })
-Chip({ tone='neutral', children, style })
-Input({ mono, ...rest })                                   // <input class="input [mono]">
-AppBar({ title, sub, left, right, brand, online })
-NavContext / NavLayout({ nav, currentRoute, user, online, hidden, children })
-BottomBar({ children, className })
-Sheet({ onClose, children, dialog, title })                // mobile drag-to-close < 700px
-Banner({ tone='info', icon, title, message, action })
-Segmented({ options, value, onChange })
-ConfirmDialog({ title, message, confirmLabel, cancelLabel='Cancelar', tone='primary', onConfirm, onCancel })
+Icon({ name, size = 22, color, style, ...rest }); // kebab-case lucide name
+IconButton({ icon, onClick, ariaLabel, ...rest });
+Button({
+  variant = 'primary',
+  size,
+  children,
+  icon,
+  onClick,
+  disabled,
+  type = 'button',
+  block,
+  style,
+});
+Chip({ tone = 'neutral', children, style });
+Input({ mono, ...rest }); // <input class="input [mono]">
+AppBar({ title, sub, left, right, brand, online });
+NavContext / NavLayout({ nav, currentRoute, user, online, hidden, children });
+BottomBar({ children, className });
+Sheet({ onClose, children, dialog, title }); // mobile drag-to-close < 700px
+Banner({ tone = 'info', icon, title, message, action });
+Segmented({ options, value, onChange });
+ConfirmDialog({
+  title,
+  message,
+  confirmLabel,
+  cancelLabel = 'Cancelar',
+  tone = 'primary',
+  onConfirm,
+  onCancel,
+});
 ```
 
 Import: `import { Button, Sheet, Icon, ... } from '../components'`.
@@ -121,19 +140,19 @@ each screen does its own `useQuery`/`useMutation` (or the cached hooks above) an
 
 ## Route table (react-router v7)
 
-| Path | Screen | Guard |
-|---|---|---|
-| `/login` | Login | public |
-| `/` | Dashboard | logged in |
-| `/escanear` | Scan | logged in |
-| `/venta` | Sale | logged in |
-| `/venta/exito` | Success | logged in |
-| `/ventas-en-espera` | Stored | logged in |
-| `/historial` | History | `view_reports` |
-| `/productos` | Products | `manage_products` |
-| `/clientes` | Clients | `manage_clients` |
-| `/empleados` | Employees | `manage_employees` |
-| `/ajustes` | Settings | `manage_settings` |
+| Path                | Screen    | Guard              |
+| ------------------- | --------- | ------------------ |
+| `/login`            | Login     | public             |
+| `/`                 | Dashboard | logged in          |
+| `/escanear`         | Scan      | logged in          |
+| `/venta`            | Sale      | logged in          |
+| `/venta/exito`      | Success   | logged in          |
+| `/ventas-en-espera` | Stored    | logged in          |
+| `/historial`        | History   | `view_reports`     |
+| `/productos`        | Products  | `manage_products`  |
+| `/clientes`         | Clients   | `manage_clients`   |
+| `/empleados`        | Employees | `manage_employees` |
+| `/ajustes`          | Settings  | `manage_settings`  |
 
 `void_sales` gates the refund button inside Historial (not a route).
 
@@ -205,10 +224,15 @@ nextInvoiceNumber, nextHeldCode, salesType, printAuto, emailReceipt, lowStockAle
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 
-const sales = useQuery(api.sales.history) ?? [];        // undefined while loading → default []
+const sales = useQuery(api.sales.history) ?? []; // undefined while loading → default []
 const update = useMutation(api.products.update);
-try { await update({ actorId: user!._id, productId, patch }); }
-catch (e: any) { alert(typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.'); }
+try {
+  await update({ actorId: user!._id, productId, patch });
+} catch (e: any) {
+  alert(
+    typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.'
+  );
+}
 ```
 
 - `ConvexError(message)` surfaces the Spanish message on `e.data` — show it with the screen's

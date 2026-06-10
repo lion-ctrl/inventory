@@ -18,7 +18,9 @@ function Harness({
   bsRate?: number;
   onConfirm?: (method: string, tendered: number, splits: CleanSplit[]) => void;
 }) {
-  const [splits, setSplits] = useState<SplitRow[]>([{ id: 1, method: 'cash', amount: '' }]);
+  const [splits, setSplits] = useState<SplitRow[]>([
+    { id: 1, method: 'cash', amount: '' },
+  ]);
   const nextIdRef = useRef(2);
   return (
     <PaymentSheet
@@ -34,8 +36,10 @@ function Harness({
   );
 }
 
-const amountInput = (placeholder = '$ 0.00') => screen.getByPlaceholderText(placeholder);
-const confirmButton = () => screen.getByRole('button', { name: 'Confirmar venta' });
+const amountInput = (placeholder = '$ 0.00') =>
+  screen.getByPlaceholderText(placeholder);
+const confirmButton = () =>
+  screen.getByRole('button', { name: 'Confirmar venta' });
 
 describe('PaymentSheet', () => {
   test('shows the USD total and its Bs conversion', () => {
@@ -121,9 +125,13 @@ describe('PaymentSheet', () => {
 
     await user.click(screen.getByRole('button', { name: /Agregar método/ }));
     await user.click(screen.getByRole('button', { name: /Zelle/ }));
-    expect(screen.getAllByRole('button', { name: 'Quitar método' })).toHaveLength(2);
+    expect(
+      screen.getAllByRole('button', { name: 'Quitar método' })
+    ).toHaveLength(2);
 
-    await user.click(screen.getAllByRole('button', { name: 'Quitar método' })[1]);
+    await user.click(
+      screen.getAllByRole('button', { name: 'Quitar método' })[1]
+    );
     expect(screen.queryByRole('button', { name: 'Quitar método' })).toBeNull();
   });
 });

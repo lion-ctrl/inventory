@@ -1,17 +1,17 @@
-import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { requirePerm } from "./permissions";
+import { ConvexError, v } from 'convex/values';
+import { mutation, query } from './_generated/server';
+import { requirePerm } from './permissions';
 import {
   clientDocValidator,
   clientKindValidator,
   taxPrefixValidator,
-} from "./schema";
+} from './schema';
 
 export const list = query({
   args: {},
   returns: v.array(clientDocValidator),
   handler: async (ctx) => {
-    return await ctx.db.query("clients").collect();
+    return await ctx.db.query('clients').collect();
   },
 });
 
@@ -23,9 +23,9 @@ export const byTaxId = query({
   returns: v.union(clientDocValidator, v.null()),
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("clients")
-      .withIndex("by_taxId", (q) =>
-        q.eq("taxPrefix", args.taxPrefix).eq("taxId", args.taxId),
+      .query('clients')
+      .withIndex('by_taxId', (q) =>
+        q.eq('taxPrefix', args.taxPrefix).eq('taxId', args.taxId)
       )
       .first();
   },
@@ -44,7 +44,7 @@ export const create = mutation({
   },
   returns: clientDocValidator,
   handler: async (ctx, args) => {
-    const clientId = await ctx.db.insert("clients", {
+    const clientId = await ctx.db.insert('clients', {
       name: args.name,
       taxPrefix: args.taxPrefix,
       taxId: args.taxId,
@@ -55,16 +55,16 @@ export const create = mutation({
       ...(args.address ? { address: args.address } : {}),
       createdAt: Date.now(),
     });
-    const client = await ctx.db.get("clients", clientId);
-    if (!client) throw new ConvexError("Cliente no encontrado.");
+    const client = await ctx.db.get('clients', clientId);
+    if (!client) throw new ConvexError('Cliente no encontrado.');
     return client;
   },
 });
 
 export const update = mutation({
   args: {
-    actorId: v.id("employees"),
-    clientId: v.id("clients"),
+    actorId: v.id('employees'),
+    clientId: v.id('clients'),
     patch: v.object({
       name: v.optional(v.string()),
       taxPrefix: v.optional(taxPrefixValidator),
@@ -77,13 +77,13 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, "manage_clients");
-    const client = await ctx.db.get("clients", args.clientId);
-    if (!client) throw new ConvexError("Cliente no encontrado.");
+    await requirePerm(ctx, args.actorId, 'manage_clients');
+    const client = await ctx.db.get('clients', args.clientId);
+    if (!client) throw new ConvexError('Cliente no encontrado.');
     // Empty-string contact fields clear the stored value (patch with
     // `undefined` removes the field).
     const { email, phone, address, ...rest } = args.patch;
-    await ctx.db.patch("clients", args.clientId, {
+    await ctx.db.patch('clients', args.clientId, {
       ...rest,
       ...(email !== undefined ? { email: email || undefined } : {}),
       ...(phone !== undefined ? { phone: phone || undefined } : {}),
@@ -95,14 +95,14 @@ export const update = mutation({
 
 export const remove = mutation({
   args: {
-    actorId: v.id("employees"),
-    clientId: v.id("clients"),
+    actorId: v.id('employees'),
+    clientId: v.id('clients'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, "manage_clients");
-    const client = await ctx.db.get("clients", args.clientId);
-    if (client) await ctx.db.delete("clients", args.clientId);
+    await requirePerm(ctx, args.actorId, 'manage_clients');
+    const client = await ctx.db.get('clients', args.clientId);
+    if (client) await ctx.db.delete('clients', args.clientId);
     return null;
   },
 });

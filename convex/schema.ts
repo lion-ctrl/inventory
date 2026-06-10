@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
 // ---------------------------------------------------------------------------
 // Reusable validators (single source of truth — reused in schema, args and
@@ -7,31 +7,31 @@ import { v } from "convex/values";
 // ---------------------------------------------------------------------------
 
 export const taxPrefixValidator = v.union(
-  v.literal("V"),
-  v.literal("J"),
-  v.literal("E"),
+  v.literal('V'),
+  v.literal('J'),
+  v.literal('E')
 );
 
 export const clientKindValidator = v.union(
-  v.literal("person"),
-  v.literal("business"),
-  v.literal("foreign"),
+  v.literal('person'),
+  v.literal('business'),
+  v.literal('foreign')
 );
 
 export const roleValidator = v.union(
-  v.literal("owner"),
-  v.literal("admin"),
-  v.literal("cajero"),
+  v.literal('owner'),
+  v.literal('admin'),
+  v.literal('cajero')
 );
 
 export const salesTypeValidator = v.union(
-  v.literal("invoice"),
-  v.literal("ticket"),
+  v.literal('invoice'),
+  v.literal('ticket')
 );
 
 /** Employee permissions: 'all' (owner sentinel) or a granular boolean map. */
 export const permissionsValidator = v.union(
-  v.literal("all"),
+  v.literal('all'),
   v.object({
     view_reports: v.boolean(),
     void_sales: v.boolean(),
@@ -39,7 +39,7 @@ export const permissionsValidator = v.union(
     manage_clients: v.boolean(),
     manage_employees: v.boolean(),
     manage_settings: v.boolean(),
-  }),
+  })
 );
 
 /** Client snapshot embedded in sales / held carts (frozen at sale time). */
@@ -55,7 +55,7 @@ export const clientSnapshotValidator = v.object({
 
 /** Sale line-item snapshot (frozen product data at sale/park time). */
 export const saleItemValidator = v.object({
-  productId: v.id("products"),
+  productId: v.id('products'),
   name: v.string(),
   sku: v.optional(v.string()),
   barcode: v.optional(v.string()),
@@ -90,7 +90,7 @@ export const productFields = {
   price: v.number(), // USD
   stock: v.number(),
   minStock: v.number(),
-  categoryId: v.id("categories"),
+  categoryId: v.id('categories'),
   exempt: v.optional(v.boolean()),
   glyph: v.optional(v.string()),
   // undefined/true = on sale; false = paused
@@ -122,9 +122,9 @@ export const employeeFields = {
 
 export const saleFields = {
   invoiceNumber: v.string(),
-  clientId: v.id("clients"),
+  clientId: v.id('clients'),
   client: clientSnapshotValidator,
-  cashierId: v.id("employees"),
+  cashierId: v.id('employees'),
   cashierName: v.string(),
   items: v.array(saleItemValidator),
   subtotal: v.number(),
@@ -142,9 +142,9 @@ export const saleFields = {
 
 export const heldCartFields = {
   code: v.string(),
-  clientId: v.optional(v.id("clients")),
+  clientId: v.optional(v.id('clients')),
   client: v.optional(clientSnapshotValidator),
-  cashierId: v.id("employees"),
+  cashierId: v.id('employees'),
   items: v.array(saleItemValidator),
   splits: v.optional(v.array(splitItemValidator)),
   total: v.number(),
@@ -154,8 +154,8 @@ export const heldCartFields = {
 
 // Owner-configured barcode input: physical HID scanner (default) or device camera.
 export const scannerModeValidator = v.union(
-  v.literal("physical"),
-  v.literal("camera"),
+  v.literal('physical'),
+  v.literal('camera')
 );
 
 export const settingsFields = {
@@ -184,43 +184,43 @@ export const settingsFields = {
 // ---------------------------------------------------------------------------
 
 export const categoryDocValidator = v.object({
-  _id: v.id("categories"),
+  _id: v.id('categories'),
   _creationTime: v.number(),
   ...categoryFields,
 });
 
 export const productDocValidator = v.object({
-  _id: v.id("products"),
+  _id: v.id('products'),
   _creationTime: v.number(),
   ...productFields,
 });
 
 export const clientDocValidator = v.object({
-  _id: v.id("clients"),
+  _id: v.id('clients'),
   _creationTime: v.number(),
   ...clientFields,
 });
 
 export const employeeDocValidator = v.object({
-  _id: v.id("employees"),
+  _id: v.id('employees'),
   _creationTime: v.number(),
   ...employeeFields,
 });
 
 export const saleDocValidator = v.object({
-  _id: v.id("sales"),
+  _id: v.id('sales'),
   _creationTime: v.number(),
   ...saleFields,
 });
 
 export const heldCartDocValidator = v.object({
-  _id: v.id("heldCarts"),
+  _id: v.id('heldCarts'),
   _creationTime: v.number(),
   ...heldCartFields,
 });
 
 export const settingsDocValidator = v.object({
-  _id: v.id("settings"),
+  _id: v.id('settings'),
   _creationTime: v.number(),
   ...settingsFields,
 });
@@ -233,16 +233,16 @@ export default defineSchema({
   categories: defineTable(categoryFields),
 
   products: defineTable(productFields)
-    .index("by_barcode", ["barcode"])
-    .index("by_category", ["categoryId"]),
+    .index('by_barcode', ['barcode'])
+    .index('by_category', ['categoryId']),
 
-  clients: defineTable(clientFields).index("by_taxId", ["taxPrefix", "taxId"]),
+  clients: defineTable(clientFields).index('by_taxId', ['taxPrefix', 'taxId']),
 
   employees: defineTable(employeeFields),
 
   sales: defineTable(saleFields)
-    .index("by_invoice", ["invoiceNumber"])
-    .index("by_soldAt", ["soldAt"]),
+    .index('by_invoice', ['invoiceNumber'])
+    .index('by_soldAt', ['soldAt']),
 
   heldCarts: defineTable(heldCartFields),
 

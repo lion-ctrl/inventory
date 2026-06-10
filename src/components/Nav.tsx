@@ -42,7 +42,15 @@ export interface NavSidebarProps {
   onToggleCollapse?: () => void;
 }
 
-export function NavSidebar({ nav, currentRoute, user, online, onClose, collapsed, onToggleCollapse }: NavSidebarProps) {
+export function NavSidebar({
+  nav,
+  currentRoute,
+  user,
+  online,
+  onClose,
+  collapsed,
+  onToggleCollapse,
+}: NavSidebarProps) {
   return (
     <aside className="navside">
       <div className="navside-brand">
@@ -51,29 +59,43 @@ export function NavSidebar({ nav, currentRoute, user, online, onClose, collapsed
           <div className="navside-name">Inventory POS</div>
           <div className="navside-ver">v0.1 · Demo</div>
         </div>
-        {onToggleCollapse &&
-        <button className="iconbtn navside-toggle" aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'} onClick={onToggleCollapse}>
+        {onToggleCollapse && (
+          <button
+            className="iconbtn navside-toggle"
+            aria-label={collapsed ? 'Expandir menú' : 'Contraer menú'}
+            onClick={onToggleCollapse}
+          >
             <Icon name="menu" />
           </button>
-        }
-        {onClose &&
-        <button className="iconbtn navside-close" aria-label="Cerrar menú" onClick={onClose}>
+        )}
+        {onClose && (
+          <button
+            className="iconbtn navside-close"
+            aria-label="Cerrar menú"
+            onClick={onClose}
+          >
             <Icon name="x" />
           </button>
-        }
+        )}
       </div>
       <nav className="navside-nav">
-        {nav.map((item) =>
-        <button
-          key={item.id}
-          title={item.label}
-          className={`navside-item ${currentRoute === item.id ? 'on' : ''} ${item.tone === 'danger' ? 'danger' : ''}`}
-          onClick={() => {if (onClose) onClose();item.onClick?.();}}>
+        {nav.map((item) => (
+          <button
+            key={item.id}
+            title={item.label}
+            className={`navside-item ${currentRoute === item.id ? 'on' : ''} ${item.tone === 'danger' ? 'danger' : ''}`}
+            onClick={() => {
+              if (onClose) onClose();
+              item.onClick?.();
+            }}
+          >
             <Icon name={item.icon} size={20} />
             <span className="navside-label">{item.label}</span>
-            {item.badge != null && <span className="navside-badge">{item.badge}</span>}
+            {item.badge != null && (
+              <span className="navside-badge">{item.badge}</span>
+            )}
           </button>
-        )}
+        ))}
       </nav>
       <div className="navside-status">
         <span className={`net ${online ? '' : 'off'}`}>
@@ -81,17 +103,19 @@ export function NavSidebar({ nav, currentRoute, user, online, onClose, collapsed
           {online ? 'Conectado' : 'Sin conexión'}
         </span>
       </div>
-      {user &&
-      <div className="navside-user">
+      {user && (
+        <div className="navside-user">
           <div className="navside-avatar">{user.name?.[0] || 'U'}</div>
           <div className="navside-user-text" style={{ minWidth: 0, flex: 1 }}>
             <div className="navside-uname">{user.name}</div>
-            <div className="navside-urole">{(user.role && ROLE_LABELS[user.role]) || user.role}</div>
+            <div className="navside-urole">
+              {(user.role && ROLE_LABELS[user.role]) || user.role}
+            </div>
           </div>
         </div>
-      }
-    </aside>);
-
+      )}
+    </aside>
+  );
 }
 
 export interface NavDrawerProps {
@@ -102,7 +126,13 @@ export interface NavDrawerProps {
   onClose?: () => void;
 }
 
-export function NavDrawer({ nav, currentRoute, user, online, onClose }: NavDrawerProps) {
+export function NavDrawer({
+  nav,
+  currentRoute,
+  user,
+  online,
+  onClose,
+}: NavDrawerProps) {
   return (
     <div className="navdrawer-scrim" onClick={onClose}>
       <div className="navdrawer" onClick={(e) => e.stopPropagation()}>
@@ -111,10 +141,11 @@ export function NavDrawer({ nav, currentRoute, user, online, onClose }: NavDrawe
           currentRoute={currentRoute}
           user={user}
           online={online}
-          onClose={onClose} />
+          onClose={onClose}
+        />
       </div>
-    </div>);
-
+    </div>
+  );
 }
 
 export interface NavLayoutProps {
@@ -126,7 +157,14 @@ export interface NavLayoutProps {
   children?: ReactNode;
 }
 
-export function NavLayout({ nav, currentRoute, user, online, hidden, children }: NavLayoutProps) {
+export function NavLayout({
+  nav,
+  currentRoute,
+  user,
+  online,
+  hidden,
+  children,
+}: NavLayoutProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const value = useMemo<NavContextValue>(
@@ -141,15 +179,20 @@ export function NavLayout({ nav, currentRoute, user, online, hidden, children }:
         else setDrawerOpen(true);
       },
     }),
-    [collapsed]);
+    [collapsed]
+  );
   // Auto-close drawer on route change
-  useEffect(() => {setDrawerOpen(false);}, [currentRoute]);
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [currentRoute]);
   // Lock body scroll while drawer is open
   useEffect(() => {
     if (!drawerOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {document.body.style.overflow = prev;};
+    return () => {
+      document.body.style.overflow = prev;
+    };
   }, [drawerOpen]);
 
   if (hidden) {
@@ -165,17 +208,19 @@ export function NavLayout({ nav, currentRoute, user, online, hidden, children }:
           user={user}
           online={online}
           collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((c) => !c)} />
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+        />
         <div className="navmain">{children}</div>
       </div>
-      {drawerOpen &&
-      <NavDrawer
-        nav={nav}
-        currentRoute={currentRoute}
-        user={user}
-        online={online}
-        onClose={() => setDrawerOpen(false)} />
-      }
-    </NavContext.Provider>);
-
+      {drawerOpen && (
+        <NavDrawer
+          nav={nav}
+          currentRoute={currentRoute}
+          user={user}
+          online={online}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
+    </NavContext.Provider>
+  );
 }

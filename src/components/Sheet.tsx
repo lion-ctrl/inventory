@@ -113,10 +113,16 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
     if (!isDraggable || !sheetRef.current) return;
     if (e.pointerType === 'touch') return; // touch handled via touch events on grip
     const target = e.target;
-    const fromGrip = !!(gripRef.current && gripRef.current.contains(target as Node));
+    const fromGrip = !!(
+      gripRef.current && gripRef.current.contains(target as Node)
+    );
     if (!fromGrip) return; // only drag from the header zone
     beginDrag(e.clientY, true);
-    try {sheetRef.current.setPointerCapture(e.pointerId);} catch { /* capture is best-effort */ }
+    try {
+      sheetRef.current.setPointerCapture(e.pointerId);
+    } catch {
+      /* capture is best-effort */
+    }
   };
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragging.current || e.pointerType === 'touch') return;
@@ -124,7 +130,11 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
   };
   const onPointerFinish = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragging.current || e.pointerType === 'touch') return;
-    try {sheetRef.current?.releasePointerCapture(e.pointerId);} catch { /* release is best-effort */ }
+    try {
+      sheetRef.current?.releasePointerCapture(e.pointerId);
+    } catch {
+      /* release is best-effort */
+    }
     endDrag();
   };
 
@@ -135,23 +145,24 @@ export function Sheet({ onClose, children, dialog, title }: SheetProps) {
       <div
         ref={sheetRef}
         className={dialog ? 'dialog' : 'sheet'}
-        style={{ ...style, textAlign: "center" }}
+        style={{ ...style, textAlign: 'center' }}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerFinish}
-        onPointerCancel={onPointerFinish}>
-        {!dialog && isMobileSheet &&
-        <div className="sheet-head" ref={gripRef}>
+        onPointerCancel={onPointerFinish}
+      >
+        {!dialog && isMobileSheet && (
+          <div className="sheet-head" ref={gripRef}>
             <div className="grip-bar" />
             {title && <div className="sheet-title">{title}</div>}
           </div>
-        }
-        {!dialog && !isMobileSheet && title &&
-        <div className="sheet-title sheet-title-desktop">{title}</div>
-        }
+        )}
+        {!dialog && !isMobileSheet && title && (
+          <div className="sheet-title sheet-title-desktop">{title}</div>
+        )}
         {children}
       </div>
-    </div>);
-
+    </div>
+  );
 }

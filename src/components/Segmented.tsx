@@ -12,12 +12,22 @@ export interface SegmentedProps<T extends string = string> {
   onChange: (value: T) => void;
 }
 
-export function Segmented<T extends string = string>({ options, value, onChange }: SegmentedProps<T>) {
+export function Segmented<T extends string = string>({
+  options,
+  value,
+  onChange,
+}: SegmentedProps<T>) {
   return (
     <div className="seg">
-      {options.map((o) =>
-      <button key={o.value} className={value === o.value ? 'on' : ''} onClick={() => onChange(o.value)}>{o.label}</button>
-      )}
-    </div>);
-
+      {options.map((o) => (
+        <button
+          key={o.value}
+          className={value === o.value ? 'on' : ''}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }

@@ -32,7 +32,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   });
   // auth.me takes a plain string and normalizes server-side, so a stale id from an
   // older deployment resolves to null instead of throwing.
-  const me = useQuery(api.auth.me, employeeId ? { employeeId } : 'skip');
+  const me = useQuery(
+    api.auth.me,
+    employeeId ? { employeeId } : { employeeId: null }
+  );
   const loginMut = useMutation(api.auth.login);
 
   // Persisted session no longer valid (deleted/deactivated employee) → clear it.
@@ -66,7 +69,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           }
           return { ok: false, error: res.error };
         } catch {
-          return { ok: false, error: 'Sin conexión con el servidor. Intenta de nuevo.' };
+          return {
+            ok: false,
+            error: 'Sin conexión con el servidor. Intenta de nuevo.',
+          };
         }
       },
       logout: () => {
@@ -81,7 +87,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [employeeId, me, loginMut]);
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
+  return (
+    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+  );
 }
 
 export function useSession(): SessionValue {

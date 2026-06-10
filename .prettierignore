@@ -2,3 +2,14 @@
 .claude/skills/
 convex/_generated/
 example/convex/_generated/
+
+# Prototype reference bundle — byte-faithful design source, never reformat
+designs/
+
+# Verbatim CSS port from the prototype (pixel-fidelity contract)
+src/styles/
+
+# Machine-managed / assets / user notes
+pnpm-lock.yaml
+public/
+OFFLINE_FIRST_FEATURES.md

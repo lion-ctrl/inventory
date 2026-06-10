@@ -18,7 +18,7 @@ Rules for reviewing staged changes in this repository. The app lives at the repo
 
 ## Architecture
 
-6. Imports: use `@/` for src and `@convex/` for convex/_generated; cross-directory
+6. Imports: use `@/` for src and `@convex/` for convex/\_generated; cross-directory
    relative imports (`../`) are not allowed. Same-folder `./Sibling` imports are fine.
 7. No new RUNTIME dependencies (the `dependencies` block in package.json),
    UNLESS the owner explicitly requested a feature that requires one and the
@@ -47,9 +47,17 @@ Rules for reviewing staged changes in this repository. The app lives at the repo
     mutations catch errors and surface `e.data` via the screen's error affordance.
 15. No `tsc` or ESLint suppressions without a written reason on the line above.
 
+## Formatting
+
+16. All code is formatted with Prettier using the project `.prettierrc`
+    (run `pnpm format`). Flag staged code that is obviously unformatted
+    (inconsistent quotes/semicolons/indentation vs the rest of the file).
+    Never reformat the exempt zones in `.prettierignore` (`designs/`,
+    `src/styles/`, generated files).
+
 ## Commits
 
-16. Conventional commit messages (`feat:`, `fix:`, `chore:`…), no AI attribution lines.
+17. Conventional commit messages (`feat:`, `fix:`, `chore:`…), no AI attribution lines.
 
 <!-- convex-ai-start -->
 

@@ -3,7 +3,13 @@
 // PORTING_CONVENTIONS.md for the route table).
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router';
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import { ConfirmDialog, NavLayout } from './components';
@@ -49,7 +55,13 @@ function routeIdFor(pathname: string): string {
   return 'dashboard';
 }
 
-function Guard({ perm, children }: { perm?: PermissionId; children: ReactNode }) {
+function Guard({
+  perm,
+  children,
+}: {
+  perm?: PermissionId;
+  children: ReactNode;
+}) {
   const { user, loading, can } = useSession();
   if (loading) return null;
   if (!user) return <Navigate to="/login" replace />;
@@ -75,8 +87,14 @@ function SuccessRoute({ online }: { online: boolean }) {
       ivaPct={completedSale.ivaPct}
       bsRate={completedSale.exchangeRate}
       online={online}
-      onNew={() => { setCompletedSale(null); void navigate('/venta'); }}
-      onDash={() => { setCompletedSale(null); void navigate('/'); }}
+      onNew={() => {
+        setCompletedSale(null);
+        void navigate('/venta');
+      }}
+      onDash={() => {
+        setCompletedSale(null);
+        void navigate('/');
+      }}
       onPrint={() => window.print()}
     />
   );
@@ -104,35 +122,116 @@ export default function AppShell() {
   // like the prototype GLOBAL_NAV filter.
   const nav = useMemo(() => {
     const items: Array<{
-      id: string; label: string; icon: string; onClick: () => void;
-      badge?: number | null; tone?: 'danger'; perm?: PermissionId;
+      id: string;
+      label: string;
+      icon: string;
+      onClick: () => void;
+      badge?: number | null;
+      tone?: 'danger';
+      perm?: PermissionId;
     }> = [
-      { id: 'dashboard', label: 'Inicio', icon: 'home', onClick: () => void navigate('/') },
-      { id: 'scan', label: 'Escanear', icon: 'scan-barcode', onClick: () => void navigate('/escanear') },
-      { id: 'sale', label: 'Venta', icon: 'scan-line', onClick: () => void navigate('/venta') },
-      { id: 'stored', label: 'Ventas en espera', icon: 'pause-circle', onClick: () => void navigate('/ventas-en-espera'), badge: cart.heldCarts.length || null },
-      { id: 'history', label: 'Historial de ventas', icon: 'receipt', onClick: () => void navigate('/historial'), perm: 'view_reports' },
-      { id: 'products', label: 'Productos', icon: 'package', onClick: () => void navigate('/productos'), perm: 'manage_products' },
-      { id: 'clients', label: 'Clientes', icon: 'users', onClick: () => void navigate('/clientes'), perm: 'manage_clients' },
-      { id: 'employees', label: 'Empleados', icon: 'user-cog', onClick: () => void navigate('/empleados'), perm: 'manage_employees' },
-      { id: 'settings', label: 'Ajustes', icon: 'settings', onClick: () => void navigate('/ajustes'), perm: 'manage_settings' },
-      { id: 'profile', label: 'Mi perfil', icon: 'user-round', onClick: () => void navigate('/perfil') },
-      { id: 'logout', label: 'Cerrar sesión', icon: 'log-out', onClick: () => setConfirmLogout(true), tone: 'danger' },
+      {
+        id: 'dashboard',
+        label: 'Inicio',
+        icon: 'home',
+        onClick: () => void navigate('/'),
+      },
+      {
+        id: 'scan',
+        label: 'Escanear',
+        icon: 'scan-barcode',
+        onClick: () => void navigate('/escanear'),
+      },
+      {
+        id: 'sale',
+        label: 'Venta',
+        icon: 'scan-line',
+        onClick: () => void navigate('/venta'),
+      },
+      {
+        id: 'stored',
+        label: 'Ventas en espera',
+        icon: 'pause-circle',
+        onClick: () => void navigate('/ventas-en-espera'),
+        badge: cart.heldCarts.length || null,
+      },
+      {
+        id: 'history',
+        label: 'Historial de ventas',
+        icon: 'receipt',
+        onClick: () => void navigate('/historial'),
+        perm: 'view_reports',
+      },
+      {
+        id: 'products',
+        label: 'Productos',
+        icon: 'package',
+        onClick: () => void navigate('/productos'),
+        perm: 'manage_products',
+      },
+      {
+        id: 'clients',
+        label: 'Clientes',
+        icon: 'users',
+        onClick: () => void navigate('/clientes'),
+        perm: 'manage_clients',
+      },
+      {
+        id: 'employees',
+        label: 'Empleados',
+        icon: 'user-cog',
+        onClick: () => void navigate('/empleados'),
+        perm: 'manage_employees',
+      },
+      {
+        id: 'settings',
+        label: 'Ajustes',
+        icon: 'settings',
+        onClick: () => void navigate('/ajustes'),
+        perm: 'manage_settings',
+      },
+      {
+        id: 'profile',
+        label: 'Mi perfil',
+        icon: 'user-round',
+        onClick: () => void navigate('/perfil'),
+      },
+      {
+        id: 'logout',
+        label: 'Cerrar sesión',
+        icon: 'log-out',
+        onClick: () => setConfirmLogout(true),
+        tone: 'danger',
+      },
     ];
     return items.filter((i) => (i.perm ? can(i.perm) : true));
   }, [navigate, can, cart.heldCarts.length]);
 
   // Venta → "Confirmar": block offline (matches prototype), otherwise open payment.
-  const handleSaleConfirm = (items: CartItem[], total: number, salesType: SalesType) => {
-    if (!online) { setOfflineError(true); return; }
+  const handleSaleConfirm = (
+    items: CartItem[],
+    total: number,
+    salesType: SalesType
+  ) => {
+    if (!online) {
+      setOfflineError(true);
+      return;
+    }
     setPendingCart(items);
     setPendingTotal(total);
     setPendingType(salesType);
     setPaymentOpen(true);
   };
 
-  const handlePaymentConfirm = async (method: string, tendered: number, splits: CleanSplit[]) => {
-    if (!user || !cart.selectedClient) { setPaymentOpen(false); return; }
+  const handlePaymentConfirm = async (
+    method: string,
+    tendered: number,
+    splits: CleanSplit[]
+  ) => {
+    if (!user || !cart.selectedClient) {
+      setPaymentOpen(false);
+      return;
+    }
     try {
       const sale = await checkout({
         actorId: user._id,
@@ -151,7 +250,7 @@ export default function AppShell() {
         method: sale.method,
         salesType: sale.type,
         tendered,
-        splits: (sale.splits) ?? splits,
+        splits: sale.splits ?? splits,
         client: sale.client,
         ivaPct: sale.ivaPct,
         exchangeRate: sale.exchangeRate,
@@ -161,7 +260,11 @@ export default function AppShell() {
       cart.resetPayment();
       void navigate('/venta/exito');
     } catch (e: any) {
-      alert(typeof e?.data === 'string' ? e.data : 'No se pudo registrar la venta. Intenta de nuevo.');
+      alert(
+        typeof e?.data === 'string'
+          ? e.data
+          : 'No se pudo registrar la venta. Intenta de nuevo.'
+      );
     }
   };
 
@@ -177,19 +280,102 @@ export default function AppShell() {
         hidden={!user || currentRoute === 'login'}
       >
         <Routes>
-          <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginScreen />} />
-          <Route path="/" element={<Guard><Dashboard /></Guard>} />
-          <Route path="/escanear" element={<Guard><ScanScreen /></Guard>} />
-          <Route path="/venta" element={<Guard><SaleScreen onConfirm={handleSaleConfirm} /></Guard>} />
-          <Route path="/venta/exito" element={<Guard><SuccessRoute online={online} /></Guard>} />
-          <Route path="/ventas-en-espera" element={<Guard><StoredCartsScreen /></Guard>} />
-          <Route path="/historial" element={<Guard perm="view_reports"><HistoryScreen /></Guard>} />
-          <Route path="/productos" element={<Guard perm="manage_products"><ProductsScreen /></Guard>} />
-          <Route path="/clientes" element={<Guard perm="manage_clients"><ClientsScreen /></Guard>} />
-          <Route path="/empleados" element={<Guard perm="manage_employees"><EmployeesScreen /></Guard>} />
-          <Route path="/perfil" element={<Guard><ProfileScreen /></Guard>} />
-          <Route path="/ajustes" element={<Guard perm="manage_settings"><SettingsScreen /></Guard>} />
-          <Route path="*" element={<Navigate to={user ? '/' : '/login'} replace />} />
+          <Route
+            path="/login"
+            element={user ? <Navigate to="/" replace /> : <LoginScreen />}
+          />
+          <Route
+            path="/"
+            element={
+              <Guard>
+                <Dashboard />
+              </Guard>
+            }
+          />
+          <Route
+            path="/escanear"
+            element={
+              <Guard>
+                <ScanScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/venta"
+            element={
+              <Guard>
+                <SaleScreen onConfirm={handleSaleConfirm} />
+              </Guard>
+            }
+          />
+          <Route
+            path="/venta/exito"
+            element={
+              <Guard>
+                <SuccessRoute online={online} />
+              </Guard>
+            }
+          />
+          <Route
+            path="/ventas-en-espera"
+            element={
+              <Guard>
+                <StoredCartsScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/historial"
+            element={
+              <Guard perm="view_reports">
+                <HistoryScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/productos"
+            element={
+              <Guard perm="manage_products">
+                <ProductsScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/clientes"
+            element={
+              <Guard perm="manage_clients">
+                <ClientsScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/empleados"
+            element={
+              <Guard perm="manage_employees">
+                <EmployeesScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/perfil"
+            element={
+              <Guard>
+                <ProfileScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/ajustes"
+            element={
+              <Guard perm="manage_settings">
+                <SettingsScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="*"
+            element={<Navigate to={user ? '/' : '/login'} replace />}
+          />
         </Routes>
       </NavLayout>
 
@@ -212,7 +398,11 @@ export default function AppShell() {
           message="Volverás a la pantalla de inicio. Las ventas en curso se perderán."
           confirmLabel="Cerrar sesión"
           tone="danger"
-          onConfirm={() => { setConfirmLogout(false); logout(); void navigate('/login'); }}
+          onConfirm={() => {
+            setConfirmLogout(false);
+            logout();
+            void navigate('/login');
+          }}
           onCancel={() => setConfirmLogout(false)}
         />
       )}

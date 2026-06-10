@@ -22,11 +22,11 @@ npx convex run seed:run
 
 ## Login (seeded demo team)
 
-| Usuario | Email | PIN (contraseña) | Rol |
-|---|---|---|---|
-| Carlos Méndez | carlos@mitienda.com | 482106 | Propietario (todos los permisos) |
-| Lucía Fernández | lucia.fernandez@mitienda.com | 741022 | Administrador (todos) |
-| Juan Pérez | juan.perez@mitienda.com | 135708 | Cajero (historial + clientes) |
+| Usuario         | Email                        | PIN (contraseña) | Rol                              |
+| --------------- | ---------------------------- | ---------------- | -------------------------------- |
+| Carlos Méndez   | carlos@mitienda.com          | 482106           | Propietario (todos los permisos) |
+| Lucía Fernández | lucia.fernandez@mitienda.com | 741022           | Administrador (todos)            |
+| Juan Pérez      | juan.perez@mitienda.com      | 135708           | Cajero (historial + clientes)    |
 
 The full team (10 employees with granular permissions) is seeded from the prototype's
 `data.jsx` — manage them in **Empleados**.

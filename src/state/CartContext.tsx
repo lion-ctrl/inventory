@@ -1,10 +1,28 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { Dispatch, MutableRefObject, ReactNode, SetStateAction } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type {
+  Dispatch,
+  MutableRefObject,
+  ReactNode,
+  SetStateAction,
+} from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { NEW_SPLIT_ROW } from '@/types';
-import type { CartItem, Client, CompletedSale, HeldCart, SplitRow } from '@/types';
+import type {
+  CartItem,
+  Client,
+  CompletedSale,
+  HeldCart,
+  SplitRow,
+} from '@/types';
 import { useSession } from './SessionContext';
 import { useClients, useProducts } from './hooks';
 
@@ -35,13 +53,19 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clients = useClients();
   const heldCartsQuery = useQuery(api.heldCarts.list, user ? {} : 'skip');
   // Memoized so the `?? []` fallback doesn't invalidate downstream memo deps every render.
-  const heldCarts = useMemo<HeldCart[]>(() => heldCartsQuery ?? [], [heldCartsQuery]);
+  const heldCarts = useMemo<HeldCart[]>(
+    () => heldCartsQuery ?? [],
+    [heldCartsQuery]
+  );
 
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedClientId, setSelectedClientId] = useState<Id<'clients'> | null>(null);
+  const [selectedClientId, setSelectedClientId] =
+    useState<Id<'clients'> | null>(null);
   const [splits, setSplits] = useState<SplitRow[]>(NEW_SPLIT_ROW());
   const splitsIdRef = useRef(2);
-  const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
+  const [completedSale, setCompletedSale] = useState<CompletedSale | null>(
+    null
+  );
 
   const park = useMutation(api.heldCarts.park);
   const resume = useMutation(api.heldCarts.resume);
@@ -80,7 +104,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const selectedClient = useMemo(
     () => clients.find((c) => c._id === selectedClientId) ?? null,
-    [clients, selectedClientId],
+    [clients, selectedClientId]
   );
 
   const value = useMemo<CartValue>(() => {
@@ -105,7 +129,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (cart.length === 0 || !user) return;
         const cleanSplits = splits
           .filter((r) => parseFloat(r.amount) > 0)
-          .map((r) => ({ method: r.method, amount: parseFloat(r.amount) || 0 }));
+          .map((r) => ({
+            method: r.method,
+            amount: parseFloat(r.amount) || 0,
+          }));
         await park({
           actorId: user._id,
           clientId: selectedClientId ?? undefined,
@@ -124,18 +151,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const items: CartItem[] = [];
         for (const it of res.items ?? []) {
           const live = byId.get(it.productId);
-          if (live && live.sellable !== false) items.push({ ...live, qty: it.qty });
+          if (live && live.sellable !== false)
+            items.push({ ...live, qty: it.qty });
         }
         setCart(items);
-        setSelectedClientId((res.client?._id) ?? null);
-        const restored = (res.splits ?? []) as { method: string; amount: number }[];
+        setSelectedClientId(res.client?._id ?? null);
+        const restored = (res.splits ?? []) as {
+          method: string;
+          amount: number;
+        }[];
         if (restored.length > 0) {
           setSplits(
             restored.map((s, i) => ({
               id: i + 1,
               method: s.method,
               amount: s.amount > 0 ? String(s.amount) : '',
-            })),
+            }))
           );
           splitsIdRef.current = restored.length + 1;
         } else {
@@ -147,7 +178,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
         await discard({ actorId: user._id, heldCartId });
       },
     };
-  }, [cart, selectedClient, selectedClientId, splits, reserved, heldCarts, completedSale, user, products, park, resume, discard]);
+  }, [
+    cart,
+    selectedClient,
+    selectedClientId,
+    splits,
+    reserved,
+    heldCarts,
+    completedSale,
+    user,
+    products,
+    park,
+    resume,
+    discard,
+  ]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

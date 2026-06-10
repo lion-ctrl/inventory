@@ -55,7 +55,11 @@ const settingsDoc = {
 
 const mutationFns = new Map<string, ReturnType<typeof vi.fn>>();
 const mutationFor = (name: string) => {
-  if (!mutationFns.has(name)) mutationFns.set(name, vi.fn(async () => null));
+  if (!mutationFns.has(name))
+    mutationFns.set(
+      name,
+      vi.fn(async () => null)
+    );
   return mutationFns.get(name)!;
 };
 
@@ -66,12 +70,16 @@ beforeEach(() => {
   useQueryMock.mockImplementation(((query: any, args: any) => {
     if (args === 'skip') return undefined;
     switch (getFunctionName(query)) {
-      case 'auth:me':      return owner;
-      case 'settings:get': return settingsDoc;
-      default:             return undefined;
+      case 'auth:me':
+        return owner;
+      case 'settings:get':
+        return settingsDoc;
+      default:
+        return undefined;
     }
   }) as any);
-  useMutationMock.mockImplementation(((ref: any) => mutationFor(getFunctionName(ref))) as any);
+  useMutationMock.mockImplementation(((ref: any) =>
+    mutationFor(getFunctionName(ref))) as any);
 });
 afterEach(() => {
   cleanup();

@@ -15,7 +15,13 @@ export type CategoryWithCount = Category & { count: number };
 /** Cart line = live product snapshot + qty (prototype kept `{...product, qty}`). */
 export type CartItem = Product & { qty: number };
 
-export type MethodId = 'cash' | 'cash_bs' | 'card' | 'transfer' | 'mobile' | 'zelle';
+export type MethodId =
+  | 'cash'
+  | 'cash_bs'
+  | 'card'
+  | 'transfer'
+  | 'mobile'
+  | 'zelle';
 export type SalesType = 'invoice' | 'ticket';
 
 /** Editable split row as typed in the PaymentSheet (amount is the raw input string). */
@@ -72,6 +78,8 @@ export interface CompletedSale {
   exchangeRate: number;
 }
 
-export const NEW_SPLIT_ROW = (): SplitRow[] => [{ id: 1, method: 'cash', amount: '' }];
+export const NEW_SPLIT_ROW = (): SplitRow[] => [
+  { id: 1, method: 'cash', amount: '' },
+];
 
 export const pad8 = (n: number | string) => String(n).padStart(8, '0');

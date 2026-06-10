@@ -68,27 +68,39 @@ function wireQueries(opts: Wiring) {
   useQueryMock.mockImplementation(((query: any, args: any) => {
     if (args === 'skip') return undefined;
     switch (getFunctionName(query)) {
-      case 'auth:me':         return wiring.me;
-      case 'products:list':   return wiring.products;
-      case 'clients:list':    return [];
-      case 'categories:list': return [];
-      case 'settings:get':    return null;
-      case 'heldCarts:list':  return wiring.heldCarts;
-      default:                return undefined;
+      case 'auth:me':
+        return wiring.me;
+      case 'products:list':
+        return wiring.products;
+      case 'clients:list':
+        return [];
+      case 'categories:list':
+        return [];
+      case 'settings:get':
+        return null;
+      case 'heldCarts:list':
+        return wiring.heldCarts;
+      default:
+        return undefined;
     }
   }) as any);
 }
 
 const mutationFns = new Map<string, ReturnType<typeof vi.fn>>();
 function mutationFor(name: string) {
-  if (!mutationFns.has(name)) mutationFns.set(name, vi.fn(async () => null));
+  if (!mutationFns.has(name))
+    mutationFns.set(
+      name,
+      vi.fn(async () => null)
+    );
   return mutationFns.get(name)!;
 }
 
 beforeEach(() => {
   localStorage.clear();
   mutationFns.clear();
-  useMutationMock.mockImplementation(((ref: any) => mutationFor(getFunctionName(ref))) as any);
+  useMutationMock.mockImplementation(((ref: any) =>
+    mutationFor(getFunctionName(ref))) as any);
 });
 afterEach(() => {
   cleanup();
@@ -109,7 +121,9 @@ describe('SessionContext', () => {
     localStorage.setItem('pos.employeeId', 'stale-id-from-old-deployment');
     wireQueries({ me: null });
 
-    const { result } = renderHook(() => useSession(), { wrapper: sessionWrapper });
+    const { result } = renderHook(() => useSession(), {
+      wrapper: sessionWrapper,
+    });
 
     await waitFor(() => {
       expect(localStorage.getItem('pos.employeeId')).toBeNull();
@@ -121,7 +135,9 @@ describe('SessionContext', () => {
     wireQueries({ me: owner });
     mutationFor('auth:login').mockResolvedValue({ ok: true, employee: owner });
 
-    const { result } = renderHook(() => useSession(), { wrapper: sessionWrapper });
+    const { result } = renderHook(() => useSession(), {
+      wrapper: sessionWrapper,
+    });
     expect(result.current.user).toBeNull();
 
     await act(async () => {
@@ -145,7 +161,9 @@ describe('SessionContext', () => {
       error: 'Credenciales inválidas. Verifica e intenta de nuevo.',
     });
 
-    const { result } = renderHook(() => useSession(), { wrapper: sessionWrapper });
+    const { result } = renderHook(() => useSession(), {
+      wrapper: sessionWrapper,
+    });
     await act(async () => {
       const res = await result.current.login('x@x.com', '000000');
       expect(res).toEqual({
@@ -177,7 +195,9 @@ describe('CartContext', () => {
   });
 
   test('a products update prunes paused lines and refreshes snapshots (products-driven sync)', async () => {
-    const { result, rerender } = renderCart({ products: [cola, pausedProduct] });
+    const { result, rerender } = renderCart({
+      products: [cola, pausedProduct],
+    });
 
     act(() => {
       result.current.setCart([
@@ -225,6 +245,8 @@ describe('CartContext', () => {
       note: 'Vuelve en 10 min',
     });
     expect(result.current.cart).toHaveLength(0);
-    expect(result.current.splits).toEqual([{ id: 1, method: 'cash', amount: '' }]);
+    expect(result.current.splits).toEqual([
+      { id: 1, method: 'cash', amount: '' },
+    ]);
   });
 });

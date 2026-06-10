@@ -14,12 +14,35 @@ export interface ButtonProps {
   style?: CSSProperties;
 }
 
-export function Button({ variant = 'primary', size, children, icon, onClick, disabled, type = 'button', block, style }: ButtonProps) {
-  const cls = ['btn', `btn-${variant}`, size === 'sm' ? 'btn-sm' : size === 'md' ? 'btn-md' : '', block ? 'btn-block' : ''].filter(Boolean).join(' ');
+export function Button({
+  variant = 'primary',
+  size,
+  children,
+  icon,
+  onClick,
+  disabled,
+  type = 'button',
+  block,
+  style,
+}: ButtonProps) {
+  const cls = [
+    'btn',
+    `btn-${variant}`,
+    size === 'sm' ? 'btn-sm' : size === 'md' ? 'btn-md' : '',
+    block ? 'btn-block' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <button type={type} className={cls} onClick={onClick} disabled={disabled} style={style}>
+    <button
+      type={type}
+      className={cls}
+      onClick={onClick}
+      disabled={disabled}
+      style={style}
+    >
       {icon && <Icon name={icon} size={18} />}
       {children}
-    </button>);
-
+    </button>
+  );
 }

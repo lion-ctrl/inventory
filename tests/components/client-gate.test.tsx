@@ -25,13 +25,14 @@ function setup(onClientFound = vi.fn(), onCreateClient = vi.fn()) {
       online
       onClientFound={onClientFound}
       onCreateClient={onCreateClient}
-    />,
+    />
   );
   return { onClientFound, onCreateClient };
 }
 
 const cedulaInput = () => screen.getByPlaceholderText('12.345.678');
-const searchButton = () => screen.getByRole('button', { name: /Buscar cliente/ });
+const searchButton = () =>
+  screen.getByRole('button', { name: /Buscar cliente/ });
 
 describe('ClientGate', () => {
   test('formats the cédula while typing and finds the registered client', async () => {
@@ -55,11 +56,16 @@ describe('ClientGate', () => {
     expect(onClientFound).not.toHaveBeenCalled();
     expect(screen.getByText('Cliente no encontrado')).toBeDefined();
     expect(
-      screen.getByText(/No hay ningún cliente registrado con V-9\.999\.999\. ¿Quieres crearlo\?/),
+      screen.getByText(
+        /No hay ningún cliente registrado con V-9\.999\.999\. ¿Quieres crearlo\?/
+      )
     ).toBeDefined();
 
     await user.click(screen.getByRole('button', { name: /Crear cliente/ }));
-    expect(onCreateClient).toHaveBeenCalledWith({ prefix: 'V', taxId: '9.999.999' });
+    expect(onCreateClient).toHaveBeenCalledWith({
+      prefix: 'V',
+      taxId: '9.999.999',
+    });
   });
 
   test('"Reintentar" dismisses the create prompt', async () => {
@@ -76,14 +82,19 @@ describe('ClientGate', () => {
     const user = userEvent.setup();
     const { onClientFound } = setup();
     await user.click(searchButton());
-    expect(screen.getByText('Ingresa la identificación del cliente.')).toBeDefined();
+    expect(
+      screen.getByText('Ingresa la identificación del cliente.')
+    ).toBeDefined();
     expect(onClientFound).not.toHaveBeenCalled();
   });
 
   test('switching to RIF (J) reformats and uses the J placeholder', async () => {
     const user = userEvent.setup();
     setup();
-    await user.selectOptions(screen.getByLabelText('Tipo de identificación'), 'J');
+    await user.selectOptions(
+      screen.getByLabelText('Tipo de identificación'),
+      'J'
+    );
     const rifInput = screen.getByPlaceholderText('12345678-9');
     await user.type(rifInput, '155641240');
     expect(rifInput).toHaveProperty('value', '15564124-0');

@@ -20,12 +20,42 @@ export interface PermissionInfo {
 }
 
 export const PERMISSIONS: PermissionInfo[] = [
-  { id: 'view_reports',     label: 'Historial de ventas', desc: 'Ver ventas, cierres e informes',          icon: 'receipt' },
-  { id: 'void_sales',       label: 'Reembolsar ventas',   desc: 'Reembolsar una venta',                    icon: 'rotate-ccw' },
-  { id: 'manage_products',  label: 'Productos',           desc: 'Crear, editar y ajustar stock y precios', icon: 'package' },
-  { id: 'manage_clients',   label: 'Clientes',            desc: 'Crear y editar la base de clientes',      icon: 'users' },
-  { id: 'manage_employees', label: 'Empleados',           desc: 'Gestionar el equipo y sus permisos',      icon: 'user-cog' },
-  { id: 'manage_settings',  label: 'Ajustes',             desc: 'Configurar la tienda y el sistema',       icon: 'settings' },
+  {
+    id: 'view_reports',
+    label: 'Historial de ventas',
+    desc: 'Ver ventas, cierres e informes',
+    icon: 'receipt',
+  },
+  {
+    id: 'void_sales',
+    label: 'Reembolsar ventas',
+    desc: 'Reembolsar una venta',
+    icon: 'rotate-ccw',
+  },
+  {
+    id: 'manage_products',
+    label: 'Productos',
+    desc: 'Crear, editar y ajustar stock y precios',
+    icon: 'package',
+  },
+  {
+    id: 'manage_clients',
+    label: 'Clientes',
+    desc: 'Crear y editar la base de clientes',
+    icon: 'users',
+  },
+  {
+    id: 'manage_employees',
+    label: 'Empleados',
+    desc: 'Gestionar el equipo y sus permisos',
+    icon: 'user-cog',
+  },
+  {
+    id: 'manage_settings',
+    label: 'Ajustes',
+    desc: 'Configurar la tienda y el sistema',
+    icon: 'settings',
+  },
 ];
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -36,7 +66,9 @@ export const ROLE_LABELS: Record<string, string> = {
 
 // Helper to build a permission map from a list of granted ids
 export const perms = (...granted: PermissionId[]): PermissionMap =>
-  Object.fromEntries(PERMISSIONS.map((p) => [p.id, granted.includes(p.id)])) as PermissionMap;
+  Object.fromEntries(
+    PERMISSIONS.map((p) => [p.id, granted.includes(p.id)])
+  ) as PermissionMap;
 
 export interface RbacUser {
   permissions?: Permissions;
@@ -44,7 +76,10 @@ export interface RbacUser {
   role?: string;
 }
 
-export function can(user: RbacUser | null | undefined, perm: PermissionId): boolean {
+export function can(
+  user: RbacUser | null | undefined,
+  perm: PermissionId
+): boolean {
   if (!user) return false;
   if (user.permissions === 'all') return true;
   if (user.active === false) return false;

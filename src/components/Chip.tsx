@@ -8,5 +8,9 @@ export interface ChipProps {
 }
 
 export function Chip({ tone = 'neutral', children, style }: ChipProps) {
-  return <span className={`chip chip-${tone}`} style={style}>{children}</span>;
+  return (
+    <span className={`chip chip-${tone}`} style={style}>
+      {children}
+    </span>
+  );
 }

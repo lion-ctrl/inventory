@@ -1,23 +1,23 @@
-import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { getSettings, requirePerm } from "./permissions";
+import { v } from 'convex/values';
+import { mutation, query } from './_generated/server';
+import { getSettings, requirePerm } from './permissions';
 import {
   salesTypeValidator,
   scannerModeValidator,
   settingsDocValidator,
-} from "./schema";
+} from './schema';
 
 export const get = query({
   args: {},
   returns: v.union(settingsDocValidator, v.null()),
   handler: async (ctx) => {
-    return await ctx.db.query("settings").first();
+    return await ctx.db.query('settings').first();
   },
 });
 
 export const update = mutation({
   args: {
-    actorId: v.id("employees"),
+    actorId: v.id('employees'),
     patch: v.object({
       storeName: v.optional(v.string()),
       storeRif: v.optional(v.string()),
@@ -37,9 +37,9 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, "manage_settings");
+    await requirePerm(ctx, args.actorId, 'manage_settings');
     const settings = await getSettings(ctx);
-    await ctx.db.patch("settings", settings._id, args.patch);
+    await ctx.db.patch('settings', settings._id, args.patch);
     return null;
   },
 });

@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 // Categories: live product counts + the guided reassign-before-delete flow.
-import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
-import { api } from "@convex/_generated/api";
-import schema from "@convex/schema";
-import { seedBase } from "./fixtures";
+import { convexTest } from 'convex-test';
+import { describe, expect, test } from 'vitest';
+import { api } from '@convex/_generated/api';
+import schema from '@convex/schema';
+import { seedBase } from './fixtures';
 
-const modules = import.meta.glob("../../convex/**/*.ts");
+const modules = import.meta.glob('../../convex/**/*.ts');
 
 async function setup() {
   const t = convexTest(schema, modules);
@@ -14,12 +14,12 @@ async function setup() {
   return { t, fx };
 }
 
-describe("categories.list", () => {
-  test("annotates each category with its live product count", async () => {
+describe('categories.list', () => {
+  test('annotates each category with its live product count', async () => {
     const { t, fx } = await setup();
     const empty = await t.mutation(api.categories.create, {
       actorId: fx.owner,
-      label: "Limpieza",
+      label: 'Limpieza',
     });
 
     const list = await t.query(api.categories.list, {});
@@ -30,28 +30,28 @@ describe("categories.list", () => {
   });
 });
 
-describe("categories mutations", () => {
-  test("create/update require manage_products; update renames", async () => {
+describe('categories mutations', () => {
+  test('create/update require manage_products; update renames', async () => {
     const { t, fx } = await setup();
 
     await expect(
-      t.mutation(api.categories.create, { actorId: fx.cajeroVoid, label: "X" }),
-    ).rejects.toThrow("Sin permisos para esta acción.");
+      t.mutation(api.categories.create, { actorId: fx.cajeroVoid, label: 'X' })
+    ).rejects.toThrow('Sin permisos para esta acción.');
 
     await t.mutation(api.categories.update, {
       actorId: fx.owner,
       categoryId: fx.categoryId,
-      label: "Bebidas frías",
+      label: 'Bebidas frías',
     });
-    const cat = await t.run((ctx) => ctx.db.get("categories", fx.categoryId));
-    expect(cat!.label).toBe("Bebidas frías");
+    const cat = await t.run((ctx) => ctx.db.get('categories', fx.categoryId));
+    expect(cat!.label).toBe('Bebidas frías');
   });
 
-  test("removeWithReassign repoints every product, then deletes — never orphans", async () => {
+  test('removeWithReassign repoints every product, then deletes — never orphans', async () => {
     const { t, fx } = await setup();
     const target = await t.mutation(api.categories.create, {
       actorId: fx.owner,
-      label: "Limpieza",
+      label: 'Limpieza',
     });
 
     await t.mutation(api.categories.removeWithReassign, {
@@ -66,25 +66,25 @@ describe("categories mutations", () => {
 
     const list = await t.query(api.categories.list, {});
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ label: "Limpieza", count: 4 });
+    expect(list[0]).toMatchObject({ label: 'Limpieza', count: 4 });
   });
 
-  test("rejects reassigning a category to itself", async () => {
+  test('rejects reassigning a category to itself', async () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.categories.removeWithReassign, {
         actorId: fx.owner,
         categoryId: fx.categoryId,
         reassignToId: fx.categoryId,
-      }),
-    ).rejects.toThrow("Elige otra categoría para reasignar los productos.");
+      })
+    ).rejects.toThrow('Elige otra categoría para reasignar los productos.');
   });
 
-  test("rejects missing source or target categories", async () => {
+  test('rejects missing source or target categories', async () => {
     const { t, fx } = await setup();
     const gone = await t.run(async (ctx) => {
-      const id = await ctx.db.insert("categories", { label: "Temporal" });
-      await ctx.db.delete("categories", id);
+      const id = await ctx.db.insert('categories', { label: 'Temporal' });
+      await ctx.db.delete('categories', id);
       return id;
     });
 
@@ -93,15 +93,15 @@ describe("categories mutations", () => {
         actorId: fx.owner,
         categoryId: gone,
         reassignToId: fx.categoryId,
-      }),
-    ).rejects.toThrow("Categoría no encontrada.");
+      })
+    ).rejects.toThrow('Categoría no encontrada.');
 
     await expect(
       t.mutation(api.categories.removeWithReassign, {
         actorId: fx.owner,
         categoryId: fx.categoryId,
         reassignToId: gone,
-      }),
-    ).rejects.toThrow("Categoría no encontrada.");
+      })
+    ).rejects.toThrow('Categoría no encontrada.');
   });
 });

@@ -16,7 +16,12 @@ const DUPLICATE_READ_WINDOW_MS = 1500;
 /** Brief LOCKED state so the cashier sees the read confirmation (matches HID). */
 const LOCK_MS = 350;
 
-type CameraState = 'starting' | 'scanning' | 'locked' | 'denied' | 'unavailable';
+type CameraState =
+  | 'starting'
+  | 'scanning'
+  | 'locked'
+  | 'denied'
+  | 'unavailable';
 
 export interface CameraScannerProps {
   onScanResult: (r: ScanResult) => void;
@@ -55,7 +60,12 @@ export function CameraScanner({
       if (busyRef.current) return;
       const now = Date.now();
       const last = lastReadRef.current;
-      if (last && last.code === code && now - last.at < DUPLICATE_READ_WINDOW_MS) return;
+      if (
+        last &&
+        last.code === code &&
+        now - last.at < DUPLICATE_READ_WINDOW_MS
+      )
+        return;
       lastReadRef.current = { code, at: now };
       busyRef.current = true;
       setLastCode(code);
@@ -79,7 +89,7 @@ export function CameraScanner({
           (result) => {
             if (cancelled || !result) return;
             handleDetection(result.getText());
-          },
+          }
         );
         if (cancelled) {
           c.stop();
@@ -89,7 +99,11 @@ export function CameraScanner({
         setState('scanning');
       } catch (e) {
         if (cancelled) return;
-        setState((e as { name?: string })?.name === 'NotAllowedError' ? 'denied' : 'unavailable');
+        setState(
+          (e as { name?: string })?.name === 'NotAllowedError'
+            ? 'denied'
+            : 'unavailable'
+        );
       }
     };
     void start();
@@ -113,13 +127,22 @@ export function CameraScanner({
         : null;
 
   return (
-    <div className={`scanner-wrap ${aspect}`} style={{ margin: '0px 4px 0px 3px' }}>
+    <div
+      className={`scanner-wrap ${aspect}`}
+      style={{ margin: '0px 4px 0px 3px' }}
+    >
       <div className="cam-bg" style={{ margin: '0px' }} />
       <video
         ref={videoRef}
         muted
         playsInline
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+        }}
       />
       {detectedFormat && (
         <div className={`scan-format ${locked ? 'locked' : ''}`}>
@@ -127,7 +150,9 @@ export function CameraScanner({
           {detectedFormat}
         </div>
       )}
-      <div className={`scan-frame ${locked ? 'locked' : ''}`}><i /></div>
+      <div className={`scan-frame ${locked ? 'locked' : ''}`}>
+        <i />
+      </div>
       {state === 'scanning' && <div className="scan-beam" />}
       <div className={`scan-hint ${locked ? 'locked' : ''}`}>
         {errorCopy ??

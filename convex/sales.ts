@@ -1,23 +1,23 @@
-import { ConvexError, v, type Infer } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
-import { getSettings, requirePerm, round2 } from "./permissions";
+import { ConvexError, v, type Infer } from 'convex/values';
+import { mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
+import type { Doc, Id } from './_generated/dataModel';
+import { getSettings, requirePerm, round2 } from './permissions';
 import {
   clientSnapshotValidator,
   saleDocValidator,
   saleItemValidator,
   salesTypeValidator,
   splitItemValidator,
-} from "./schema";
+} from './schema';
 
 export type SaleItemSnapshot = Infer<typeof saleItemValidator>;
 export type ClientSnapshot = Infer<typeof clientSnapshotValidator>;
 
-type CartLine = { productId: Id<"products">; qty: number };
+type CartLine = { productId: Id<'products'>; qty: number };
 
 /** Freeze the allowed client fields into a snapshot (omit absent optionals). */
-export function clientSnapshotOf(client: Doc<"clients">): ClientSnapshot {
+export function clientSnapshotOf(client: Doc<'clients'>): ClientSnapshot {
   return {
     name: client.name,
     taxPrefix: client.taxPrefix,
@@ -38,9 +38,9 @@ export function clientSnapshotOf(client: Doc<"clients">): ClientSnapshot {
 export async function snapshotLines(
   ctx: MutationCtx,
   rawLines: CartLine[],
-  opts: { enforceSellable: boolean },
+  opts: { enforceSellable: boolean }
 ): Promise<
-  Array<{ product: Doc<"products">; qty: number; snapshot: SaleItemSnapshot }>
+  Array<{ product: Doc<'products'>; qty: number; snapshot: SaleItemSnapshot }>
 > {
   // Merge duplicate product lines (defensive; the cart UI already merges).
   const merged: CartLine[] = [];
@@ -56,27 +56,27 @@ export async function snapshotLines(
     }
   }
 
-  const categoryLabels = new Map<Id<"categories">, string>();
+  const categoryLabels = new Map<Id<'categories'>, string>();
   const out: Array<{
-    product: Doc<"products">;
+    product: Doc<'products'>;
     qty: number;
     snapshot: SaleItemSnapshot;
   }> = [];
 
   for (const line of merged) {
     if (!(line.qty > 0)) {
-      throw new ConvexError("Cantidad inválida en el carrito.");
+      throw new ConvexError('Cantidad inválida en el carrito.');
     }
-    const product = await ctx.db.get("products", line.productId);
+    const product = await ctx.db.get('products', line.productId);
     if (!product || (opts.enforceSellable && product.sellable === false)) {
       throw new ConvexError(
-        "Producto no disponible: " + (product?.name ?? line.productId),
+        'Producto no disponible: ' + (product?.name ?? line.productId)
       );
     }
     let cat = categoryLabels.get(product.categoryId);
     if (cat === undefined) {
-      const category = await ctx.db.get("categories", product.categoryId);
-      cat = category?.label ?? "";
+      const category = await ctx.db.get('categories', product.categoryId);
+      cat = category?.label ?? '';
       categoryLabels.set(product.categoryId, cat);
     }
     out.push({
@@ -87,7 +87,7 @@ export async function snapshotLines(
         name: product.name,
         sku: product.sku,
         barcode: product.barcode,
-        ...(cat !== "" ? { cat } : {}),
+        ...(cat !== '' ? { cat } : {}),
         price: product.price,
         qty: line.qty,
         ...(product.glyph !== undefined ? { glyph: product.glyph } : {}),
@@ -100,11 +100,9 @@ export async function snapshotLines(
 
 export const checkout = mutation({
   args: {
-    actorId: v.id("employees"),
-    clientId: v.id("clients"),
-    items: v.array(
-      v.object({ productId: v.id("products"), qty: v.number() }),
-    ),
+    actorId: v.id('employees'),
+    clientId: v.id('clients'),
+    items: v.array(v.object({ productId: v.id('products'), qty: v.number() })),
     method: v.string(),
     splits: v.array(splitItemValidator),
     type: salesTypeValidator,
@@ -113,18 +111,18 @@ export const checkout = mutation({
   returns: saleDocValidator,
   handler: async (ctx, args) => {
     // 1. Any ACTIVE employee can sell — no specific permission required.
-    const actor = await ctx.db.get("employees", args.actorId);
+    const actor = await ctx.db.get('employees', args.actorId);
     if (!actor || !actor.active) {
-      throw new ConvexError("Sin permisos para esta acción.");
+      throw new ConvexError('Sin permisos para esta acción.');
     }
 
     // 2. Client + settings.
-    const client = await ctx.db.get("clients", args.clientId);
-    if (!client) throw new ConvexError("Cliente no encontrado.");
+    const client = await ctx.db.get('clients', args.clientId);
+    if (!client) throw new ConvexError('Cliente no encontrado.');
     const settings = await getSettings(ctx);
 
     if (args.items.length === 0) {
-      throw new ConvexError("No hay productos en el carrito.");
+      throw new ConvexError('No hay productos en el carrito.');
     }
 
     // 3. Live products: availability + stock.
@@ -134,7 +132,7 @@ export const checkout = mutation({
     for (const { product, qty } of lines) {
       if (product.stock < qty) {
         throw new ConvexError(
-          `Stock insuficiente: ${product.name}. Quedan ${product.stock} unidades.`,
+          `Stock insuficiente: ${product.name}. Quedan ${product.stock} unidades.`
         );
       }
     }
@@ -150,7 +148,7 @@ export const checkout = mutation({
     const subtotal = round2(subtotalRaw);
     const exemptBase = round2(exemptRaw);
     const tax =
-      args.type === "invoice"
+      args.type === 'invoice'
         ? round2(((subtotal - exemptBase) * settings.ivaPct) / 100)
         : 0;
     const total = round2(subtotal + tax);
@@ -158,24 +156,24 @@ export const checkout = mutation({
     // 5. Splits must cover the server-computed total (tolerance 0.011).
     const paid = args.splits.reduce((sum, row) => sum + row.amount, 0);
     if (total - paid > 0.011) {
-      throw new ConvexError("El pago no cubre el total. Verifica los montos.");
+      throw new ConvexError('El pago no cubre el total. Verifica los montos.');
     }
 
     // 6. Atomically consume the invoice counter.
-    const invoiceNumber = String(settings.nextInvoiceNumber).padStart(8, "0");
-    await ctx.db.patch("settings", settings._id, {
+    const invoiceNumber = String(settings.nextInvoiceNumber).padStart(8, '0');
+    await ctx.db.patch('settings', settings._id, {
       nextInvoiceNumber: settings.nextInvoiceNumber + 1,
     });
 
     // 7. Decrement stocks.
     for (const { product, qty } of lines) {
-      await ctx.db.patch("products", product._id, {
+      await ctx.db.patch('products', product._id, {
         stock: product.stock - qty,
       });
     }
 
     // 8. Insert the sale with frozen snapshots.
-    const saleId = await ctx.db.insert("sales", {
+    const saleId = await ctx.db.insert('sales', {
       invoiceNumber,
       clientId: args.clientId,
       client: clientSnapshotOf(client),
@@ -195,8 +193,8 @@ export const checkout = mutation({
     });
 
     // 9. Return the full inserted sale doc.
-    const sale = await ctx.db.get("sales", saleId);
-    if (!sale) throw new ConvexError("Venta no encontrada.");
+    const sale = await ctx.db.get('sales', saleId);
+    if (!sale) throw new ConvexError('Venta no encontrada.');
     return sale;
   },
 });
@@ -206,37 +204,37 @@ export const history = query({
   returns: v.array(saleDocValidator),
   handler: async (ctx) => {
     return await ctx.db
-      .query("sales")
-      .withIndex("by_soldAt")
-      .order("desc")
+      .query('sales')
+      .withIndex('by_soldAt')
+      .order('desc')
       .collect();
   },
 });
 
 export const refund = mutation({
   args: {
-    actorId: v.id("employees"),
-    saleId: v.id("sales"),
+    actorId: v.id('employees'),
+    saleId: v.id('sales'),
     reason: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, "void_sales");
-    const sale = await ctx.db.get("sales", args.saleId);
-    if (!sale) throw new ConvexError("Venta no encontrada.");
+    await requirePerm(ctx, args.actorId, 'void_sales');
+    const sale = await ctx.db.get('sales', args.saleId);
+    if (!sale) throw new ConvexError('Venta no encontrada.');
     if (sale.refund) {
-      throw new ConvexError("Esta venta ya fue reembolsada.");
+      throw new ConvexError('Esta venta ya fue reembolsada.');
     }
     // Restore stock for products that still exist (deleted ones are skipped).
     for (const item of sale.items) {
-      const product = await ctx.db.get("products", item.productId);
+      const product = await ctx.db.get('products', item.productId);
       if (product) {
-        await ctx.db.patch("products", product._id, {
+        await ctx.db.patch('products', product._id, {
           stock: product.stock + item.qty,
         });
       }
     }
-    await ctx.db.patch("sales", args.saleId, {
+    await ctx.db.patch('sales', args.saleId, {
       refund: { date: Date.now(), reason: args.reason },
     });
     return null;

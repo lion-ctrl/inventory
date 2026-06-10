@@ -15,13 +15,24 @@ export function useBsRate(): number {
 }
 
 export function useProducts(): Product[] {
-  return (useCachedQuery(api.products.list, {}, 'products') as Product[] | undefined) ?? EMPTY;
+  return (
+    (useCachedQuery(api.products.list, {}, 'products') as
+      | Product[]
+      | undefined) ?? EMPTY
+  );
 }
 
 export function useCategories(): CategoryWithCount[] {
-  return (useCachedQuery(api.categories.list, {}, 'categories') as CategoryWithCount[] | undefined) ?? EMPTY;
+  return (
+    (useCachedQuery(api.categories.list, {}, 'categories') as
+      | CategoryWithCount[]
+      | undefined) ?? EMPTY
+  );
 }
 
 export function useClients(): Client[] {
-  return (useCachedQuery(api.clients.list, {}, 'clients') as Client[] | undefined) ?? EMPTY;
+  return (
+    (useCachedQuery(api.clients.list, {}, 'clients') as Client[] | undefined) ??
+    EMPTY
+  );
 }

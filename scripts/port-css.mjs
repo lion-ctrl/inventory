@@ -23,16 +23,18 @@ let tokens = readFileSync(join(proto, 'ds', 'colors_and_type.css'), 'utf8');
 const beforeImport = tokens.length;
 tokens = tokens.replace(
   /^@import url\("https:\/\/fonts\.googleapis[^\n]*\n/m,
-  '/* Fonts are self-hosted via @fontsource (imported in main.tsx) */\n',
+  '/* Fonts are self-hosted via @fontsource (imported in main.tsx) */\n'
 );
-if (tokens.length === beforeImport) throw new Error('Google Fonts @import not found/removed');
+if (tokens.length === beforeImport)
+  throw new Error('Google Fonts @import not found/removed');
 postcss.parse(tokens); // must remain valid
 
 // --- app.css ---
 const appIn = readFileSync(join(proto, 'styles.css'), 'utf8');
 const ast = postcss.parse(appIn); // prototype is valid CSS — parses or throws
 
-const isForce = (s) => s.includes('.force-mobile') || s.includes('.force-desktop');
+const isForce = (s) =>
+  s.includes('.force-mobile') || s.includes('.force-desktop');
 let dropped = 0;
 let trimmed = 0;
 ast.walkRules((rule) => {
@@ -48,10 +50,21 @@ ast.walkRules((rule) => {
 
 const appOut = ast.toString();
 postcss.parse(appOut); // self-check: output must be valid
-if (/\.force-(mobile|desktop)/.test(appOut)) throw new Error('force-* selectors remain in output');
+if (/\.force-(mobile|desktop)/.test(appOut))
+  throw new Error('force-* selectors remain in output');
 
 mkdirSync(join(root, 'src', 'styles'), { recursive: true });
 writeFileSync(join(root, 'src', 'styles', 'tokens.css'), tokens);
 writeFileSync(join(root, 'src', 'styles', 'app.css'), appOut);
 console.log('tokens.css:', tokens.length, 'bytes');
-console.log('app.css:', appIn.length, '->', appOut.length, 'bytes;', dropped, 'force-* rules dropped,', trimmed, 'selector lists trimmed');
+console.log(
+  'app.css:',
+  appIn.length,
+  '->',
+  appOut.length,
+  'bytes;',
+  dropped,
+  'force-* rules dropped,',
+  trimmed,
+  'selector lists trimmed'
+);

@@ -140,7 +140,10 @@ const REGISTRY: Record<string, LucideIcon> = {
   download: Download,
 };
 
-export interface IconProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'color'> {
+export interface IconProps extends Omit<
+  HTMLAttributes<HTMLSpanElement>,
+  'color'
+> {
   name: string;
   size?: number;
   color?: CSSProperties['color'];
@@ -153,15 +156,18 @@ export function Icon({ name, size = 22, color, style, ...rest }: IconProps) {
   return (
     <span
       style={{
-        width: size, height: size,
+        width: size,
+        height: size,
         display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center',
+        alignItems: 'center',
+        justifyContent: 'center',
         flex: 'none',
         color,
-        ...style
+        ...style,
       }}
-      {...rest}>
+      {...rest}
+    >
       {LucideCmp && <LucideCmp size={size} style={{ display: 'block' }} />}
-    </span>);
-
+    </span>
+  );
 }

@@ -10,15 +10,23 @@ export interface BannerProps {
   action?: ReactNode;
 }
 
-export function Banner({ tone = 'info', icon, title, message, action }: BannerProps) {
+export function Banner({
+  tone = 'info',
+  icon,
+  title,
+  message,
+  action,
+}: BannerProps) {
   return (
     <div className={`banner ${tone}`}>
-      <span className="ic"><Icon name={icon || 'info'} size={18} /></span>
+      <span className="ic">
+        <Icon name={icon || 'info'} size={18} />
+      </span>
       <div className="body">
         {title && <div className="ttl">{title}</div>}
         <div className="msg">{message}</div>
       </div>
       {action}
-    </div>);
-
+    </div>
+  );
 }

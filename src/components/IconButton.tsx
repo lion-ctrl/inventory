@@ -7,10 +7,20 @@ export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   ariaLabel?: string;
 }
 
-export function IconButton({ icon, onClick, ariaLabel, ...rest }: IconButtonProps) {
+export function IconButton({
+  icon,
+  onClick,
+  ariaLabel,
+  ...rest
+}: IconButtonProps) {
   return (
-    <button className="iconbtn" onClick={onClick} aria-label={ariaLabel} {...rest}>
+    <button
+      className="iconbtn"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      {...rest}
+    >
       <Icon name={icon} />
-    </button>);
-
+    </button>
+  );
 }
