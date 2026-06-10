@@ -1,66 +1,57 @@
-// Ports the prototype CSS into smart-pos verbatim, with exactly two transforms:
+// Ports the prototype CSS into inventory/src/styles verbatim, with exactly two transforms:
 //  1. tokens.css: drop the Google Fonts @import (fonts are self-hosted via @fontsource)
 //  2. app.css: remove rules whose selectors are ONLY .force-mobile/.force-desktop
 //     (prototype tweaks tooling — the shell never gets those classes in production)
+//
+// Uses PostCSS (resolved through vite's dependency graph) instead of a hand-rolled
+// brace counter: a previous version mis-chunked one rule boundary and produced
+// balanced-but-malformed CSS that PostCSS rejected at runtime.
+import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+const require = createRequire(import.meta.url);
+const viteRequire = createRequire(require.resolve('vite/package.json'));
+const postcss = viteRequire('postcss');
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const proto = join(root, '..', 'src');
-
-function stripForceRules(css) {
-  let out = '';
-  let i = 0;
-  const n = css.length;
-  while (i < n) {
-    let j = i;
-    while (j < n && css[j] !== '{' && css[j] !== '}') j++;
-    if (j >= n) { out += css.slice(i); break; }
-    if (css[j] === '}') { out += css.slice(i, j + 1); i = j + 1; continue; }
-    const selector = css.slice(i, j);
-    let depth = 1, k = j + 1;
-    while (k < n && depth > 0) {
-      if (css[k] === '{') depth++;
-      else if (css[k] === '}') depth--;
-      k++;
-    }
-    const body = css.slice(j + 1, k - 1);
-    const sel = selector.trimStart();
-    if (sel.startsWith('@media') || sel.startsWith('@supports')) {
-      out += selector + '{' + stripForceRules(body) + '}';
-    } else if (sel.startsWith('@')) {
-      out += selector + '{' + body + '}';
-    } else {
-      const parts = selector.split(',');
-      const kept = parts.filter(s => !s.includes('.force-mobile') && !s.includes('.force-desktop'));
-      if (kept.length > 0) out += kept.join(',') + '{' + body + '}';
-      else {
-        // preserve a single newline so dropped rules don't glue neighbors together
-        if (!out.endsWith('\n')) out += '\n';
-      }
-    }
-    i = k;
-  }
-  return out;
-}
-
-const balance = (s) => (s.match(/{/g) || []).length - (s.match(/}/g) || []).length;
 
 // --- tokens.css ---
 let tokens = readFileSync(join(proto, 'ds', 'colors_and_type.css'), 'utf8');
 const beforeImport = tokens.length;
-tokens = tokens.replace(/^@import url\("https:\/\/fonts\.googleapis[^\n]*\n/m, '/* Fonts are self-hosted via @fontsource (imported in main.tsx) */\n');
+tokens = tokens.replace(
+  /^@import url\("https:\/\/fonts\.googleapis[^\n]*\n/m,
+  '/* Fonts are self-hosted via @fontsource (imported in main.tsx) */\n',
+);
 if (tokens.length === beforeImport) throw new Error('Google Fonts @import not found/removed');
+postcss.parse(tokens); // must remain valid
 
 // --- app.css ---
 const appIn = readFileSync(join(proto, 'styles.css'), 'utf8');
-const appOut = stripForceRules(appIn);
-if (balance(appOut) !== balance(appIn)) throw new Error('Brace balance changed: in=' + balance(appIn) + ' out=' + balance(appOut));
+const ast = postcss.parse(appIn); // prototype is valid CSS — parses or throws
+
+const isForce = (s) => s.includes('.force-mobile') || s.includes('.force-desktop');
+let dropped = 0;
+let trimmed = 0;
+ast.walkRules((rule) => {
+  const kept = rule.selectors.filter((s) => !isForce(s));
+  if (kept.length === 0) {
+    rule.remove();
+    dropped++;
+  } else if (kept.length !== rule.selectors.length) {
+    rule.selectors = kept;
+    trimmed++;
+  }
+});
+
+const appOut = ast.toString();
+postcss.parse(appOut); // self-check: output must be valid
 if (/\.force-(mobile|desktop)/.test(appOut)) throw new Error('force-* selectors remain in output');
 
 mkdirSync(join(root, 'src', 'styles'), { recursive: true });
 writeFileSync(join(root, 'src', 'styles', 'tokens.css'), tokens);
 writeFileSync(join(root, 'src', 'styles', 'app.css'), appOut);
 console.log('tokens.css:', tokens.length, 'bytes');
-console.log('app.css:', appIn.length, '->', appOut.length, 'bytes; braces balanced:', balance(appOut) === 0 ? 'yes' : 'NO (' + balance(appOut) + ')');
+console.log('app.css:', appIn.length, '->', appOut.length, 'bytes;', dropped, 'force-* rules dropped,', trimmed, 'selector lists trimmed');
