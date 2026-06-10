@@ -16,7 +16,7 @@ const viteRequire = createRequire(require.resolve('vite/package.json'));
 const postcss = viteRequire('postcss');
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const proto = join(root, '..', 'src');
+const proto = join(root, 'designs');
 
 // --- tokens.css ---
 let tokens = readFileSync(join(proto, 'ds', 'colors_and_type.css'), 'utf8');

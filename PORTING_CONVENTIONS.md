@@ -1,7 +1,7 @@
 # Porting Conventions — Smart Inventory POS (prototype → Vite + React TS + Convex)
 
-Authoritative contract for everyone porting screens. The prototype lives in `../src/*.jsx`
-(plain React 18, window-global modules). The production app lives here (`inventory/`).
+Authoritative contract for everyone porting screens. The prototype lives in `designs/*.jsx`
+(plain React 18, window-global modules). The production app lives at the repo root.
 **Visual output must be pixel-identical: never rename CSS classes, never reword Spanish copy
 (except the explicit whitelist below), never restructure JSX beyond what these rules require.**
 
@@ -16,7 +16,7 @@ Project rules:
 ## File map
 
 ```
-inventory/
+./  (repo root)
   convex/                  schema.ts, permissions.ts, auth.ts, products.ts, categories.ts,
                            clients.ts, employees.ts, sales.ts, heldCarts.ts, settings.ts,
                            seed.ts (permissions.ts is a helper — no exported functions)

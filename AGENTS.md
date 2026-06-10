@@ -1,7 +1,7 @@
 # Code Review Rules — Smart Inventory POS
 
-Rules for reviewing staged changes in this repository. The app lives in `inventory/`
-(React 19 + Vite + TypeScript + Convex PWA), ported 1:1 from the HTML prototype in `src/`.
+Rules for reviewing staged changes in this repository. The app lives at the repo root
+(React 19 + Vite + TypeScript + Convex PWA), ported 1:1 from the HTML prototype in `designs/`.
 
 ## Language
 
@@ -11,7 +11,7 @@ Rules for reviewing staged changes in this repository. The app lives in `invento
 
 ## Design fidelity
 
-4. `inventory/src/styles/tokens.css` and `app.css` are a verbatim port — do not edit,
+4. `src/styles/tokens.css` and `app.css` are a verbatim port — do not edit,
    extend, or override them; never rename CSS class names used by screens.
 5. No new styling systems (no Tailwind, no CSS-in-JS, no inline style additions beyond
    what the prototype had).
@@ -30,7 +30,7 @@ Rules for reviewing staged changes in this repository. The app lives in `invento
 8. Screens own their data: `useQuery`/`useMutation` inside the screen (or the cached
    hooks in `src/state/hooks.ts`); no prop-drilling of server data through AppShell.
 
-## Convex backend (inventory/convex/)
+## Convex backend (convex/)
 
 9. Every function uses the object syntax with both `args` AND `returns` validators.
 10. Every mutation that needs permissions re-checks them server-side via
