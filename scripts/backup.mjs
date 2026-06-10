@@ -1,8 +1,10 @@
 // Date-stamped snapshot export of the Convex deployment into backups/.
-// Run via `pnpm backup` (or the nightly Task Scheduler job).
-// Cost note: export size × frequency = egress against the Convex bandwidth
-// quota — trivial at this project's scale (~KB snapshots), revisit cadence
-// if the database ever reaches tens of MB.
+// Run via `pnpm backup` (or the weekly Task Scheduler job, Sundays 21:00).
+// Cost note (verified against Convex limits): generating a backup READS the
+// whole database, consuming the free tier's 1 GB/month database bandwidth —
+// the same meter the app's own queries use. Weekly cadence keeps backups
+// under ~10% of quota through roughly the first year of real operation;
+// tighten further (biweekly/monthly) or move to Pro/self-hosted beyond that.
 import { spawnSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
