@@ -629,7 +629,8 @@ function CartContent({ cart, inc, dec, remove, setQty, density: _density, salesT
 
 }
 
-function ClientGate({ clients, online, onClientFound, onCreateClient }: {
+// Exported for the component test suite (tests/components/client-gate.test.tsx).
+export function ClientGate({ clients, online, onClientFound, onCreateClient }: {
   clients: Client[];
   online: boolean;
   onClientFound: (c: Client) => void;
