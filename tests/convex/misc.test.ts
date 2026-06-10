@@ -88,4 +88,25 @@ describe("seed.run", () => {
     const second = await t.mutation(internal.seed.run, {});
     expect(String(second)).toContain("already seeded");
   });
+
+  test("clearAll wipes every table so the seed can run fresh", async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.seed.run, {});
+
+    await t.mutation(internal.seed.clearAll, {});
+    const counts = await t.query(internal.seed.counts, {});
+    expect(counts).toMatchObject({
+      categories: 0,
+      products: 0,
+      clients: 0,
+      employees: 0,
+      sales: 0,
+      settings: 0,
+      heldCarts: 0,
+    });
+
+    // After a wipe, the idempotency guard no longer blocks a fresh seed.
+    const again = await t.mutation(internal.seed.run, {});
+    expect(String(again)).not.toContain("already seeded");
+  });
 });

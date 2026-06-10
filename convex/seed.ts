@@ -418,3 +418,30 @@ export const counts = internalQuery({
     };
   },
 });
+
+/**
+ * Dev reset: wipe every table so `seed:run` can repopulate from scratch.
+ * Internal-only — never callable from clients. Destructive by design.
+ */
+export const clearAll = internalMutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const tables = [
+      "sales",
+      "heldCarts",
+      "products",
+      "categories",
+      "clients",
+      "employees",
+      "settings",
+    ] as const;
+    for (const table of tables) {
+      const docs = await ctx.db.query(table).collect();
+      for (const doc of docs) {
+        await ctx.db.delete(table, doc._id);
+      }
+    }
+    return null;
+  },
+});
