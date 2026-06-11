@@ -31,7 +31,9 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2,woff}'],
+        // wasm: the zxing-wasm barcode decoder binary (~1 MiB) must be
+        // precached or camera scanning dies offline.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,woff,wasm}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),

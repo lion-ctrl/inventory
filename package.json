@@ -18,13 +18,12 @@
     "@fontsource/fraunces": "^5.2.9",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
-    "@zxing/browser": "^0.2.0",
-    "@zxing/library": "^0.23.0",
     "convex": "^1.36.1",
     "lucide-react": "^1.17.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
-    "react-router": "^7.17.0"
+    "react-router": "^7.17.0",
+    "zxing-wasm": "^3.1.0"
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
