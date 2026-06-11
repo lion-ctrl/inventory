@@ -5,29 +5,45 @@ import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 // Controllable zxing mock: tests capture the decode callback and can force
-// the camera startup to fail with a specific error.
+// the camera startup to fail with a specific error. It also records how the
+// reader was configured (hints/options) and which media constraints were
+// requested — real-barcode detection depends on that configuration.
 const zxing = vi.hoisted(() => ({
   decodeCb: null as
     | ((result: { getText(): string } | undefined, err?: unknown) => void)
     | null,
   rejectWith: null as Error | null,
   stop: vi.fn(),
+  ctorHints: null as Map<unknown, unknown> | null,
+  ctorOptions: null as { delayBetweenScanAttempts?: number } | null,
+  constraints: null as MediaStreamConstraints | null,
+  previewVideo: null as HTMLVideoElement | null,
 }));
 
 vi.mock('@zxing/browser', () => ({
   BrowserMultiFormatReader: class {
-    async decodeFromVideoDevice(
-      _deviceId: undefined,
-      _video: HTMLVideoElement,
+    constructor(
+      hints?: Map<unknown, unknown>,
+      options?: { delayBetweenScanAttempts?: number }
+    ) {
+      zxing.ctorHints = hints ?? null;
+      zxing.ctorOptions = options ?? null;
+    }
+    async decodeFromConstraints(
+      constraints: MediaStreamConstraints,
+      video: HTMLVideoElement | undefined,
       cb: (result: { getText(): string } | undefined, err?: unknown) => void
     ) {
       if (zxing.rejectWith) throw zxing.rejectWith;
+      zxing.constraints = constraints;
+      zxing.previewVideo = video ?? null;
       zxing.decodeCb = cb;
       return { stop: zxing.stop };
     }
   },
 }));
 
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { CameraScanner } from '@/screens/CameraScanner';
 import { ScannerView } from '@/screens/Sale';
 import type { Product } from '@/types';
@@ -50,6 +66,10 @@ beforeEach(() => {
   zxing.decodeCb = null;
   zxing.rejectWith = null;
   zxing.stop.mockClear();
+  zxing.ctorHints = null;
+  zxing.ctorOptions = null;
+  zxing.constraints = null;
+  zxing.previewVideo = null;
 });
 afterEach(() => {
   cleanup();
@@ -64,6 +84,46 @@ const startCamera = async () => {
 };
 
 describe('CameraScanner', () => {
+  // Real-world detection contract: default fast-mode decoding over a 640×480
+  // default stream cannot resolve EAN-13 bars at focusable distance — the
+  // reader must be tuned and the stream must be HD. These pin both.
+  test('tunes the decoder: TRY_HARDER, retail formats only, fast attempts', async () => {
+    render(
+      <CameraScanner onScanResult={vi.fn()} catalog={[cola]} mode="split" />
+    );
+    await startCamera();
+
+    expect(zxing.ctorHints).not.toBeNull();
+    expect(zxing.ctorHints!.get(DecodeHintType.TRY_HARDER)).toBe(true);
+    expect(zxing.ctorHints!.get(DecodeHintType.POSSIBLE_FORMATS)).toEqual(
+      expect.arrayContaining([
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.QR_CODE,
+      ])
+    );
+    expect(zxing.ctorOptions?.delayBetweenScanAttempts).toBe(150);
+  });
+
+  test('requests the rear camera at HD resolution with the live preview wired', async () => {
+    render(
+      <CameraScanner onScanResult={vi.fn()} catalog={[cola]} mode="split" />
+    );
+    await startCamera();
+
+    expect(zxing.constraints).not.toBeNull();
+    const video = zxing.constraints!.video as MediaTrackConstraints;
+    expect(video.facingMode).toEqual({ ideal: 'environment' });
+    expect(video.width).toEqual({ ideal: 1280 });
+    expect(video.height).toEqual({ ideal: 720 });
+    expect(zxing.constraints!.audio).toBe(false);
+    expect(zxing.previewVideo).toBe(document.querySelector('video'));
+  });
+
   test('starts the camera and scans a known barcode into a found result', async () => {
     const onScanResult = vi.fn();
     render(

@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import type { IScannerControls } from '@zxing/browser';
+import { BarcodeFormat, DecodeHintType } from '@zxing/library';
 import type { Product } from '@/types';
 // Circular at module level only: detectBarcodeFormat is a hoisted function
 // declaration and ScanResult is a type, so the Sale ↔ CameraScanner cycle is safe.
@@ -15,6 +16,39 @@ import type { ScanResult } from './Sale';
 const DUPLICATE_READ_WINDOW_MS = 1500;
 /** Brief LOCKED state so the cashier sees the read confirmation (matches HID). */
 const LOCK_MS = 350;
+/** ~7 decode attempts/s; the default 500ms reads as a dead scanner. */
+const SCAN_ATTEMPT_INTERVAL_MS = 150;
+
+// Without TRY_HARDER, ZXing's fast mode samples too few image rows to resolve
+// retail EAN-13 bars from a live feed; restricting formats to what the store
+// actually sells keeps each attempt's budget on the codes that matter.
+const DECODE_HINTS = new Map<DecodeHintType, unknown>([
+  [DecodeHintType.TRY_HARDER, true],
+  [
+    DecodeHintType.POSSIBLE_FORMATS,
+    [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.QR_CODE,
+    ],
+  ],
+]);
+
+// Browsers default to ~640×480, where EAN-13 modules fall below ZXing's
+// resolving threshold at any distance the lens can focus. All values are
+// `ideal`, so a front-only or 480p webcam still works instead of erroring.
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  audio: false,
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+};
 
 type CameraState =
   | 'starting'
@@ -54,7 +88,9 @@ export function CameraScanner({
   useEffect(() => {
     let cancelled = false;
     let controls: IScannerControls | null = null;
-    const reader = new BrowserMultiFormatReader();
+    const reader = new BrowserMultiFormatReader(DECODE_HINTS, {
+      delayBetweenScanAttempts: SCAN_ATTEMPT_INTERVAL_MS,
+    });
 
     const handleDetection = (code: string) => {
       if (busyRef.current) return;
@@ -83,8 +119,8 @@ export function CameraScanner({
 
     const start = async () => {
       try {
-        const c = await reader.decodeFromVideoDevice(
-          undefined,
+        const c = await reader.decodeFromConstraints(
+          CAMERA_CONSTRAINTS,
           videoRef.current ?? undefined,
           (result) => {
             if (cancelled || !result) return;
