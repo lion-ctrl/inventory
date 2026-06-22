@@ -464,12 +464,13 @@ function ClientInfoSheet({
   );
 }
 
-function ProductFoundSheet({
+export function ProductFoundSheet({
   product,
   onAdd,
   onCancel,
   onBack,
   currentCartQty = 0,
+  reservedUnits = 0,
   bsRate,
 }: {
   product: Product;
@@ -477,9 +478,16 @@ function ProductFoundSheet({
   onCancel: () => void;
   onBack?: (() => void) | null;
   currentCartQty?: number;
+  /** Units of this product reserved by held ("en espera") carts — soft-locked. */
+  reservedUnits?: number;
   bsRate: number;
 }) {
-  const maxAddable = Math.max(0, product.stock - currentCartQty);
+  // Display stays PHYSICAL (product.stock); availability nets out en-espera plus
+  // what's already in this cart. You can add while this stays > 0.
+  const maxAddable = Math.max(
+    0,
+    product.stock - reservedUnits - currentCartQty
+  );
   const [qty, setQty] = useState(Math.min(1, maxAddable) || 1);
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(Math.min(1, maxAddable) || 1));
@@ -540,6 +548,11 @@ function ProductFoundSheet({
           >
             {product.stock} en stock
           </Chip>
+          {reservedUnits > 0 && (
+            <Chip tone="warn" style={{ flex: 'none' }}>
+              {reservedUnits} en espera
+            </Chip>
+          )}
           {product.exempt === true && (
             <Chip tone="info" style={{ flex: 'none' }}>
               Exento IVA
@@ -654,12 +667,18 @@ function ProductFoundSheet({
           tone="warn"
           icon="alert-triangle"
           title={
-            currentCartQty > 0 ? 'Stock limitado' : 'Producto no disponible'
+            reservedUnits > 0
+              ? 'Unidades en espera'
+              : currentCartQty > 0
+                ? 'Stock limitado'
+                : 'Producto no disponible'
           }
           message={
-            currentCartQty > 0
-              ? `Solo puedes agregar ${maxAddable} más (ya tienes ${currentCartQty} en el carrito de ${product.stock} disponibles).`
-              : `Este producto se encuentra agodato`
+            reservedUnits > 0
+              ? `${reservedUnits} unidad(es) en espera — no disponibles para esta venta.`
+              : currentCartQty > 0
+                ? `Solo puedes agregar ${maxAddable} más (ya tienes ${currentCartQty} en el carrito de ${product.stock} disponibles).`
+                : `Este producto se encuentra agotado`
           }
         />
       )}
@@ -738,10 +757,13 @@ export function ManualSearchSheet({
   onPick,
   onClose,
   catalog,
+  reserved = {},
 }: {
   onPick: (p: Product) => void;
   onClose: () => void;
   catalog: Product[];
+  /** productId → units reserved by held ("en espera") carts. */
+  reserved?: Record<string, number>;
 }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
@@ -843,6 +865,9 @@ export function ManualSearchSheet({
               </div>
               <div className="pright">
                 <div>${p.price.toFixed(2)}</div>
+                {(reserved[p._id] || 0) > 0 && (
+                  <Chip tone="warn">{reserved[p._id]} en espera</Chip>
+                )}
                 {p.stock > 0 && p.stock <= (p.minStock ?? 5) && (
                   <div className="search-stock-max">
                     Máx. {p.stock} en stock
@@ -877,6 +902,7 @@ function CartContent({
   onClear,
   onPause,
   bsRate,
+  ivaPct,
 }: {
   cart: CartItem[];
   inc: (id: Id<'products'>) => void;
@@ -894,13 +920,14 @@ function CartContent({
   onClear: () => void;
   onPause?: (() => void) | null;
   bsRate: number;
+  ivaPct: number;
 }) {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const taxableBase = cart.reduce(
     (s, i) => s + (i.exempt === true ? 0 : i.price * i.qty),
     0
   );
-  const tax = salesType === 'invoice' ? taxableBase * 0.13 : 0;
+  const tax = salesType === 'invoice' ? taxableBase * (ivaPct / 100) : 0;
   const total = subtotal + tax;
   const paidSoFar = (pendingSplits || []).reduce(
     (s, r) => s + splitUsd(r, bsRate),
@@ -977,7 +1004,7 @@ function CartContent({
         )}
         {salesType === 'invoice' && (
           <div className="line">
-            <span>IVA (13%)</span>
+            <span>IVA ({ivaPct}%)</span>
             <span className="tabular">${tax.toFixed(2)}</span>
           </div>
         )}
@@ -1269,15 +1296,11 @@ export default function SaleScreen({
     }
   };
 
+  // Catalog shows PHYSICAL stock. Availability (en-espera + already-in-cart) is
+  // enforced only at add-to-cart time — never by subtracting from what's shown.
   const catalog = useMemo(
-    () =>
-      products
-        .map((p) => ({
-          ...p,
-          stock: Math.max(0, p.stock - (reserved[p._id] || 0)),
-        }))
-        .filter((p) => p.sellable !== false),
-    [reserved, products]
+    () => products.filter((p) => p.sellable !== false),
+    [products]
   );
   const [foundProduct, setFoundProduct] = useState<Product | null>(null);
   const [foundFromSearch, setFoundFromSearch] = useState(false);
@@ -1300,20 +1323,22 @@ export default function SaleScreen({
 
   const density = 'roomy' as string; // tweaks.density → fixed 'roomy' (CSS branches kept)
   const salesType: SalesType = settings?.salesType ?? 'invoice'; // tweaks.salesType → settings
+  const ivaPct = settings?.ivaPct ?? 13;
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const taxableBase = cart.reduce(
     (s, i) => s + (i.exempt === true ? 0 : i.price * i.qty),
     0
   );
-  const tax = salesType === 'invoice' ? taxableBase * 0.13 : 0;
+  const tax = salesType === 'invoice' ? taxableBase * (ivaPct / 100) : 0;
   const total = subtotal + tax;
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const handleScanResult = ({ found, product, code }: ScanResult) => {
     if (found && product) {
       const inCart = cart.find((i) => i._id === product._id)?.qty || 0;
-      if (inCart >= product.stock) {
+      // Block only when no sellable unit remains: physical − en-espera − in-cart.
+      if (product.stock - (reserved[product._id] || 0) - inCart <= 0) {
         setInsufficientStockProduct(product);
       } else {
         setFoundProduct(product);
@@ -1542,6 +1567,9 @@ export default function SaleScreen({
                         Bs {(p.price * bsRate).toFixed(2)}
                       </div>
                     )}
+                    {(reserved[p._id] || 0) > 0 && (
+                      <Chip tone="warn">{reserved[p._id]} en espera</Chip>
+                    )}
                     {p.stock > 0 && p.stock <= (p.minStock ?? 5) && (
                       <div className="quick-stock-max">
                         Máx. {p.stock} en stock
@@ -1638,7 +1666,7 @@ export default function SaleScreen({
                               )}
                             {salesType === 'invoice' && (
                               <div className="line">
-                                <span>IVA (13%)</span>
+                                <span>IVA ({ivaPct}%)</span>
                                 <span className="tabular">
                                   ${tax.toFixed(2)}
                                 </span>
@@ -1759,6 +1787,7 @@ export default function SaleScreen({
             currentCartQty={
               cart.find((i) => i._id === foundProduct._id)?.qty || 0
             }
+            reservedUnits={reserved[foundProduct._id] || 0}
             onAdd={(prod, qty) => {
               addToCart(prod, qty);
               setFoundFromSearch(false);
@@ -1792,6 +1821,7 @@ export default function SaleScreen({
         {searchOpen && (
           <ManualSearchSheet
             catalog={catalog}
+            reserved={reserved}
             onPick={(p) => {
               setSearchOpen(false);
               setFoundFromSearch(true);
@@ -1830,16 +1860,32 @@ export default function SaleScreen({
             onCancel={() => setConfirmCancel(false)}
           />
         )}
-        {insufficientStockProduct && (
-          <ConfirmDialog
-            title="Stock insuficiente"
-            message={`Ya tienes ${insufficientStockProduct.stock} ${insufficientStockProduct.name} en el carrito. No hay más unidades disponibles.`}
-            confirmLabel="Entendido"
-            cancelLabel="Cerrar"
-            onConfirm={() => setInsufficientStockProduct(null)}
-            onCancel={() => setInsufficientStockProduct(null)}
-          />
-        )}
+        {insufficientStockProduct &&
+          (() => {
+            const isp = insufficientStockProduct;
+            const inCart = cart.find((i) => i._id === isp._id)?.qty || 0;
+            const n = reserved[isp._id] || 0;
+            // Held units block the sale even though stock is physically present.
+            const blockedByReserved = n > 0 && isp.stock - inCart > 0;
+            return (
+              <ConfirmDialog
+                title={
+                  blockedByReserved
+                    ? 'Unidades en espera'
+                    : 'Stock insuficiente'
+                }
+                message={
+                  blockedByReserved
+                    ? `${n} unidad(es) en espera — no disponibles para esta venta.`
+                    : `Ya tienes ${isp.stock} ${isp.name} en el carrito. No hay más unidades disponibles.`
+                }
+                confirmLabel="Entendido"
+                cancelLabel="Cerrar"
+                onConfirm={() => setInsufficientStockProduct(null)}
+                onCancel={() => setInsufficientStockProduct(null)}
+              />
+            );
+          })()}
         {clientPickerOpen && (
           <ClientPickerSheet
             clients={clients}
@@ -2003,6 +2049,7 @@ export default function SaleScreen({
             setQty={setQty}
             density={density}
             salesType={salesType}
+            ivaPct={ivaPct}
             bsRate={bsRate}
             pendingSplits={pendingSplits}
             selectedClient={selectedClient}
@@ -2023,6 +2070,7 @@ export default function SaleScreen({
           currentCartQty={
             cart.find((i) => i._id === foundProduct._id)?.qty || 0
           }
+          reservedUnits={reserved[foundProduct._id] || 0}
           onAdd={(prod, qty) => {
             addToCart(prod, qty);
             setFoundFromSearch(false);
@@ -2056,6 +2104,7 @@ export default function SaleScreen({
       {searchOpen && (
         <ManualSearchSheet
           catalog={catalog}
+          reserved={reserved}
           onPick={(p) => {
             setSearchOpen(false);
             setFoundFromSearch(true);
@@ -2094,16 +2143,29 @@ export default function SaleScreen({
           onCancel={() => setConfirmCancel(false)}
         />
       )}
-      {insufficientStockProduct && (
-        <ConfirmDialog
-          title="Stock insuficiente"
-          message={`Ya tienes el máximo de ${insufficientStockProduct.name} disponibles en el carrito.`}
-          confirmLabel="Entendido"
-          cancelLabel="Cerrar"
-          onConfirm={() => setInsufficientStockProduct(null)}
-          onCancel={() => setInsufficientStockProduct(null)}
-        />
-      )}
+      {insufficientStockProduct &&
+        (() => {
+          const isp = insufficientStockProduct;
+          const inCart = cart.find((i) => i._id === isp._id)?.qty || 0;
+          const n = reserved[isp._id] || 0;
+          const blockedByReserved = n > 0 && isp.stock - inCart > 0;
+          return (
+            <ConfirmDialog
+              title={
+                blockedByReserved ? 'Unidades en espera' : 'Stock insuficiente'
+              }
+              message={
+                blockedByReserved
+                  ? `${n} unidad(es) en espera — no disponibles para esta venta.`
+                  : `Ya tienes el máximo de ${isp.name} disponibles en el carrito.`
+              }
+              confirmLabel="Entendido"
+              cancelLabel="Cerrar"
+              onConfirm={() => setInsufficientStockProduct(null)}
+              onCancel={() => setInsufficientStockProduct(null)}
+            />
+          );
+        })()}
       {clientPickerOpen && (
         <ClientPickerSheet
           clients={clients}

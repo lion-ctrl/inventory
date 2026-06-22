@@ -2,6 +2,7 @@
 // Mirror of the Venta screen's left panel, without cart or checkout.
 import { useCallback, useMemo, useState } from 'react';
 import { AppBar, Banner, Button, Chip, Icon, Input, Sheet } from '@/components';
+import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
 import {
   useBsRate,
@@ -19,12 +20,15 @@ function ProductInfoSheet({
   bsRate,
   catLabel,
   ivaPct,
+  reservedUnits = 0,
 }: {
   product: Product;
   onClose: () => void;
   bsRate: number;
   catLabel: string;
   ivaPct: number;
+  /** Units reserved by held ("en espera") carts — informational only here. */
+  reservedUnits?: number;
 }) {
   const p = product;
   const stockTone = p.stock > 5 ? 'ok' : p.stock > 2 ? 'warn' : 'danger';
@@ -42,6 +46,9 @@ function ProductInfoSheet({
         <div className="scan-card-chips">
           {p.sellable === false && <Chip tone="neutral">Pausado</Chip>}
           <Chip tone={stockTone}>{p.stock} en stock</Chip>
+          {reservedUnits > 0 && (
+            <Chip tone="warn">{reservedUnits} en espera</Chip>
+          )}
           {p.exempt === true && <Chip tone="info">Exento IVA</Chip>}
         </div>
 
@@ -138,6 +145,8 @@ export default function ScanScreen() {
   const bsRate = useBsRate();
   // Escanear is info-only: paused products stay visible here (unlike Venta).
   const catalog = useProducts();
+  // Read-only "en espera" counts; Escanear never sells, so this is just a chip.
+  const { reserved } = useCart();
   const categories = useCategories();
   const settings = useSettingsDoc();
   const ivaPct = settings?.ivaPct ?? 13;
@@ -275,6 +284,9 @@ export default function ScanScreen() {
                 {p.sellable === false && (
                   <div className="quick-stock-paused">Pausado</div>
                 )}
+                {(reserved[p._id] || 0) > 0 && (
+                  <Chip tone="warn">{reserved[p._id]} en espera</Chip>
+                )}
                 {p.sellable !== false &&
                   p.stock > 0 &&
                   p.stock <= (p.minStock ?? 5) && (
@@ -297,6 +309,7 @@ export default function ScanScreen() {
           bsRate={bsRate}
           catLabel={catLabelById.get(selected.categoryId) || ''}
           ivaPct={ivaPct}
+          reservedUnits={reserved[selected._id] || 0}
           onClose={() => setSelected(null)}
         />
       )}

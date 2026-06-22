@@ -19,6 +19,7 @@ import {
   Input,
   Sheet,
 } from '@/components';
+import { useCart } from '@/state/CartContext';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { useBsRate, useCategories, useProducts } from '@/state/hooks';
@@ -52,11 +53,14 @@ function ProductCard({
   onClick,
   bsRate,
   catMap,
+  reservedUnits = 0,
 }: {
   product: Product;
   onClick: (p: Product) => void;
   bsRate: number;
   catMap: Map<string, string>;
+  /** Units reserved by held ("en espera") carts — informational chip only. */
+  reservedUnits?: number;
 }) {
   return (
     <button className="prod-card" onClick={() => onClick(product)}>
@@ -67,6 +71,9 @@ function ProductCard({
           <Chip tone={stockTone(product.stock, product.minStock)}>
             {stockLabel(product.stock)}
           </Chip>
+          {reservedUnits > 0 && (
+            <Chip tone="warn">{reservedUnits} en espera</Chip>
+          )}
           {product.exempt === true && <Chip tone="info">Exento IVA</Chip>}
         </div>
       </div>
@@ -343,6 +350,7 @@ function ProductDetailSheet({
   onDelete,
   bsRate,
   catMap,
+  reservedUnits = 0,
 }: {
   product: Product;
   onClose: () => void;
@@ -351,6 +359,8 @@ function ProductDetailSheet({
   onDelete: (p: Product) => void;
   bsRate: number;
   catMap: Map<string, string>;
+  /** Units reserved by held ("en espera") carts — informational chip only. */
+  reservedUnits?: number;
 }) {
   const [adjust, setAdjust] = useState('');
   if (!product) return null;
@@ -371,6 +381,11 @@ function ProductDetailSheet({
             >
               {stockLabel(product.stock)}
             </Chip>
+            {reservedUnits > 0 && (
+              <Chip tone="warn" style={{ marginTop: 6, marginLeft: 6 }}>
+                {reservedUnits} en espera
+              </Chip>
+            )}
           </div>
         </div>
 
@@ -721,6 +736,8 @@ function CategoriesSheet({
 
 export default function ProductsScreen() {
   const products = useProducts();
+  // productId → units held in "en espera" carts; drives the informational chip.
+  const { reserved } = useCart();
   const categories = useCategories();
   const { user } = useSession();
   const online = useOnline();
@@ -1079,6 +1096,7 @@ export default function ProductsScreen() {
                 onClick={setDetail}
                 bsRate={bsRate}
                 catMap={catMap}
+                reservedUnits={reserved[p._id] || 0}
               />
             ))}
           </div>
@@ -1159,6 +1177,7 @@ export default function ProductsScreen() {
           onClose={() => setDetail(null)}
           bsRate={bsRate}
           catMap={catMap}
+          reservedUnits={reserved[detail._id] || 0}
           onEdit={openEdit}
           onAdjustStock={(...args: Parameters<typeof adjustStock>) => {
             void adjustStock(...args);
