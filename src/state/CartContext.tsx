@@ -35,6 +35,8 @@ interface CartValue {
   setSplits: Dispatch<SetStateAction<SplitRow[]>>;
   splitsIdRef: MutableRefObject<number>;
   resetPayment: () => void;
+  /** Discard the whole in-progress sale: cart + payment splits + selected client. */
+  discardSale: () => void;
   /** productId → qty reserved by held ("en espera") carts; reduces availability in Venta */
   reserved: Record<string, number>;
   heldCarts: HeldCart[];
@@ -112,6 +114,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setSplits(NEW_SPLIT_ROW());
       splitsIdRef.current = 2;
     };
+    // Canonical "throw the sale away" used by every cancel/close path so they
+    // all agree: empties the cart, resets payment splits, and detaches the
+    // client — guaranteeing the next Venta visit re-shows the ClientGate.
+    const discardSale = () => {
+      setCart([]);
+      setSelectedClientId(null);
+      resetPayment();
+    };
     return {
       cart,
       setCart,
@@ -121,6 +131,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setSplits,
       splitsIdRef,
       resetPayment,
+      discardSale,
       reserved,
       heldCarts,
       completedSale,

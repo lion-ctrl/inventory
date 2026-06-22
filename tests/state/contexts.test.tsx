@@ -16,7 +16,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { getFunctionName } from 'convex/server';
 import { SessionProvider, useSession } from '@/state/SessionContext';
 import { CartProvider, useCart } from '@/state/CartContext';
-import type { Product } from '@/types';
+import type { Client, Product } from '@/types';
 
 const useQueryMock = vi.mocked(useQuery);
 const useMutationMock = vi.mocked(useMutation);
@@ -54,9 +54,20 @@ const pausedProduct = {
   sellable: false,
 } as unknown as Product;
 
+const maria = {
+  _id: 'c_maria',
+  _creationTime: 0,
+  name: 'María González',
+  taxPrefix: 'V',
+  taxId: '5.123.456',
+  kind: 'person',
+  createdAt: 0,
+} as unknown as Client;
+
 interface Wiring {
   me?: typeof owner | null;
   products?: Product[];
+  clients?: Client[];
   heldCarts?: any[];
 }
 
@@ -64,7 +75,11 @@ interface Wiring {
 const wiring: Wiring = {};
 
 function wireQueries(opts: Wiring) {
-  Object.assign(wiring, { me: undefined, products: [], heldCarts: [] }, opts);
+  Object.assign(
+    wiring,
+    { me: undefined, products: [], clients: [], heldCarts: [] },
+    opts
+  );
   useQueryMock.mockImplementation(((query: any, args: any) => {
     if (args === 'skip') return undefined;
     switch (getFunctionName(query)) {
@@ -73,7 +88,7 @@ function wireQueries(opts: Wiring) {
       case 'products:list':
         return wiring.products;
       case 'clients:list':
-        return [];
+        return wiring.clients;
       case 'categories:list':
         return [];
       case 'settings:get':
@@ -245,6 +260,31 @@ describe('CartContext', () => {
       note: 'Vuelve en 10 min',
     });
     expect(result.current.cart).toHaveLength(0);
+    expect(result.current.splits).toEqual([
+      { id: 1, method: 'cash', amount: '' },
+    ]);
+  });
+
+  test('discardSale wipes the cart, payment splits, and the selected client', () => {
+    const { result } = renderCart({ products: [cola], clients: [maria] });
+
+    act(() => {
+      result.current.setCart([{ ...cola, qty: 2 }]);
+      result.current.setSelectedClientId(maria._id);
+      result.current.setSplits([{ id: 1, method: 'cash', amount: '3' }]);
+    });
+    // An in-progress sale with a client attached.
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.selectedClient?._id).toBe('c_maria');
+
+    act(() => {
+      result.current.discardSale();
+    });
+
+    // Cancelling/closing must discard the WHOLE sale — including the client —
+    // so the next Venta visit re-shows the ClientGate for a fresh sale.
+    expect(result.current.cart).toHaveLength(0);
+    expect(result.current.selectedClient).toBeNull();
     expect(result.current.splits).toEqual([
       { id: 1, method: 'cash', amount: '' },
     ]);

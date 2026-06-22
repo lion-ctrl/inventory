@@ -1217,6 +1217,7 @@ export default function SaleScreen({
     setSelectedClientId,
     splits: pendingSplits,
     resetPayment,
+    discardSale,
     reserved,
     pauseSale,
   } = useCart();
@@ -1354,7 +1355,11 @@ export default function SaleScreen({
 
   const tryClose = () => {
     if (cart.length > 0) setConfirmCancel(true);
-    else onBack();
+    else {
+      // Empty cart but a client may still be attached — discard so the gate re-shows.
+      discardSale();
+      onBack();
+    }
   };
 
   const filteredCatalog = (
@@ -1730,7 +1735,13 @@ export default function SaleScreen({
               {cart.length === 0 && (
                 <div className="cart-foot">
                   <BottomBar>
-                    <Button variant="secondary" onClick={onBack}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        discardSale();
+                        onBack();
+                      }}
+                    >
                       Cerrar
                     </Button>
                     <Button disabled>Cobrar $0.00</Button>
@@ -1813,8 +1824,7 @@ export default function SaleScreen({
             tone="danger"
             onConfirm={() => {
               setConfirmCancel(false);
-              setCart([]);
-              onResetPayment?.();
+              discardSale();
               onBack();
             }}
             onCancel={() => setConfirmCancel(false)}
@@ -2078,8 +2088,7 @@ export default function SaleScreen({
           tone="danger"
           onConfirm={() => {
             setConfirmCancel(false);
-            setCart([]);
-            onResetPayment?.();
+            discardSale();
             onBack();
           }}
           onCancel={() => setConfirmCancel(false)}
