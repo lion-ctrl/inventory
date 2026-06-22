@@ -114,6 +114,13 @@ export interface ScannerViewProps {
   catalog: Product[];
   /** Owner-configured input (Ajustes → "Modo de escaneo"); absent = physical. */
   scannerMode?: 'physical' | 'camera';
+  /**
+   * Desktop-only (mode="split") height knob. Overrides the CSS aspect-ratio of
+   * `.scanner-wrap.wide` (16/9 ≈ 1.78). HIGHER value = SHORTER scanner; lower it
+   * back toward 1.78 to grow taller. Unset → CSS default. Mobile (mode="scroll")
+   * never applies it.
+   */
+  wideAspectRatio?: number;
 }
 
 // Dispatcher (hook-free on purpose): swapping the mode swaps the child component,
@@ -131,6 +138,7 @@ function PhysicalScannerView({
   mode = 'scroll',
   density = 'roomy',
   catalog,
+  wideAspectRatio,
 }: Omit<ScannerViewProps, 'scannerMode'>) {
   // mode: 'scroll' (mobile inline) | 'split' (desktop top-left)
   const [state, setState] = useState<ScanState>(SCAN_STATES.AIMING);
@@ -232,7 +240,14 @@ function PhysicalScannerView({
   return (
     <div
       className={`scanner-wrap ${aspect}`}
-      style={{ margin: '0px 4px 0px 3px' }}
+      style={{
+        margin: '0px 4px 0px 3px',
+        // Desktop (mode="split") height knob: overrides .scanner-wrap.wide (16/9).
+        // Higher ratio = shorter scanner. Mobile (mode="scroll") never sets this.
+        ...(mode === 'split' && wideAspectRatio
+          ? { aspectRatio: wideAspectRatio }
+          : {}),
+      }}
     >
       <div className="cam-bg" style={{ margin: '0px' }} />
       {detectedFormat && (
@@ -1458,6 +1473,10 @@ export default function SaleScreen({
                   density={density}
                   catalog={catalog}
                   scannerMode={settings?.scannerMode}
+                  // === DESKTOP SCANNER HEIGHT KNOB ===
+                  // Original was 16/9 (1.78). 2.74 ≈ 35% shorter.
+                  // Raise to shrink further; lower toward 1.78 to grow taller.
+                  wideAspectRatio={2.74}
                 />
               </div>
 

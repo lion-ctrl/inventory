@@ -123,6 +123,8 @@ export interface CameraScannerProps {
   catalog: Product[];
   mode?: 'scroll' | 'split';
   density?: string;
+  /** Desktop-only (mode="split") aspect-ratio override; higher = shorter. See ScannerViewProps. */
+  wideAspectRatio?: number;
 }
 
 export function CameraScanner({
@@ -130,6 +132,7 @@ export function CameraScanner({
   catalog,
   mode = 'scroll',
   density = 'roomy',
+  wideAspectRatio,
 }: CameraScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [state, setState] = useState<CameraState>('starting');
@@ -378,7 +381,14 @@ export function CameraScanner({
   return (
     <div
       className={`scanner-wrap ${aspect}`}
-      style={{ margin: '0px 4px 0px 3px' }}
+      style={{
+        margin: '0px 4px 0px 3px',
+        // Desktop (mode="split") height knob: overrides .scanner-wrap.wide (16/9).
+        // Higher ratio = shorter scanner. Mobile (mode="scroll") never sets this.
+        ...(mode === 'split' && wideAspectRatio
+          ? { aspectRatio: wideAspectRatio }
+          : {}),
+      }}
     >
       <div className="cam-bg" style={{ margin: '0px' }} />
       <video
