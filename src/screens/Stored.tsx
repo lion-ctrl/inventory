@@ -132,9 +132,24 @@ export default function StoredCartsScreen() {
   const navigate = useNavigate();
   const online = useOnline();
   const bsRate = useBsRate();
-  const { heldCarts: carts, resumeSale, discardStored } = useCart();
+  const {
+    heldCarts: carts,
+    resumeSale,
+    discardStored,
+    cart,
+    selectedClient,
+    pauseSale,
+    discardSale,
+  } = useCart();
 
   const [confirmDiscard, setConfirmDiscard] = useState<HeldCart | null>(null);
+  // When set, a sale is already in progress and the cashier must choose what to
+  // do with it before resuming `id`. `canPause` is false for a client-only
+  // sale (empty cart can't be parked).
+  const [resumeGuard, setResumeGuard] = useState<{
+    id: HeldCart['_id'];
+    canPause: boolean;
+  } | null>(null);
   const [detailCart, setDetailCart] = useState<HeldCart | null>(null);
   const [q, setQ] = useState('');
   const [fromDate, setFromDate] = useState('');
@@ -162,6 +177,65 @@ export default function StoredCartsScreen() {
   const handleDiscard = async (id: HeldCart['_id']) => {
     try {
       await discardStored(id);
+    } catch (e: any) {
+      alert(
+        typeof e?.data === 'string'
+          ? e.data
+          : 'Ocurrió un error. Intenta de nuevo.'
+      );
+    }
+  };
+
+  // Resume guard: never silently overwrite an in-progress sale. Resume directly
+  // only when nothing is in progress; otherwise ask the cashier what to do.
+  const requestResume = (id: HeldCart['_id']) => {
+    const hasItems = cart.length > 0;
+    const saleInProgress = hasItems || selectedClient != null;
+    if (!saleInProgress) {
+      void handleResume(id);
+      return;
+    }
+    setResumeGuard({ id, canPause: hasItems });
+  };
+
+  // "Pausar y reanudar": park the current sale, THEN resume the held one.
+  // CRITICAL: if parking fails we ABORT — resumeSale must NOT run, or the
+  // in-progress sale would be lost. Surface the error and keep the dialog open.
+  const handlePauseAndResume = async () => {
+    if (!resumeGuard) return;
+    const { id } = resumeGuard;
+    try {
+      await pauseSale();
+    } catch (e: any) {
+      alert(
+        typeof e?.data === 'string'
+          ? e.data
+          : 'No se pudo pausar la venta en curso. Intenta de nuevo.'
+      );
+      return; // abort — the current sale stays intact
+    }
+    try {
+      await resumeSale(id);
+      setResumeGuard(null);
+      void navigate('/venta');
+    } catch (e: any) {
+      alert(
+        typeof e?.data === 'string'
+          ? e.data
+          : 'Ocurrió un error. Intenta de nuevo.'
+      );
+    }
+  };
+
+  // "Descartar y reanudar": throw the current sale away, THEN resume the held one.
+  const handleDiscardAndResume = async () => {
+    if (!resumeGuard) return;
+    const { id } = resumeGuard;
+    discardSale();
+    try {
+      await resumeSale(id);
+      setResumeGuard(null);
+      void navigate('/venta');
     } catch (e: any) {
       alert(
         typeof e?.data === 'string'
@@ -401,7 +475,7 @@ export default function StoredCartsScreen() {
                         <Button
                           size="sm"
                           icon="play"
-                          onClick={() => void handleResume(s._id)}
+                          onClick={() => requestResume(s._id)}
                         >
                           Reanudar
                         </Button>
@@ -502,6 +576,51 @@ export default function StoredCartsScreen() {
           onCancel={() => setConfirmDiscard(null)}
         />
       )}
+      {resumeGuard && (
+        <Sheet onClose={() => setResumeGuard(null)} dialog>
+          <div style={{ font: '700 18px var(--font-sans)', marginBottom: 6 }}>
+            Tienes una venta en curso
+          </div>
+          <div
+            style={{
+              font: '400 14px var(--font-sans)',
+              color: 'var(--ink-2)',
+              marginBottom: 18,
+              lineHeight: 1.5,
+            }}
+          >
+            Si reanudas esta venta, ¿qué quieres hacer con la venta que tienes
+            en curso?
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {resumeGuard.canPause && (
+              <Button
+                block
+                size="sm"
+                onClick={() => void handlePauseAndResume()}
+              >
+                Pausar y reanudar
+              </Button>
+            )}
+            <Button
+              block
+              size="sm"
+              variant="danger"
+              onClick={() => void handleDiscardAndResume()}
+            >
+              Descartar y reanudar
+            </Button>
+            <Button
+              block
+              size="sm"
+              variant="secondary"
+              onClick={() => setResumeGuard(null)}
+            >
+              Cancelar
+            </Button>
+          </div>
+        </Sheet>
+      )}
       {detailCart && (
         <Sheet
           onClose={() => setDetailCart(null)}
@@ -548,7 +667,7 @@ export default function StoredCartsScreen() {
               onClick={() => {
                 const id = detailCart._id;
                 setDetailCart(null);
-                void handleResume(id);
+                requestResume(id);
               }}
             >
               Reanudar
