@@ -18,6 +18,8 @@ const { cartMock, productsMock } = vi.hoisted(() => {
     discardSale: ReturnType<typeof vi.fn>;
     reserved: Record<string, number>;
     pauseSale: ReturnType<typeof vi.fn>;
+    pausedRemovals: string[];
+    dismissPausedRemovals: ReturnType<typeof vi.fn>;
   } = {
     cart: [],
     setCart: vi.fn(),
@@ -28,6 +30,8 @@ const { cartMock, productsMock } = vi.hoisted(() => {
     discardSale: vi.fn(),
     reserved: {},
     pauseSale: vi.fn(async () => {}),
+    pausedRemovals: [],
+    dismissPausedRemovals: vi.fn(),
   };
   const productsMock: { current: Product[] } = { current: [] };
   return { cartMock, productsMock };
@@ -86,6 +90,7 @@ afterEach(() => {
   cartMock.cart = [];
   cartMock.reserved = {};
   cartMock.selectedClient = null;
+  cartMock.pausedRemovals = [];
   productsMock.current = [];
 });
 

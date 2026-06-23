@@ -289,4 +289,99 @@ describe('CartContext', () => {
       { id: 1, method: 'cash', amount: '' },
     ]);
   });
+
+  test('resumeSale drops paused items AND records their names in pausedRemovals', async () => {
+    const { result } = renderCart({ products: [cola, pausedProduct] });
+    const resume = mutationFor('heldCarts:resume');
+    resume.mockResolvedValue({
+      items: [
+        { productId: 'p_cola', qty: 2 },
+        { productId: 'p_paused', qty: 1 }, // paused → dropped + recorded by name
+      ],
+      client: null,
+      splits: [],
+    });
+
+    await act(async () => {
+      await result.current.resumeSale('h1' as any);
+    });
+
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.cart[0]._id).toBe('p_cola');
+    expect(result.current.cart[0].qty).toBe(2);
+    // The dropped paused line surfaces as a Venta notice (drives the modal).
+    expect(result.current.pausedRemovals).toEqual(['Pintura blanca 1gal']);
+  });
+
+  test('resumeSale with ALL lines paused → cart lands EMPTY, every name recorded', async () => {
+    const otherPaused = {
+      ...pausedProduct,
+      _id: 'p_paused2',
+      name: 'Cemento gris',
+    } as unknown as Product;
+    const { result } = renderCart({ products: [pausedProduct, otherPaused] });
+    const resume = mutationFor('heldCarts:resume');
+    resume.mockResolvedValue({
+      items: [
+        { productId: 'p_paused', qty: 1 },
+        { productId: 'p_paused2', qty: 1 },
+      ],
+      client: null,
+      splits: [],
+    });
+
+    await act(async () => {
+      await result.current.resumeSale('h1' as any);
+    });
+
+    expect(result.current.cart).toHaveLength(0);
+    expect(result.current.pausedRemovals).toEqual([
+      'Pintura blanca 1gal',
+      'Cemento gris',
+    ]);
+  });
+
+  test('resumeSale drops DELETED products SILENTLY (no name recorded)', async () => {
+    const { result } = renderCart({ products: [cola] });
+    const resume = mutationFor('heldCarts:resume');
+    resume.mockResolvedValue({
+      items: [
+        { productId: 'p_cola', qty: 2 },
+        { productId: 'p_gone', qty: 1 }, // no live product → dropped silently
+      ],
+      client: null,
+      splits: [],
+    });
+
+    await act(async () => {
+      await result.current.resumeSale('h1' as any);
+    });
+
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.cart[0]._id).toBe('p_cola');
+    // Deleted (not paused) → no cashier-facing notice.
+    expect(result.current.pausedRemovals).toEqual([]);
+  });
+
+  test('a live cart item that becomes paused is removed and recorded in pausedRemovals; dismiss clears it', async () => {
+    const { result, rerender } = renderCart({ products: [cola] });
+
+    act(() => {
+      result.current.setCart([{ ...cola, qty: 2 }]);
+    });
+    expect(result.current.cart).toHaveLength(1);
+    expect(result.current.pausedRemovals).toEqual([]);
+
+    // Admin pauses the product live: the reactive query yields a new array.
+    wiring.products = [{ ...cola, sellable: false }] as Product[];
+    rerender();
+
+    await waitFor(() => expect(result.current.cart).toHaveLength(0));
+    expect(result.current.pausedRemovals).toEqual(['Coca-Cola 600ml']);
+
+    act(() => {
+      result.current.dismissPausedRemovals();
+    });
+    expect(result.current.pausedRemovals).toEqual([]);
+  });
 });

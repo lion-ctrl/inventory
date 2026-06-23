@@ -34,6 +34,11 @@ vi.mock('@/state/useOnline', () => ({ useOnline: () => true }));
 vi.mock('@/state/hooks', () => ({
   useBsRate: () => 0,
   useSettingsDoc: () => null,
+  // The held cart's only line (p_cola) maps to a sellable product, so the new
+  // paused-product guard is a no-op here and the resume guard behaves as before.
+  useProducts: () => [
+    { _id: 'p_cola', name: 'Coca-Cola 600ml', sellable: true },
+  ],
 }));
 vi.mock('@/state/CartContext', () => ({ useCart: () => cartMock }));
 

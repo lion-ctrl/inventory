@@ -1247,6 +1247,8 @@ export default function SaleScreen({
     discardSale,
     reserved,
     pauseSale,
+    pausedRemovals,
+    dismissPausedRemovals,
   } = useCart();
   const createClient = useMutation(api.clients.create);
   const w = useViewport();
@@ -1333,6 +1335,44 @@ export default function SaleScreen({
   const tax = salesType === 'invoice' ? taxableBase * (ivaPct / 100) : 0;
   const total = subtotal + tax;
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+
+  // Notice for lines auto-removed because their product was paused (live, or
+  // dropped while resuming a held cart). An external event (acknowledge only, no
+  // confirm). Rendered as a top-level MODAL in EVERY layout/branch — including
+  // the ClientGate and an empty cart — so it always shows (the old inline banner
+  // failed because it sat inside a body that didn't always mount).
+  const pausedModal =
+    pausedRemovals.length > 0 ? (
+      <Sheet onClose={dismissPausedRemovals} dialog>
+        <div style={{ font: '700 18px var(--font-sans)', marginBottom: 6 }}>
+          Productos pausados
+        </div>
+        <div
+          style={{
+            font: '400 14px var(--font-sans)',
+            color: 'var(--ink-2)',
+            marginBottom: 18,
+            lineHeight: 1.5,
+          }}
+        >
+          <div>
+            {pausedRemovals.length === 1
+              ? 'Este producto fue quitado de la venta porque está pausado:'
+              : 'Estos productos fueron quitados de la venta porque están pausados:'}
+          </div>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 22 }}>
+            {pausedRemovals.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button block size="sm" onClick={dismissPausedRemovals}>
+            Entendido
+          </Button>
+        </div>
+      </Sheet>
+    ) : null;
 
   const handleScanResult = ({ found, product, code }: ScanResult) => {
     if (found && product) {
@@ -1465,6 +1505,7 @@ export default function SaleScreen({
               />
             </Sheet>
           )}
+          {pausedModal}
         </>
       );
     }
@@ -1940,6 +1981,7 @@ export default function SaleScreen({
             />
           </Sheet>
         )}
+        {pausedModal}
       </>
     );
   }
@@ -1991,6 +2033,7 @@ export default function SaleScreen({
             />
           </Sheet>
         )}
+        {pausedModal}
       </>
     );
   }
@@ -2202,6 +2245,7 @@ export default function SaleScreen({
           />
         </Sheet>
       )}
+      {pausedModal}
     </>
   );
 }

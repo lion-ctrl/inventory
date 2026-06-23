@@ -12,7 +12,7 @@ import {
 } from '@/components';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
-import { useBsRate } from '@/state/hooks';
+import { useBsRate, useProducts } from '@/state/hooks';
 import type { HeldCart } from '@/types';
 import { splitUsd } from './Payment';
 
@@ -132,6 +132,7 @@ export default function StoredCartsScreen() {
   const navigate = useNavigate();
   const online = useOnline();
   const bsRate = useBsRate();
+  const products = useProducts();
   const {
     heldCarts: carts,
     resumeSale,
@@ -149,6 +150,12 @@ export default function StoredCartsScreen() {
   const [resumeGuard, setResumeGuard] = useState<{
     id: HeldCart['_id'];
     canPause: boolean;
+  } | null>(null);
+  // When the held cart being resumed has paused product(s), confirm BEFORE
+  // proceeding: those lines will be dropped. `names` = the paused product names.
+  const [pausedConfirm, setPausedConfirm] = useState<{
+    id: HeldCart['_id'];
+    names: string[];
   } | null>(null);
   const [detailCart, setDetailCart] = useState<HeldCart | null>(null);
   const [q, setQ] = useState('');
@@ -186,9 +193,39 @@ export default function StoredCartsScreen() {
     }
   };
 
-  // Resume guard: never silently overwrite an in-progress sale. Resume directly
-  // only when nothing is in progress; otherwise ask the cashier what to do.
+  // Names of a held cart's lines whose CURRENT product is paused (sellable ===
+  // false). Deleted products (no live match) are ignored here — they drop
+  // silently on resume and never warrant a confirmation.
+  const pausedItemsOf = (held: HeldCart): string[] => {
+    const byId = new Map(products.map((p) => [p._id, p]));
+    const names: string[] = [];
+    for (const it of held.items ?? []) {
+      const live = byId.get(it.productId);
+      if (live && live.sellable === false) names.push(live.name);
+    }
+    return names;
+  };
+
+  // Entry point for both Reanudar buttons (list card + detail sheet). If the
+  // held cart has paused product(s), confirm FIRST that the cashier wants to
+  // proceed (those lines will be dropped); on "Continuar" we fall through to the
+  // normal guard. With no paused lines we skip straight to it.
   const requestResume = (id: HeldCart['_id']) => {
+    const held = carts.find((c) => c._id === id);
+    const names = held ? pausedItemsOf(held) : [];
+    if (names.length > 0) {
+      setPausedConfirm({ id, names });
+      return;
+    }
+    proceedResume(id);
+  };
+
+  // The sale-in-progress guard. Resume ALWAYS proceeds: paused lines are dropped
+  // by resumeSale and surfaced as a notice modal on Venta (an all-paused cart
+  // resumes EMPTY, client restored). The only gate here is to never silently
+  // overwrite an in-progress sale — resume directly only when nothing is in
+  // progress, otherwise ask what to do with the current sale.
+  const proceedResume = (id: HeldCart['_id']) => {
     const hasItems = cart.length > 0;
     const saleInProgress = hasItems || selectedClient != null;
     if (!saleInProgress) {
@@ -574,6 +611,33 @@ export default function StoredCartsScreen() {
             setConfirmDiscard(null);
           }}
           onCancel={() => setConfirmDiscard(null)}
+        />
+      )}
+      {pausedConfirm && (
+        <ConfirmDialog
+          title="Productos pausados"
+          message={
+            <>
+              <div>Esta venta tiene producto(s) pausado(s):</div>
+              <ul style={{ margin: '8px 0', paddingLeft: 22 }}>
+                {pausedConfirm.names.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+              <div>
+                Si continúas, se quitará(n) de la venta. ¿Deseas continuar?
+              </div>
+            </>
+          }
+          confirmLabel="Continuar"
+          cancelLabel="Cancelar"
+          tone="primary"
+          onConfirm={() => {
+            const { id } = pausedConfirm;
+            setPausedConfirm(null);
+            proceedResume(id);
+          }}
+          onCancel={() => setPausedConfirm(null)}
         />
       )}
       {resumeGuard && (
