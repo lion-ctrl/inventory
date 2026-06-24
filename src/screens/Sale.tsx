@@ -2,7 +2,6 @@
 // Responsive: mobile-first, tablet/desktop two-pane
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
@@ -1299,7 +1298,6 @@ export default function SaleScreen({
 }: {
   onConfirm: (cart: CartItem[], total: number) => void;
 }) {
-  const navigate = useNavigate();
   const online = useOnline();
   const bsRate = useBsRate();
   const products = useProducts();
@@ -1324,7 +1322,6 @@ export default function SaleScreen({
   const isWide = w >= 1000;
 
   // Wirings that replaced the prototype's props
-  const onBack = () => void navigate('/');
   const onResetPayment = resetPayment;
   const onSelectClient = (id: Id<'clients'>) => setSelectedClientId(id);
   const onCreateClient = async (form: {
@@ -1501,12 +1498,11 @@ export default function SaleScreen({
     setCart((c) => c.filter((i) => i._id !== id));
 
   const tryClose = () => {
-    if (cart.length > 0) setConfirmCancel(true);
-    else {
-      // Empty cart but a client may still be attached — discard so the gate re-shows.
-      discardSale();
-      onBack();
-    }
+    // ALWAYS confirm before discarding — whether the cart has products or is
+    // empty (a client may still be attached). The confirm dialog adapts its
+    // copy to the cart state; on confirm it discards so the ClientGate re-shows
+    // IN PLACE (no navigation).
+    setConfirmCancel(true);
   };
 
   const filteredCatalog = (
@@ -1882,13 +1878,7 @@ export default function SaleScreen({
               {cart.length === 0 && (
                 <div className="cart-foot">
                   <BottomBar>
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        discardSale();
-                        onBack();
-                      }}
-                    >
+                    <Button variant="secondary" onClick={tryClose}>
                       Cerrar
                     </Button>
                     <Button disabled>Cobrar $0.00</Button>
@@ -1966,15 +1956,20 @@ export default function SaleScreen({
 
         {confirmCancel && (
           <ConfirmDialog
-            title="¿Cancelar la venta?"
-            message="Se perderán los productos del carrito."
+            title={
+              cart.length > 0 ? '¿Cancelar la venta?' : '¿Cerrar la venta?'
+            }
+            message={
+              cart.length > 0
+                ? 'Se perderán los productos del carrito.'
+                : 'Se descartará la venta actual y volverás a identificar al cliente.'
+            }
             confirmLabel="Sí"
             cancelLabel="No"
             tone="danger"
             onConfirm={() => {
               setConfirmCancel(false);
               discardSale();
-              onBack();
             }}
             onCancel={() => setConfirmCancel(false)}
           />
@@ -2251,15 +2246,18 @@ export default function SaleScreen({
 
       {confirmCancel && (
         <ConfirmDialog
-          title="¿Cancelar la venta?"
-          message="Se perderán los productos del carrito."
+          title={cart.length > 0 ? '¿Cancelar la venta?' : '¿Cerrar la venta?'}
+          message={
+            cart.length > 0
+              ? 'Se perderán los productos del carrito.'
+              : 'Se descartará la venta actual y volverás a identificar al cliente.'
+          }
           confirmLabel="Sí"
           cancelLabel="No"
           tone="danger"
           onConfirm={() => {
             setConfirmCancel(false);
             discardSale();
-            onBack();
           }}
           onCancel={() => setConfirmCancel(false)}
         />
