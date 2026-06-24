@@ -31,6 +31,13 @@ import { splitUsd } from './Payment';
 import { ClientForm, ClientPickerSheet, formatTaxId } from './Clients';
 import { CameraScanner } from './CameraScanner';
 
+// Round to 2 decimals — mirrors convex/permissions.ts `round2`. The cart MUST
+// round the IVA the same way the backend `checkout` does, so the displayed USD
+// total equals what's charged AND the Bs conversion (total * bsRate) lines up
+// with the rounded USD total (no sub-cent divergence). Local on purpose:
+// frontend code must not import from convex/.
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 // Ported from prototype app.jsx — drives the >= 1000px two-pane layout.
 function useViewport() {
   const [w, setW] = useState(() => window.innerWidth);
@@ -312,6 +319,11 @@ function CartItemRow({
       <div style={{ minWidth: 0 }}>
         <p className="pname">{item.name}</p>
         <div className="pmeta">{catLabel}</div>
+        {/* Mini "Exento IVA" indicator — same Chip (tone="info") used for exempt
+            products in ProductFoundSheet / ProductInfoSheet. Cart-line only,
+            purely visual; no calc change. Lives in CartItemRow so it covers both
+            the mobile (CartContent) and the desktop inline cart. */}
+        {item.exempt === true && <Chip tone="info">Exento IVA</Chip>}
         <div className="pmeta">
           ${item.price.toFixed(2)} c/u
           {bsRate > 0 ? ` · Bs ${(item.price * bsRate).toFixed(2)}` : ''}
@@ -507,6 +519,16 @@ export function ProductFoundSheet({
   const setQtyClamped = (n: number) =>
     setQty(Math.max(1, Math.min(maxAddable || 1, n)));
 
+  // Banner policy — reaching the cap (qty === maxAddable) is NOT "unavailable".
+  // The DANGER banner shows ONLY when nothing can be added (maxAddable < 1), and
+  // its reason is disambiguated: en-espera blocks it / the cart already holds the
+  // max / the product is physically out of stock. When there IS room to add, at
+  // most a soft INFO note shows — never an "agotado / no disponible" warning.
+  const nothingAddable = maxAddable < 1;
+  const reservedBlocks = nothingAddable && reservedUnits > 0;
+  const cartHoldsMax = nothingAddable && !reservedBlocks && currentCartQty > 0;
+  const showCartRoomInfo = !nothingAddable && currentCartQty > 0;
+
   return (
     <Sheet onClose={onCancel}>
       {onBack && (
@@ -670,24 +692,36 @@ export function ProductFoundSheet({
         </div>
       </div>
 
-      {(insufficientStock || qty >= maxAddable) && (
+      {nothingAddable &&
+        (reservedBlocks ? (
+          <Banner
+            tone="warn"
+            icon="alert-triangle"
+            title="Unidades en espera"
+            message={`${reservedUnits} unidad(es) en espera — no disponibles para esta venta.`}
+          />
+        ) : cartHoldsMax ? (
+          <Banner
+            tone="danger"
+            icon="alert-triangle"
+            title="Sin unidades por agregar"
+            message="Ya tienes el máximo disponible en el carrito."
+          />
+        ) : (
+          <Banner
+            tone="danger"
+            icon="alert-triangle"
+            title="Producto no disponible"
+            message="Este producto se encuentra agotado."
+          />
+        ))}
+
+      {showCartRoomInfo && (
         <Banner
-          tone="warn"
-          icon="alert-triangle"
-          title={
-            reservedUnits > 0
-              ? 'Unidades en espera'
-              : currentCartQty > 0
-                ? 'Stock limitado'
-                : 'Producto no disponible'
-          }
-          message={
-            reservedUnits > 0
-              ? `${reservedUnits} unidad(es) en espera — no disponibles para esta venta.`
-              : currentCartQty > 0
-                ? `Solo puedes agregar ${maxAddable} más (ya tienes ${currentCartQty} en el carrito de ${product.stock} disponibles).`
-                : `Este producto se encuentra agotado`
-          }
+          tone="info"
+          icon="info"
+          title="Stock limitado"
+          message={`Solo puedes agregar ${maxAddable} más (ya tienes ${currentCartQty} en el carrito de ${product.stock} disponibles).`}
         />
       )}
 
@@ -933,18 +967,21 @@ function CartContent({
   /** productId → units reserved by held ("en espera") carts. */
   reserved: Record<string, number>;
 }) {
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const taxableBase = cart.reduce(
-    (s, i) => s + (i.exempt === true ? 0 : i.price * i.qty),
-    0
+  // Money math mirrors convex/sales.ts `checkout`: round2 every component so
+  // the USD total equals what's charged and the Bs lines (× bsRate) line up
+  // with the rounded USD — no sub-cent divergence (e.g. 1819.30 vs 1820.00).
+  const subtotal = round2(cart.reduce((s, i) => s + i.price * i.qty, 0));
+  const taxableBase = round2(
+    cart.reduce((s, i) => s + (i.exempt === true ? 0 : i.price * i.qty), 0)
   );
-  const tax = salesType === 'invoice' ? taxableBase * (ivaPct / 100) : 0;
-  const total = subtotal + tax;
+  const tax =
+    salesType === 'invoice' ? round2(taxableBase * (ivaPct / 100)) : 0;
+  const total = round2(subtotal + tax);
   const paidSoFar = (pendingSplits || []).reduce(
     (s, r) => s + splitUsd(r, bsRate),
     0
   );
-  const remaining = Math.max(0, total - paidSoFar);
+  const remaining = Math.max(0, round2(total - paidSoFar));
   const showRemaining = paidSoFar > 0 && paidSoFar < total - 0.005;
 
   const header = (
@@ -1339,13 +1376,16 @@ export default function SaleScreen({
   const salesType: SalesType = settings?.salesType ?? 'invoice'; // tweaks.salesType → settings
   const ivaPct = settings?.ivaPct ?? 13;
 
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const taxableBase = cart.reduce(
-    (s, i) => s + (i.exempt === true ? 0 : i.price * i.qty),
-    0
+  // Money math mirrors convex/sales.ts `checkout`: round2 every component so
+  // the USD total equals what's charged and the Bs lines (× bsRate) line up
+  // with the rounded USD — no sub-cent divergence (e.g. 1819.30 vs 1820.00).
+  const subtotal = round2(cart.reduce((s, i) => s + i.price * i.qty, 0));
+  const taxableBase = round2(
+    cart.reduce((s, i) => s + (i.exempt === true ? 0 : i.price * i.qty), 0)
   );
-  const tax = salesType === 'invoice' ? taxableBase * (ivaPct / 100) : 0;
-  const total = subtotal + tax;
+  const tax =
+    salesType === 'invoice' ? round2(taxableBase * (ivaPct / 100)) : 0;
+  const total = round2(subtotal + tax);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
   // Notice for lines auto-removed because their product was paused (live, or
@@ -1708,7 +1748,7 @@ export default function SaleScreen({
                         (s, r) => s + splitUsd(r, bsRate),
                         0
                       );
-                      const remaining = Math.max(0, total - paidSoFar);
+                      const remaining = Math.max(0, round2(total - paidSoFar));
                       const showRemaining =
                         paidSoFar > 0 && paidSoFar < total - 0.005;
                       return (

@@ -133,7 +133,7 @@ describe('Venta — ProductFoundSheet (physical display, net enforcement)', () =
     expect(screen.getByText(/no disponibles para esta venta/)).toBeDefined();
   });
 
-  test('physical=3, reserved=1, empty cart → can add up to 2; the 3rd is blocked with an en-espera message', async () => {
+  test('physical=3, reserved=1, empty cart → can add up to 2; reaching the cap is valid (no false "no disponible")', async () => {
     const user = userEvent.setup();
     render(
       <ProductFoundSheet
@@ -146,11 +146,14 @@ describe('Venta — ProductFoundSheet (physical display, net enforcement)', () =
       />
     );
     expect(screen.getByText('3 en stock')).toBeDefined(); // physical
-    expect(screen.getByText('1 en espera')).toBeDefined();
+    expect(screen.getByText('1 en espera')).toBeDefined(); // chip still informs
     expect(agregarBtn()).toHaveProperty('disabled', false); // 2 available
     await user.click(plusBtn()); // qty 1 → 2 (the cap)
     expect(plusBtn()).toHaveProperty('disabled', true); // the 3rd is blocked
-    expect(screen.getByText(/no disponibles para esta venta/)).toBeDefined();
+    // Reaching the cap with stock still addable is NOT "unavailable": the
+    // en-espera DANGER banner only shows when maxAddable < 1.
+    expect(screen.queryByText(/no disponibles para esta venta/)).toBeNull();
+    expect(agregarBtn()).toHaveProperty('disabled', false); // can still add the 2
   });
 
   test('physical=3, reserved=0 → unchanged: Agregar enabled, no en-espera chip/banner', () => {
