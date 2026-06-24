@@ -56,7 +56,6 @@ vi.mock('@/state/hooks', () => ({
   useClients: () => [],
   useProducts: () => productsMock.current,
   useSettingsDoc: () => ({
-    salesType: 'invoice',
     ivaPct: 13,
     scannerMode: 'scanner',
   }),

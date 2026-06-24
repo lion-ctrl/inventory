@@ -26,7 +26,7 @@ import {
   useSettingsDoc,
 } from '@/state/hooks';
 import { useOnline } from '@/state/useOnline';
-import type { CartItem, Client, Product, SalesType, SplitRow } from '@/types';
+import type { CartItem, Client, Product, SplitRow } from '@/types';
 import { splitUsd } from './Payment';
 import { ClientForm, ClientPickerSheet, formatTaxId } from './Clients';
 import { CameraScanner } from './CameraScanner';
@@ -934,7 +934,6 @@ function CartContent({
   remove,
   setQty,
   density: _density,
-  salesType,
   onConfirm,
   onCancel,
   pendingSplits,
@@ -953,8 +952,7 @@ function CartContent({
   remove: (id: Id<'products'>) => void;
   setQty?: ((id: Id<'products'>, n: number) => void) | null;
   density: string;
-  salesType: SalesType;
-  onConfirm: (cart: CartItem[], total: number, salesType: SalesType) => void;
+  onConfirm: (cart: CartItem[], total: number) => void;
   onCancel: () => void;
   pendingSplits: SplitRow[];
   selectedClient: Client | null;
@@ -974,8 +972,8 @@ function CartContent({
   const taxableBase = round2(
     cart.reduce((s, i) => s + (i.exempt === true ? 0 : i.price * i.qty), 0)
   );
-  const tax =
-    salesType === 'invoice' ? round2(taxableBase * (ivaPct / 100)) : 0;
+  // Every sale is an invoice — IVA always applies to the taxable base.
+  const tax = round2(taxableBase * (ivaPct / 100));
   const total = round2(subtotal + tax);
   const paidSoFar = (pendingSplits || []).reduce(
     (s, r) => s + splitUsd(r, bsRate),
@@ -1039,7 +1037,7 @@ function CartContent({
         />
       ))}
       <div className="totals">
-        {salesType === 'invoice' && subtotal - taxableBase > 0.005 && (
+        {subtotal - taxableBase > 0.005 && (
           <div className="line">
             <span>Exento (E)</span>
             <span className="tabular">
@@ -1051,12 +1049,10 @@ function CartContent({
           <span>Subtotal</span>
           <span className="tabular">${subtotal.toFixed(2)}</span>
         </div>
-        {salesType === 'invoice' && (
-          <div className="line">
-            <span>IVA ({ivaPct}%)</span>
-            <span className="tabular">${tax.toFixed(2)}</span>
-          </div>
-        )}
+        <div className="line">
+          <span>IVA ({ivaPct}%)</span>
+          <span className="tabular">${tax.toFixed(2)}</span>
+        </div>
         <div className="line total">
           <span>Total</span>
           <span>${total.toFixed(2)}</span>
@@ -1104,7 +1100,7 @@ function CartContent({
               onPickClient?.();
               return;
             }
-            onConfirm(cart, total, salesType);
+            onConfirm(cart, total);
           }}
         >
           <span className="btn-stack">
@@ -1277,7 +1273,7 @@ export function ClientGate({
 export default function SaleScreen({
   onConfirm,
 }: {
-  onConfirm: (cart: CartItem[], total: number, salesType: SalesType) => void;
+  onConfirm: (cart: CartItem[], total: number) => void;
 }) {
   const navigate = useNavigate();
   const online = useOnline();
@@ -1373,18 +1369,17 @@ export default function SaleScreen({
   } | null>(null);
 
   const density = 'roomy' as string; // tweaks.density → fixed 'roomy' (CSS branches kept)
-  const salesType: SalesType = settings?.salesType ?? 'invoice'; // tweaks.salesType → settings
   const ivaPct = settings?.ivaPct ?? 13;
 
   // Money math mirrors convex/sales.ts `checkout`: round2 every component so
   // the USD total equals what's charged and the Bs lines (× bsRate) line up
   // with the rounded USD — no sub-cent divergence (e.g. 1819.30 vs 1820.00).
+  // Every sale is an invoice — IVA always applies to the taxable base.
   const subtotal = round2(cart.reduce((s, i) => s + i.price * i.qty, 0));
   const taxableBase = round2(
     cart.reduce((s, i) => s + (i.exempt === true ? 0 : i.price * i.qty), 0)
   );
-  const tax =
-    salesType === 'invoice' ? round2(taxableBase * (ivaPct / 100)) : 0;
+  const tax = round2(taxableBase * (ivaPct / 100));
   const total = round2(subtotal + tax);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
@@ -1754,29 +1749,24 @@ export default function SaleScreen({
                       return (
                         <>
                           <div className="totals">
-                            {salesType === 'invoice' &&
-                              subtotal - taxableBase > 0.005 && (
-                                <div className="line">
-                                  <span>Exento (E)</span>
-                                  <span className="tabular">
-                                    ${(subtotal - taxableBase).toFixed(2)}
-                                  </span>
-                                </div>
-                              )}
+                            {subtotal - taxableBase > 0.005 && (
+                              <div className="line">
+                                <span>Exento (E)</span>
+                                <span className="tabular">
+                                  ${(subtotal - taxableBase).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
                             <div className="line">
                               <span>Subtotal</span>
                               <span className="tabular">
                                 ${subtotal.toFixed(2)}
                               </span>
                             </div>
-                            {salesType === 'invoice' && (
-                              <div className="line">
-                                <span>IVA ({ivaPct}%)</span>
-                                <span className="tabular">
-                                  ${tax.toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                            <div className="line">
+                              <span>IVA ({ivaPct}%)</span>
+                              <span className="tabular">${tax.toFixed(2)}</span>
+                            </div>
                             <div className="line total">
                               <span>Total</span>
                               <span>${total.toFixed(2)}</span>
@@ -1836,7 +1826,7 @@ export default function SaleScreen({
                                   setClientPickerOpen(true);
                                   return;
                                 }
-                                onConfirm(cart, total, salesType);
+                                onConfirm(cart, total);
                               }}
                             >
                               <span className="btn-stack">
@@ -2155,7 +2145,6 @@ export default function SaleScreen({
             remove={remove}
             setQty={setQty}
             density={density}
-            salesType={salesType}
             ivaPct={ivaPct}
             bsRate={bsRate}
             reserved={reserved}

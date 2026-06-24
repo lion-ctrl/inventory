@@ -25,7 +25,6 @@ function Harness({
   return (
     <PaymentSheet
       total={total}
-      salesType="invoice"
       bsRate={bsRate}
       splits={splits}
       setSplits={setSplits}

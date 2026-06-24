@@ -51,7 +51,7 @@ vi.mock('@/state/hooks', () => ({
   useCategories: () => [],
   useClients: () => [],
   useProducts: () => productsMock.current,
-  useSettingsDoc: () => ({ salesType: 'invoice', scannerMode: 'scanner' }),
+  useSettingsDoc: () => ({ scannerMode: 'scanner' }),
 }));
 vi.mock('@/state/CartContext', () => ({ useCart: () => cartMock }));
 

@@ -9,7 +9,6 @@ import type {
   ClientSnapshot,
   MethodId,
   SaleItemSnapshot,
-  SalesType,
   SplitRow,
 } from '@/types';
 
@@ -75,7 +74,6 @@ export interface PaymentSheetProps {
     tendered: number,
     splits: CleanSplit[]
   ) => void | Promise<void>;
-  salesType: SalesType;
   splits: SplitRow[];
   setSplits: Dispatch<SetStateAction<SplitRow[]>>;
   nextIdRef: MutableRefObject<number>;
@@ -86,7 +84,6 @@ export function PaymentSheet({
   total,
   onClose,
   onConfirm,
-  salesType: _salesType,
   splits,
   setSplits,
   nextIdRef,
@@ -354,7 +351,6 @@ export interface SuccessScreenProps {
   items: SaleItemSnapshot[];
   method: string;
   splits: CleanSplit[] | null;
-  salesType: SalesType;
   tendered?: number;
   client: ClientSnapshot | null;
   /** The sale's snapshotted IVA percentage (e.g. 13 → "IVA (13%)"). */
@@ -373,7 +369,6 @@ export function SuccessScreen({
   items,
   method,
   splits,
-  salesType,
   tendered,
   client,
   ivaPct,
@@ -393,14 +388,15 @@ export function SuccessScreen({
     (tendered ?? 0) > total
       ? (tendered ?? 0) - total
       : 0;
-  const docPrefix = salesType === 'invoice' ? 'Factura' : 'Ticket';
+  // Every sale is an invoice now — IVA always applies to the taxable base.
+  const docPrefix = 'Factura';
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const exemptBase = items.reduce(
     (s, i) => s + (i.exempt === true ? i.price * i.qty : 0),
     0
   );
   const taxableBase = subtotal - exemptBase;
-  const tax = salesType === 'invoice' ? (taxableBase * ivaPct) / 100 : 0;
+  const tax = (taxableBase * ivaPct) / 100;
   const grandTotal = subtotal + tax;
   const rate = bsRate > 0 ? bsRate : 1;
   // Venezuelan number format: thousands "." and decimals ","
@@ -479,11 +475,9 @@ export function SuccessScreen({
             </div>
             <div className="rcpt-kv-full">{receiptMethod(method)}</div>
             <hr />
-            <div className="rcpt-doctitle">
-              {salesType === 'invoice' ? 'FACTURA' : 'TICKET'}
-            </div>
+            <div className="rcpt-doctitle">FACTURA</div>
             <div className="rcpt-kv">
-              <span>{salesType === 'invoice' ? 'FACTURA' : 'TICKET'}</span>
+              <span>FACTURA</span>
               <span>N° {invoice}</span>
             </div>
             <div className="rcpt-kv">
@@ -506,29 +500,20 @@ export function SuccessScreen({
               </div>
             ))}
             <hr />
-            {salesType === 'invoice' ? (
-              <>
-                {exemptBase > 0 && (
-                  <div className="rcpt-kv">
-                    <span>Exento (E)</span>
-                    <span>Bs {bsNum(exemptBase)}</span>
-                  </div>
-                )}
-                <div className="rcpt-kv">
-                  <span>Subtotal</span>
-                  <span>Bs {bsNum(taxableBase)}</span>
-                </div>
-                <div className="rcpt-kv">
-                  <span>IVA ({ivaPct}%)</span>
-                  <span>Bs {bsNum(tax)}</span>
-                </div>
-              </>
-            ) : (
+            {exemptBase > 0 && (
               <div className="rcpt-kv">
                 <span>Exento (E)</span>
-                <span>Bs {bsNum(subtotal)}</span>
+                <span>Bs {bsNum(exemptBase)}</span>
               </div>
             )}
+            <div className="rcpt-kv">
+              <span>Subtotal</span>
+              <span>Bs {bsNum(taxableBase)}</span>
+            </div>
+            <div className="rcpt-kv">
+              <span>IVA ({ivaPct}%)</span>
+              <span>Bs {bsNum(tax)}</span>
+            </div>
             <div className="rcpt-total">
               <span>TOTAL</span>
               <span>{bs(grandTotal)}</span>

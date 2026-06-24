@@ -22,7 +22,6 @@ export type MethodId =
   | 'transfer'
   | 'mobile'
   | 'zelle';
-export type SalesType = 'invoice' | 'ticket';
 
 /** Editable split row as typed in the PaymentSheet (amount is the raw input string). */
 export interface SplitRow {
@@ -70,7 +69,6 @@ export interface CompletedSale {
   total: number;
   items: SaleItemSnapshot[];
   method: string;
-  salesType: SalesType;
   tendered?: number;
   splits: CleanSplit[] | null;
   client: ClientSnapshot | null;

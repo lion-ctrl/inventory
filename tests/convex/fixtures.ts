@@ -54,7 +54,6 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     bsRate: 36.5,
     nextInvoiceNumber: 43,
     nextHeldCode: 1001,
-    salesType: 'invoice',
     printAuto: true,
     emailReceipt: false,
     lowStockAlerts: true,

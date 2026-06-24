@@ -567,7 +567,6 @@ type MockSale = {
   clientId: string;
   items: Array<[string, number]>;
   method: string;
-  type: 'invoice' | 'ticket';
   splits: Array<{ method: string; amount: number }> | null;
   cashier: string;
 };
@@ -578,7 +577,6 @@ const mk = (
   clientId: string,
   items: Array<[string, number]>,
   method: string,
-  type: 'invoice' | 'ticket',
   splits: Array<{ method: string; amount: number }> | null,
   cashier: string
 ): MockSale => ({
@@ -587,7 +585,6 @@ const mk = (
   clientId,
   items,
   method,
-  type,
   splits,
   cashier,
 });
@@ -605,7 +602,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0008', 1],
     ],
     'cash',
-    'invoice',
     null,
     'Juan P.'
   ),
@@ -618,7 +614,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0103', 1],
     ],
     'card',
-    'invoice',
     null,
     'María L.'
   ),
@@ -631,7 +626,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0302', 3],
     ],
     'cash',
-    'ticket',
     null,
     'Carlos R.'
   ),
@@ -645,20 +639,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0203', 1],
     ],
     'transfer',
-    'invoice',
     null,
     'Ana T.'
   ),
-  mk(
-    '00000038',
-    3.1,
-    'C-0007',
-    [['P-0004', 2]],
-    'mobile',
-    'invoice',
-    null,
-    'Juan P.'
-  ),
+  mk('00000038', 3.1, 'C-0007', [['P-0004', 2]], 'mobile', null, 'Juan P.'),
   mk(
     '00000037',
     3.9,
@@ -668,7 +652,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0304', 4],
     ],
     'cash',
-    'ticket',
     null,
     'María L.'
   ),
@@ -681,7 +664,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0102', 1],
     ],
     'card',
-    'invoice',
     null,
     'Carlos R.'
   ),
@@ -694,20 +676,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0301', 2],
     ],
     'transfer',
-    'invoice',
     null,
     'Ana T.'
   ),
-  mk(
-    '00000034',
-    6.0,
-    'C-0003',
-    [['P-0001', 6]],
-    'cash',
-    'ticket',
-    null,
-    'Juan P.'
-  ),
+  mk('00000034', 6.0, 'C-0003', [['P-0001', 6]], 'cash', null, 'Juan P.'),
   mk(
     '00000033',
     6.8,
@@ -717,7 +689,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0203', 2],
     ],
     'card',
-    'invoice',
     [
       { method: 'card', amount: 12.0 },
       { method: 'cash', amount: 14.5 },
@@ -733,20 +704,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0007', 2],
     ],
     'mobile',
-    'invoice',
     null,
     'Carlos R.'
   ),
-  mk(
-    '00000031',
-    8.3,
-    'C-0008',
-    [['P-0002', 12]],
-    'cash',
-    'ticket',
-    null,
-    'Ana T.'
-  ),
+  mk('00000031', 8.3, 'C-0008', [['P-0002', 12]], 'cash', null, 'Ana T.'),
   // Yesterday
   mk(
     '00000030',
@@ -757,20 +718,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0005', 2],
     ],
     'card',
-    'invoice',
     null,
     'Juan P.'
   ),
-  mk(
-    '00000029',
-    26.5,
-    'C-0003',
-    [['P-0401', 2]],
-    'cash',
-    'invoice',
-    null,
-    'María L.'
-  ),
+  mk('00000029', 26.5, 'C-0003', [['P-0401', 2]], 'cash', null, 'María L.'),
   mk(
     '00000028',
     28.0,
@@ -780,7 +731,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0304', 2],
     ],
     'card',
-    'ticket',
     null,
     'Carlos R.'
   ),
@@ -793,7 +743,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0008', 3],
     ],
     'transfer',
-    'invoice',
     null,
     'Ana T.'
   ),
@@ -806,7 +755,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0303', 1],
     ],
     'transfer',
-    'invoice',
     null,
     'Juan P.'
   ),
@@ -819,7 +767,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0102', 1],
     ],
     'mobile',
-    'ticket',
     null,
     'María L.'
   ),
@@ -832,7 +779,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0006', 5],
     ],
     'card',
-    'invoice',
     null,
     'Carlos R.'
   ),
@@ -845,7 +791,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0201', 1],
     ],
     'cash',
-    'invoice',
     null,
     'Ana T.'
   ),
@@ -859,20 +804,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0002', 6],
     ],
     'cash',
-    'invoice',
     null,
     'Juan P.'
   ),
-  mk(
-    '00000021',
-    54.5,
-    'C-0006',
-    [['P-0402', 4]],
-    'mobile',
-    'ticket',
-    null,
-    'María L.'
-  ),
+  mk('00000021', 54.5, 'C-0006', [['P-0402', 4]], 'mobile', null, 'María L.'),
   mk(
     '00000020',
     60.0,
@@ -882,20 +817,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0008', 4],
     ],
     'transfer',
-    'invoice',
     null,
     'Carlos R.'
   ),
-  mk(
-    '00000019',
-    72.0,
-    'C-0005',
-    [['P-0303', 3]],
-    'transfer',
-    'invoice',
-    null,
-    'Ana T.'
-  ),
+  mk('00000019', 72.0, 'C-0005', [['P-0303', 3]], 'transfer', null, 'Ana T.'),
   mk(
     '00000018',
     78.0,
@@ -905,7 +830,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0006', 2],
     ],
     'cash',
-    'ticket',
     null,
     'Juan P.'
   ),
@@ -918,7 +842,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0101', 2],
     ],
     'card',
-    'invoice',
     null,
     'María L.'
   ),
@@ -932,30 +855,11 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0006', 8],
     ],
     'mobile',
-    'invoice',
     null,
     'Carlos R.'
   ),
-  mk(
-    '00000015',
-    108.0,
-    'C-0003',
-    [['P-0001', 12]],
-    'card',
-    'invoice',
-    null,
-    'Ana T.'
-  ),
-  mk(
-    '00000014',
-    120.0,
-    'C-0008',
-    [['P-0203', 2]],
-    'cash',
-    'ticket',
-    null,
-    'Juan P.'
-  ),
+  mk('00000015', 108.0, 'C-0003', [['P-0001', 12]], 'card', null, 'Ana T.'),
+  mk('00000014', 120.0, 'C-0008', [['P-0203', 2]], 'cash', null, 'Juan P.'),
   mk(
     '00000013',
     132.0,
@@ -965,7 +869,6 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0008', 5],
     ],
     'transfer',
-    'invoice',
     null,
     'María L.'
   ),
@@ -978,20 +881,10 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0302', 4],
     ],
     'card',
-    'invoice',
     null,
     'Carlos R.'
   ),
-  mk(
-    '00000011',
-    156.0,
-    'C-0002',
-    [['P-0401', 1]],
-    'cash',
-    'ticket',
-    null,
-    'Ana T.'
-  ),
+  mk('00000011', 156.0, 'C-0002', [['P-0401', 1]], 'cash', null, 'Ana T.'),
   // Last week
   mk(
     '00000010',
@@ -1002,40 +895,12 @@ const SALES_HISTORY: MockSale[] = [
       ['P-0102', 2],
     ],
     'mobile',
-    'invoice',
     null,
     'Juan P.'
   ),
-  mk(
-    '00000009',
-    216.0,
-    'C-0003',
-    [['P-0005', 6]],
-    'cash',
-    'invoice',
-    null,
-    'María L.'
-  ),
-  mk(
-    '00000008',
-    240.0,
-    'C-0007',
-    [['P-0004', 4]],
-    'card',
-    'ticket',
-    null,
-    'Carlos R.'
-  ),
-  mk(
-    '00000007',
-    264.0,
-    'C-0004',
-    [['P-0007', 12]],
-    'transfer',
-    'invoice',
-    null,
-    'Ana T.'
-  ),
+  mk('00000009', 216.0, 'C-0003', [['P-0005', 6]], 'cash', null, 'María L.'),
+  mk('00000008', 240.0, 'C-0007', [['P-0004', 4]], 'card', null, 'Carlos R.'),
+  mk('00000007', 264.0, 'C-0004', [['P-0007', 12]], 'transfer', null, 'Ana T.'),
 ];
 
 // ---------------------------------------------------------------------------
@@ -1117,7 +982,6 @@ export const run = internalMutation({
       bsRate: 36.5,
       nextInvoiceNumber: 43,
       nextHeldCode: 1001,
-      salesType: 'invoice',
       printAuto: true,
       emailReceipt: false,
       lowStockAlerts: true,
@@ -1144,7 +1008,9 @@ export const run = internalMutation({
         };
       });
       const subtotalRaw = items.reduce((sum, i) => sum + i.price * i.qty, 0);
-      const taxRaw = s.type === 'invoice' ? subtotalRaw * 0.13 : 0;
+      // Every seeded sale is an invoice — IVA always applies (mock 13%, the same
+      // non-exempt-aware math the prototype's _mkSale used).
+      const taxRaw = subtotalRaw * 0.13;
       await ctx.db.insert('sales', {
         invoiceNumber: s.invoice,
         clientId: clientIdByMock.get(s.clientId)!,
@@ -1165,7 +1031,6 @@ export const run = internalMutation({
         total: fix2(subtotalRaw + taxRaw),
         method: s.method,
         ...(s.splits !== null ? { splits: s.splits } : {}),
-        type: s.type,
         ivaPct: 13,
         exchangeRate: 36.5,
         soldAt: now - s.hoursAgo * 3600000,
@@ -1197,7 +1062,7 @@ export const verify = internalQuery({
         .first();
     const sale42 = await byInvoice('00000042');
     const sale33 = await byInvoice('00000033');
-    const ticket40 = await byInvoice('00000040');
+    const sale40 = await byInvoice('00000040');
     const settings = await ctx.db.query('settings').first();
     return {
       staleIdNormalizesToNull: staleNormalized === null,
@@ -1215,13 +1080,12 @@ export const verify = internalQuery({
         itemCats: sale42.items.map((i) => i.cat),
       },
       sale33splits: sale33?.splits ?? null,
-      ticket40tax: ticket40?.tax,
+      sale40tax: sale40?.tax,
       settings: settings && {
         nextInvoiceNumber: settings.nextInvoiceNumber,
         nextHeldCode: settings.nextHeldCode,
         ivaPct: settings.ivaPct,
         bsRate: settings.bsRate,
-        salesType: settings.salesType,
       },
     };
   },

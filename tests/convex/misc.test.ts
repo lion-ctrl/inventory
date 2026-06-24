@@ -59,10 +59,11 @@ describe('sales.history', () => {
         items: [{ productId: fx.cola, qty }],
         method: 'cash',
         splits: [{ method: 'cash', amount }],
-        type: 'ticket',
       });
-    await buy(1, 1.5);
-    await buy(2, 3);
+    // IVA always applies now: cola 1.50 → qty1 total 1.70 (IVA 0.20),
+    // qty2 total 3.39 (IVA 0.39). Splits must cover the IVA'd total.
+    await buy(1, 1.7);
+    await buy(2, 3.39);
 
     const history = await t.query(api.sales.history, {});
     expect(history.map((s) => s.invoiceNumber)).toEqual([

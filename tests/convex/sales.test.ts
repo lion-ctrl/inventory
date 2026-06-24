@@ -31,7 +31,6 @@ describe('sales.checkout', () => {
       ],
       method: 'cash',
       splits: cash(4.19),
-      type: 'invoice',
       tendered: 5,
     });
 
@@ -52,7 +51,6 @@ describe('sales.checkout', () => {
     });
     expect(sale.ivaPct).toBe(13);
     expect(sale.exchangeRate).toBe(36.5);
-    expect(sale.type).toBe('invoice');
     expect(sale.tendered).toBe(5);
     expect(typeof sale.soldAt).toBe('number');
 
@@ -82,7 +80,6 @@ describe('sales.checkout', () => {
       ],
       method: 'cash',
       splits: cash(4.19),
-      type: 'invoice',
     });
 
     const after = await t.run(async (ctx) => ({
@@ -101,23 +98,23 @@ describe('sales.checkout', () => {
       items: [{ productId: fx.cola, qty: 1 }],
       method: 'card',
       splits: [{ method: 'card', amount: 1.7 }],
-      type: 'invoice',
     });
     expect(second.invoiceNumber).toBe('00000044');
   });
 
-  test('ticket sale carries no tax', async () => {
+  test('every sale is an invoice: IVA always applies (no ticket path)', async () => {
     const { t, fx } = await setup();
+    // cola 1.50×2 = 3.00 taxable → IVA 13% = 0.39, total 3.39.
     const sale = await t.mutation(api.sales.checkout, {
       actorId: fx.owner,
       clientId: fx.clientId,
       items: [{ productId: fx.cola, qty: 2 }],
       method: 'cash',
-      splits: cash(3),
-      type: 'ticket',
+      splits: cash(3.39),
     });
-    expect(sale.tax).toBe(0);
-    expect(sale.total).toBe(3);
+    expect(sale.subtotal).toBe(3);
+    expect(sale.tax).toBe(0.39);
+    expect(sale.total).toBe(3.39);
   });
 
   test('merges duplicate product lines before applying stock math', async () => {
@@ -131,7 +128,6 @@ describe('sales.checkout', () => {
       ],
       method: 'cash',
       splits: cash(5.09),
-      type: 'invoice',
     });
     expect(sale.items).toHaveLength(1);
     expect(sale.items[0].qty).toBe(3);
@@ -153,7 +149,6 @@ describe('sales.checkout', () => {
         items,
         method: 'cash',
         splits: cash(4.17),
-        type: 'invoice',
       })
     ).rejects.toThrow('El pago no cubre el total. Verifica los montos.');
 
@@ -164,7 +159,6 @@ describe('sales.checkout', () => {
       items,
       method: 'cash',
       splits: cash(4.18),
-      type: 'invoice',
     });
     expect(sale.total).toBe(4.19);
   });
@@ -178,7 +172,6 @@ describe('sales.checkout', () => {
         items: [{ productId: fx.cafe, qty: 3 }],
         method: 'cash',
         splits: cash(17.4),
-        type: 'invoice',
       })
     ).rejects.toThrow(
       'Stock insuficiente: Café molido 250g. Quedan 2 unidades.'
@@ -195,7 +188,6 @@ describe('sales.checkout', () => {
         items: [{ productId: fx.pintura, qty: 1 }],
         method: 'cash',
         splits: cash(22.5),
-        type: 'invoice',
       })
     ).rejects.toThrow('Producto no disponible: Pintura blanca 1gal');
 
@@ -206,7 +198,6 @@ describe('sales.checkout', () => {
         items: [],
         method: 'cash',
         splits: cash(0),
-        type: 'invoice',
       })
     ).rejects.toThrow('No hay productos en el carrito.');
 
@@ -217,7 +208,6 @@ describe('sales.checkout', () => {
         items: [{ productId: fx.cola, qty: 0 }],
         method: 'cash',
         splits: cash(0),
-        type: 'invoice',
       })
     ).rejects.toThrow('Cantidad inválida en el carrito.');
 
@@ -239,7 +229,6 @@ describe('sales.checkout', () => {
         items: [{ productId: fx.cola, qty: 1 }],
         method: 'cash',
         splits: cash(1.7),
-        type: 'invoice',
       })
     ).rejects.toThrow('Cliente no encontrado.');
   });
@@ -253,7 +242,6 @@ describe('sales.checkout', () => {
         items: [{ productId: fx.cola, qty: 1 }],
         method: 'cash',
         splits: cash(1.7),
-        type: 'invoice',
       })
     ).rejects.toThrow('Sin permisos para esta acción.');
   });
@@ -284,7 +272,6 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
         items: [{ productId: fx.cola, qty: 5 }],
         method: 'cash',
         splits: cash(8.48), // 5×1.50 = 7.50 + 13% IVA
-        type: 'invoice',
       })
     ).rejects.toThrow(
       'No hay suficiente stock disponible para "Coca-Cola 600ml": hay 1 en espera.'
@@ -303,7 +290,6 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
       items: [{ productId: fx.cola, qty: 4 }],
       method: 'cash',
       splits: cash(6.78), // 4×1.50 = 6.00 + 13% IVA = 6.78
-      type: 'invoice',
     });
     expect(sale.subtotal).toBe(6);
 
@@ -337,7 +323,6 @@ describe('sales.refund', () => {
       ],
       method: 'cash',
       splits: cash(4.19),
-      type: 'invoice',
     });
   }
 

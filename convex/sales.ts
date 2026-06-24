@@ -7,7 +7,6 @@ import {
   clientSnapshotValidator,
   saleDocValidator,
   saleItemValidator,
-  salesTypeValidator,
   splitItemValidator,
 } from './schema';
 
@@ -105,7 +104,6 @@ export const checkout = mutation({
     items: v.array(v.object({ productId: v.id('products'), qty: v.number() })),
     method: v.string(),
     splits: v.array(splitItemValidator),
-    type: salesTypeValidator,
     tendered: v.optional(v.number()),
   },
   returns: saleDocValidator,
@@ -167,10 +165,8 @@ export const checkout = mutation({
     }
     const subtotal = round2(subtotalRaw);
     const exemptBase = round2(exemptRaw);
-    const tax =
-      args.type === 'invoice'
-        ? round2(((subtotal - exemptBase) * settings.ivaPct) / 100)
-        : 0;
+    // Every sale is an invoice: IVA always applies to the taxable base.
+    const tax = round2(((subtotal - exemptBase) * settings.ivaPct) / 100);
     const total = round2(subtotal + tax);
 
     // 5. Splits must cover the server-computed total (tolerance 0.011).
@@ -206,7 +202,6 @@ export const checkout = mutation({
       method: args.method,
       splits: args.splits,
       ...(args.tendered !== undefined ? { tendered: args.tendered } : {}),
-      type: args.type,
       ivaPct: settings.ivaPct,
       exchangeRate: settings.bsRate,
       soldAt: Date.now(),

@@ -18,7 +18,7 @@ import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
 import { useBsRate } from '@/state/hooks';
 import type { PermissionId } from '@/lib/rbac';
-import type { CartItem, CleanSplit, SalesType } from './types';
+import type { CartItem, CleanSplit } from './types';
 
 import LoginScreen from '@/screens/Login';
 import Dashboard from '@/screens/Dashboard';
@@ -81,7 +81,6 @@ function SuccessRoute({ online }: { online: boolean }) {
       items={completedSale.items}
       method={completedSale.method}
       splits={completedSale.splits}
-      salesType={completedSale.salesType}
       tendered={completedSale.tendered}
       client={completedSale.client}
       ivaPct={completedSale.ivaPct}
@@ -112,7 +111,6 @@ export default function AppShell() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [pendingCart, setPendingCart] = useState<CartItem[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
-  const [pendingType, setPendingType] = useState<SalesType>('invoice');
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [offlineError, setOfflineError] = useState(false);
 
@@ -208,18 +206,13 @@ export default function AppShell() {
   }, [navigate, can, cart.heldCarts.length]);
 
   // Venta → "Confirmar": block offline (matches prototype), otherwise open payment.
-  const handleSaleConfirm = (
-    items: CartItem[],
-    total: number,
-    salesType: SalesType
-  ) => {
+  const handleSaleConfirm = (items: CartItem[], total: number) => {
     if (!online) {
       setOfflineError(true);
       return;
     }
     setPendingCart(items);
     setPendingTotal(total);
-    setPendingType(salesType);
     setPaymentOpen(true);
   };
 
@@ -239,7 +232,6 @@ export default function AppShell() {
         items: pendingCart.map((i) => ({ productId: i._id, qty: i.qty })),
         method,
         splits,
-        type: pendingType,
         tendered,
       });
       setPaymentOpen(false);
@@ -248,7 +240,6 @@ export default function AppShell() {
         total: sale.total,
         items: sale.items,
         method: sale.method,
-        salesType: sale.type,
         tendered,
         splits: sale.splits ?? splits,
         client: sale.client,
@@ -382,7 +373,6 @@ export default function AppShell() {
       {paymentOpen && user && (
         <PaymentSheet
           total={pendingTotal}
-          salesType={pendingType}
           bsRate={bsRate}
           splits={cart.splits}
           setSplits={cart.setSplits}

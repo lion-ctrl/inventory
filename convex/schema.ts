@@ -24,11 +24,6 @@ export const roleValidator = v.union(
   v.literal('cajero')
 );
 
-export const salesTypeValidator = v.union(
-  v.literal('invoice'),
-  v.literal('ticket')
-);
-
 /** Employee permissions: 'all' (owner sentinel) or a granular boolean map. */
 export const permissionsValidator = v.union(
   v.literal('all'),
@@ -133,7 +128,6 @@ export const saleFields = {
   method: v.string(),
   splits: v.optional(v.array(splitItemValidator)),
   tendered: v.optional(v.number()),
-  type: salesTypeValidator,
   ivaPct: v.number(),
   exchangeRate: v.number(), // Bs per $ snapshot at sale time
   soldAt: v.number(),
@@ -169,7 +163,6 @@ export const settingsFields = {
   bsRate: v.number(),
   nextInvoiceNumber: v.number(),
   nextHeldCode: v.number(),
-  salesType: salesTypeValidator,
   printAuto: v.boolean(),
   emailReceipt: v.boolean(),
   lowStockAlerts: v.boolean(),

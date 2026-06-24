@@ -23,7 +23,6 @@ type SettingsPatch = Partial<
     | 'taxName'
     | 'ivaPct'
     | 'bsRate'
-    | 'salesType'
     | 'printAuto'
     | 'emailReceipt'
     | 'lowStockAlerts'
