@@ -508,6 +508,10 @@ export function ProductFoundSheet({
     0,
     product.stock - reservedUnits - currentCartQty
   );
+  // REAL availability for THIS sale = physical − en-espera (held carts soft-lock
+  // those units). The info banner reports THIS as "disponibles", NEVER physical
+  // product.stock: with units en espera, fewer are actually sellable. Clamp ≥ 0.
+  const available = Math.max(0, product.stock - reservedUnits);
   const [qty, setQty] = useState(Math.min(1, maxAddable) || 1);
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(Math.min(1, maxAddable) || 1));
@@ -527,7 +531,27 @@ export function ProductFoundSheet({
   const nothingAddable = maxAddable < 1;
   const reservedBlocks = nothingAddable && reservedUnits > 0;
   const cartHoldsMax = nothingAddable && !reservedBlocks && currentCartQty > 0;
-  const showCartRoomInfo = !nothingAddable && currentCartQty > 0;
+  // Info "Stock limitado" note: show when there's room to add AND availability is
+  // actually constrained — either the cart already holds some (currentCartQty>0)
+  // OR units are en espera (reservedUnits>0). With BOTH zero (e.g. 30 stock, no
+  // reserved, empty cart) there is no real limit → NO banner (keeps the valid-max
+  // false-"agotado" fix intact). The message uses `available`, never physical.
+  const showLimitedInfo =
+    !nothingAddable && (currentCartQty > 0 || reservedUnits > 0);
+  // Reason clause: explain WHY availability is limited. Parts joined by " y ".
+  const reasonParts: string[] = [];
+  if (reservedUnits > 0) reasonParts.push(`hay ${reservedUnits} en espera`);
+  if (currentCartQty > 0)
+    reasonParts.push(`ya tienes ${currentCartQty} en el carrito`);
+  const reasonClause =
+    reasonParts.length > 0 ? ` (${reasonParts.join(' y ')})` : '';
+  // Singular/plural: "1 disponible" vs "2 disponibles".
+  const disponiblesLabel = `${available} ${
+    available === 1 ? 'disponible' : 'disponibles'
+  }`;
+  // " más" only when the cart already holds some of this product.
+  const masClause = currentCartQty > 0 ? ' más' : '';
+  const limitedMessage = `Solo puedes agregar ${maxAddable}${masClause} de ${disponiblesLabel}.${reasonClause}`;
 
   return (
     <Sheet onClose={onCancel}>
@@ -716,12 +740,12 @@ export function ProductFoundSheet({
           />
         ))}
 
-      {showCartRoomInfo && (
+      {showLimitedInfo && (
         <Banner
           tone="info"
           icon="info"
           title="Stock limitado"
-          message={`Solo puedes agregar ${maxAddable} más (ya tienes ${currentCartQty} en el carrito de ${product.stock} disponibles).`}
+          message={limitedMessage}
         />
       )}
 
