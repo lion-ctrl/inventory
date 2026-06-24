@@ -259,6 +259,73 @@ describe('sales.checkout', () => {
   });
 });
 
+describe('sales.checkout — reserved ("en espera") availability', () => {
+  // A product with physical stock 5 and 1 unit held in another "venta en
+  // espera" (reserved = 1) is sellable only up to 4 in a NEW sale. The cap is a
+  // server backstop: physical − reserved.
+  async function setupReserved() {
+    const t = convexTest(schema, modules);
+    const fx = await t.run(seedBase);
+    // Reset cola to exactly stock 5, then hold 1 of it in a parked cart.
+    await t.run((ctx) => ctx.db.patch('products', fx.cola, { stock: 5 }));
+    await t.mutation(api.heldCarts.park, {
+      actorId: fx.owner,
+      items: [{ productId: fx.cola, qty: 1 }],
+    });
+    return { t, fx };
+  }
+
+  test('rejects qty 5 when 1 unit is held (physical 5 − reserved 1 = 4 available)', async () => {
+    const { t, fx } = await setupReserved();
+    await expect(
+      t.mutation(api.sales.checkout, {
+        actorId: fx.owner,
+        clientId: fx.clientId,
+        items: [{ productId: fx.cola, qty: 5 }],
+        method: 'cash',
+        splits: cash(8.48), // 5×1.50 = 7.50 + 13% IVA
+        type: 'invoice',
+      })
+    ).rejects.toThrow(
+      'No hay suficiente stock disponible para "Coca-Cola 600ml": hay 1 en espera.'
+    );
+
+    // The rejected sale consumed nothing.
+    const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
+    expect(cola!.stock).toBe(5);
+  });
+
+  test('allows qty 4 when 1 unit is held, decrementing physical stock to 1', async () => {
+    const { t, fx } = await setupReserved();
+    const sale = await t.mutation(api.sales.checkout, {
+      actorId: fx.owner,
+      clientId: fx.clientId,
+      items: [{ productId: fx.cola, qty: 4 }],
+      method: 'cash',
+      splits: cash(6.78), // 4×1.50 = 6.00 + 13% IVA = 6.78
+      type: 'invoice',
+    });
+    expect(sale.subtotal).toBe(6);
+
+    const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
+    expect(cola!.stock).toBe(1); // 5 − 4; the 1 held unit stays physically present
+  });
+
+  test('park is NOT blocked by reserved units from other held carts', async () => {
+    const { t, fx } = await setupReserved(); // already holds 1 of cola (stock 5)
+    // Parking a second cart holding all 5 must succeed — holds do not block holds.
+    await t.mutation(api.heldCarts.park, {
+      actorId: fx.owner,
+      items: [{ productId: fx.cola, qty: 5 }],
+    });
+    const carts = await t.query(api.heldCarts.list, {});
+    expect(carts).toHaveLength(2);
+    // Parking never consumes stock either.
+    const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
+    expect(cola!.stock).toBe(5);
+  });
+});
+
 describe('sales.refund', () => {
   async function checkoutOnce(t: ReturnType<typeof convexTest>, fx: Fixtures) {
     return await t.mutation(api.sales.checkout, {

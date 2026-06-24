@@ -279,6 +279,7 @@ function CartItemRow({
   onRemove,
   onSetQty,
   bsRate,
+  reservedUnits = 0,
 }: {
   item: CartItem;
   onInc: () => void;
@@ -286,10 +287,17 @@ function CartItemRow({
   onRemove: () => void;
   onSetQty?: ((n: number) => void) | null;
   bsRate: number;
+  /** Units of this product reserved by held ("en espera") carts — soft-locked. */
+  reservedUnits?: number;
 }) {
   const MAX_QTY = 1000000;
+  // Cap at AVAILABLE stock: physical − en-espera. Display still shows physical
+  // elsewhere; here the stepper must never let the qty climb past availability.
+  // Physical stock <= 0 keeps the legacy "uncapped" behavior (e.g. services).
   const stockCap =
-    typeof item.stock === 'number' && item.stock > 0 ? item.stock : MAX_QTY;
+    typeof item.stock === 'number' && item.stock > 0
+      ? Math.max(1, item.stock - reservedUnits)
+      : MAX_QTY;
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(item.qty));
   useEffect(() => {
@@ -903,6 +911,7 @@ function CartContent({
   onPause,
   bsRate,
   ivaPct,
+  reserved,
 }: {
   cart: CartItem[];
   inc: (id: Id<'products'>) => void;
@@ -921,6 +930,8 @@ function CartContent({
   onPause?: (() => void) | null;
   bsRate: number;
   ivaPct: number;
+  /** productId → units reserved by held ("en espera") carts. */
+  reserved: Record<string, number>;
 }) {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const taxableBase = cart.reduce(
@@ -987,13 +998,10 @@ function CartContent({
           onRemove={() => remove(i._id)}
           onSetQty={setQty ? (n) => setQty(i._id, n) : null}
           bsRate={bsRate}
+          reservedUnits={reserved[i._id] || 0}
         />
       ))}
       <div className="totals">
-        <div className="line">
-          <span>Subtotal</span>
-          <span className="tabular">${subtotal.toFixed(2)}</span>
-        </div>
         {salesType === 'invoice' && subtotal - taxableBase > 0.005 && (
           <div className="line">
             <span>Exento (E)</span>
@@ -1002,6 +1010,10 @@ function CartContent({
             </span>
           </div>
         )}
+        <div className="line">
+          <span>Subtotal</span>
+          <span className="tabular">${subtotal.toFixed(2)}</span>
+        </div>
         {salesType === 'invoice' && (
           <div className="line">
             <span>IVA ({ivaPct}%)</span>
@@ -1401,10 +1413,17 @@ export default function SaleScreen({
     setSearchOpen(false);
   };
 
+  // Cap a programmatic qty at AVAILABLE stock (physical − en-espera). Physical
+  // stock <= 0 keeps the legacy uncapped behavior (e.g. services). Mirrors the
+  // CartItemRow stepper cap so increments can never exceed availability.
+  const availableCap = (item: CartItem) =>
+    typeof item.stock === 'number' && item.stock > 0
+      ? Math.max(1, item.stock - (reserved[item._id] || 0))
+      : 1000000;
   const inc = (id: Id<'products'>) =>
     setCart((c) =>
       c.map((i) =>
-        i._id === id ? { ...i, qty: Math.min(1000000, i.qty + 1) } : i
+        i._id === id ? { ...i, qty: Math.min(availableCap(i), i.qty + 1) } : i
       )
     );
   const dec = (id: Id<'products'>) =>
@@ -1413,7 +1432,11 @@ export default function SaleScreen({
     );
   const setQty = (id: Id<'products'>, n: number) =>
     setCart((c) =>
-      c.map((i) => (i._id === id ? { ...i, qty: Math.max(1, n) } : i))
+      c.map((i) =>
+        i._id === id
+          ? { ...i, qty: Math.max(1, Math.min(availableCap(i), n)) }
+          : i
+      )
     );
   const remove = (id: Id<'products'>) =>
     setCart((c) => c.filter((i) => i._id !== id));
@@ -1677,6 +1700,7 @@ export default function SaleScreen({
                         onRemove={() => remove(i._id)}
                         onSetQty={(n) => setQty(i._id, n)}
                         bsRate={bsRate}
+                        reservedUnits={reserved[i._id] || 0}
                       />
                     ))}
                     {(() => {
@@ -1690,12 +1714,6 @@ export default function SaleScreen({
                       return (
                         <>
                           <div className="totals">
-                            <div className="line">
-                              <span>Subtotal</span>
-                              <span className="tabular">
-                                ${subtotal.toFixed(2)}
-                              </span>
-                            </div>
                             {salesType === 'invoice' &&
                               subtotal - taxableBase > 0.005 && (
                                 <div className="line">
@@ -1705,6 +1723,12 @@ export default function SaleScreen({
                                   </span>
                                 </div>
                               )}
+                            <div className="line">
+                              <span>Subtotal</span>
+                              <span className="tabular">
+                                ${subtotal.toFixed(2)}
+                              </span>
+                            </div>
                             {salesType === 'invoice' && (
                               <div className="line">
                                 <span>IVA ({ivaPct}%)</span>
@@ -2094,6 +2118,7 @@ export default function SaleScreen({
             salesType={salesType}
             ivaPct={ivaPct}
             bsRate={bsRate}
+            reserved={reserved}
             pendingSplits={pendingSplits}
             selectedClient={selectedClient}
             onPickClient={() => setClientPickerOpen(true)}

@@ -129,8 +129,28 @@ export const checkout = mutation({
     const lines = await snapshotLines(ctx, args.items, {
       enforceSellable: true,
     });
+    // 3b. Reserved ("en espera") backstop: units held in OTHER parked carts are
+    // not sellable here. Available = physical − reserved. Checkout only — park
+    // must not be blocked by holds (a cart being parked can't reserve against
+    // itself, and a sale RESUMED from a held cart already deleted its row).
+    const heldCarts = await ctx.db.query('heldCarts').collect();
+    const reservedByProduct = new Map<string, number>();
+    for (const held of heldCarts) {
+      for (const it of held.items) {
+        reservedByProduct.set(
+          it.productId,
+          (reservedByProduct.get(it.productId) ?? 0) + it.qty
+        );
+      }
+    }
     for (const { product, qty } of lines) {
-      if (product.stock < qty) {
+      const reserved = reservedByProduct.get(product._id) ?? 0;
+      if (qty + reserved > product.stock) {
+        if (reserved > 0 && qty <= product.stock) {
+          throw new ConvexError(
+            `No hay suficiente stock disponible para "${product.name}": hay ${reserved} en espera.`
+          );
+        }
         throw new ConvexError(
           `Stock insuficiente: ${product.name}. Quedan ${product.stock} unidades.`
         );
