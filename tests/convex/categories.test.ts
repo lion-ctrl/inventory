@@ -18,7 +18,7 @@ describe('categories.list', () => {
   test('annotates each category with its live product count', async () => {
     const { t, fx } = await setup();
     const empty = await t.mutation(api.categories.create, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       label: 'Limpieza',
     });
 
@@ -35,11 +35,11 @@ describe('categories mutations', () => {
     const { t, fx } = await setup();
 
     await expect(
-      t.mutation(api.categories.create, { actorId: fx.cajeroVoid, label: 'X' })
+      t.mutation(api.categories.create, { token: fx.cajeroVoidToken, label: 'X' })
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     await t.mutation(api.categories.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       categoryId: fx.categoryId,
       label: 'Bebidas frías',
     });
@@ -50,12 +50,12 @@ describe('categories mutations', () => {
   test('removeWithReassign repoints every product, then deletes — never orphans', async () => {
     const { t, fx } = await setup();
     const target = await t.mutation(api.categories.create, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       label: 'Limpieza',
     });
 
     await t.mutation(api.categories.removeWithReassign, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       categoryId: fx.categoryId,
       reassignToId: target,
     });
@@ -73,7 +73,7 @@ describe('categories mutations', () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.categories.removeWithReassign, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         categoryId: fx.categoryId,
         reassignToId: fx.categoryId,
       })
@@ -90,7 +90,7 @@ describe('categories mutations', () => {
 
     await expect(
       t.mutation(api.categories.removeWithReassign, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         categoryId: gone,
         reassignToId: fx.categoryId,
       })
@@ -98,7 +98,7 @@ describe('categories mutations', () => {
 
     await expect(
       t.mutation(api.categories.removeWithReassign, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         categoryId: fx.categoryId,
         reassignToId: gone,
       })

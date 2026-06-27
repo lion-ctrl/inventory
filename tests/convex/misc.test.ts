@@ -15,14 +15,14 @@ describe('employees.update / remove', () => {
 
     await expect(
       t.mutation(api.employees.update, {
-        actorId: fx.cajeroPlain,
+        token: fx.cajeroPlainToken,
         employeeId: fx.cajeroVoid,
         patch: { role: 'admin' },
       })
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     await t.mutation(api.employees.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       employeeId: fx.cajeroVoid,
       patch: { role: 'admin', active: false },
     });
@@ -35,14 +35,14 @@ describe('employees.update / remove', () => {
     const t = convexTest(schema, modules);
     const fx = await t.run(seedBase);
     await t.mutation(api.employees.remove, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       employeeId: fx.cajeroPlain,
     });
     await expect(
       t.run((ctx) => ctx.db.get('employees', fx.cajeroPlain))
     ).resolves.toBeNull();
     await t.mutation(api.employees.remove, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       employeeId: fx.cajeroPlain,
     });
   });
@@ -54,7 +54,7 @@ describe('sales.history', () => {
     const fx = await t.run(seedBase);
     const buy = (qty: number, amount: number) =>
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [{ productId: fx.cola, qty }],
         method: 'cash',
@@ -65,11 +65,42 @@ describe('sales.history', () => {
     await buy(1, 1.7);
     await buy(2, 3.39);
 
-    const history = await t.query(api.sales.history, {});
+    const history = await t.query(api.sales.history, { token: fx.ownerToken });
     expect(history.map((s) => s.invoiceNumber)).toEqual([
       '00000044',
       '00000043',
     ]);
+  });
+
+  test('AUTH-2: requires a session and never returns cashierId', async () => {
+    const t = convexTest(schema, modules);
+    const fx = await t.run(seedBase);
+    await t.mutation(api.sales.checkout, {
+      token: fx.ownerToken,
+      clientId: fx.clientId,
+      items: [{ productId: fx.cola, qty: 1 }],
+      method: 'cash',
+      splits: [{ method: 'cash', amount: 1.7 }],
+    });
+
+    // Unauthenticated reads are rejected.
+    await expect(
+      t.query(api.sales.history, { token: 'not-a-real-token' })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+
+    const history = await t.query(api.sales.history, { token: fx.ownerToken });
+    expect(history.length).toBeGreaterThan(0);
+    for (const sale of history) {
+      expect(sale.cashierName).toBeTruthy(); // human-readable snapshot stays
+      expect(sale).not.toHaveProperty('cashierId'); // credential surface removed
+    }
+
+    // The id is still STORED on the row for audit — only the projection drops it.
+    const stored = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('sales').collect();
+      return rows[0];
+    });
+    expect(stored.cashierId).toBe(fx.owner);
   });
 });
 

@@ -23,14 +23,14 @@ describe('settings.scannerMode', () => {
     expect(before?.scannerMode).toBeUndefined(); // undefined → physical in the UI
 
     await t.mutation(api.settings.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       patch: { scannerMode: 'camera' },
     });
     const after = await t.query(api.settings.get, {});
     expect(after?.scannerMode).toBe('camera');
 
     await t.mutation(api.settings.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       patch: { scannerMode: 'physical' },
     });
     const back = await t.query(api.settings.get, {});
@@ -41,7 +41,7 @@ describe('settings.scannerMode', () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.settings.update, {
-        actorId: fx.cajeroVoid, // no manage_settings
+        token: fx.cajeroVoidToken, // no manage_settings
         patch: { scannerMode: 'camera' },
       })
     ).rejects.toThrow('Sin permisos para esta acción.');

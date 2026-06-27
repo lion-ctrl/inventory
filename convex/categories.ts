@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import { requirePerm } from './permissions';
+import { requirePerm, requireSession } from './permissions';
 import { categoryFields } from './schema';
 
 export const list = query({
@@ -26,25 +26,27 @@ export const list = query({
 
 export const create = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     label: v.string(),
   },
   returns: v.id('categories'),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     return await ctx.db.insert('categories', { label: args.label });
   },
 });
 
 export const update = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     categoryId: v.id('categories'),
     label: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     const category = await ctx.db.get('categories', args.categoryId);
     if (!category) throw new ConvexError('Categoría no encontrada.');
     await ctx.db.patch('categories', args.categoryId, { label: args.label });
@@ -54,13 +56,14 @@ export const update = mutation({
 
 export const removeWithReassign = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     categoryId: v.id('categories'),
     reassignToId: v.id('categories'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     if (args.reassignToId === args.categoryId) {
       throw new ConvexError(
         'Elige otra categoría para reasignar los productos.'

@@ -1,25 +1,29 @@
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import { getSettings, round2 } from './permissions';
+import { getSettings, requireSession, round2 } from './permissions';
 import { clientSnapshotOf, snapshotLines } from './sales';
 import {
   clientDocValidator,
-  heldCartDocValidator,
+  publicHeldCartDocValidator,
   saleItemValidator,
   splitItemValidator,
 } from './schema';
 
 export const list = query({
-  args: {},
-  returns: v.array(heldCartDocValidator),
-  handler: async (ctx) => {
-    return await ctx.db.query('heldCarts').collect();
+  // Gated read: a valid session is required, and the stored cashierId is NOT
+  // returned (held carts never displayed a cashier). AUTH-2.
+  args: { token: v.string() },
+  returns: v.array(publicHeldCartDocValidator),
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
+    const carts = await ctx.db.query('heldCarts').collect();
+    return carts.map(({ cashierId: _cashierId, ...rest }) => rest);
   },
 });
 
 export const park = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     clientId: v.optional(v.id('clients')),
     items: v.array(v.object({ productId: v.id('products'), qty: v.number() })),
     splits: v.optional(v.array(splitItemValidator)),
@@ -27,10 +31,8 @@ export const park = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const actor = await ctx.db.get('employees', args.actorId);
-    if (!actor || !actor.active) {
-      throw new ConvexError('Sin permisos para esta acción.');
-    }
+    // Any active employee may park — a valid session is enough.
+    const actor = await requireSession(ctx, args.token);
     if (args.items.length === 0) {
       throw new ConvexError('No hay productos en el carrito.');
     }
@@ -73,7 +75,7 @@ export const park = mutation({
 
 export const resume = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     heldCartId: v.id('heldCarts'),
   },
   returns: v.object({
@@ -82,11 +84,8 @@ export const resume = mutation({
     splits: v.optional(v.array(splitItemValidator)),
   }),
   handler: async (ctx, args) => {
-    // Resume deletes the held row — only existing, active employees may do it.
-    const actor = await ctx.db.get('employees', args.actorId);
-    if (!actor || !actor.active) {
-      throw new ConvexError('Sin permisos para esta acción.');
-    }
+    // Resume deletes the held row — only a valid session may do it.
+    await requireSession(ctx, args.token);
     const cart = await ctx.db.get('heldCarts', args.heldCartId);
     if (!cart) throw new ConvexError('Venta en espera no encontrada.');
     // Live client (may have been deleted since parking → null).
@@ -105,16 +104,13 @@ export const resume = mutation({
 
 export const discard = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     heldCartId: v.id('heldCarts'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    // Discard is a deletion — only existing, active employees may do it.
-    const actor = await ctx.db.get('employees', args.actorId);
-    if (!actor || !actor.active) {
-      throw new ConvexError('Sin permisos para esta acción.');
-    }
+    // Discard is a deletion — only a valid session may do it.
+    await requireSession(ctx, args.token);
     const cart = await ctx.db.get('heldCarts', args.heldCartId);
     if (cart) await ctx.db.delete('heldCarts', args.heldCartId);
     return null;

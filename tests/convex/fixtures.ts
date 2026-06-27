@@ -1,6 +1,40 @@
 // Seed fixtures shared by the convex backend test suites.
 import type { MutationCtx } from '@convex/_generated/server';
 import type { Id } from '@convex/_generated/dataModel';
+import {
+  generateToken,
+  hashToken,
+  IDLE_TTL_MS,
+  ABSOLUTE_TTL_MS,
+} from '@convex/sessions';
+
+/**
+ * Mint a session row for an employee and return the RAW token — exactly what
+ * `login` hands back. Migrated convex-tests authenticate by passing this token
+ * as the `token` arg.
+ *
+ * Forge specific expiry states for tests:
+ *  - `expiresAt` in the past → an idle-expired session.
+ *  - `absoluteExpiresAt` in the past → a session past its 24h absolute cap
+ *    (even when the idle window is still fresh).
+ */
+export async function mintSession(
+  ctx: MutationCtx,
+  employeeId: Id<'employees'>,
+  opts: { expiresAt?: number; absoluteExpiresAt?: number } = {}
+): Promise<string> {
+  const token = generateToken();
+  const tokenHash = await hashToken(token);
+  const now = Date.now();
+  await ctx.db.insert('sessions', {
+    employeeId,
+    tokenHash,
+    expiresAt: opts.expiresAt ?? now + IDLE_TTL_MS,
+    absoluteExpiresAt: opts.absoluteExpiresAt ?? now + ABSOLUTE_TTL_MS,
+    lastSeenAt: now,
+  });
+  return token;
+}
 
 export const PERMISSION_IDS = [
   'view_reports',
@@ -38,6 +72,14 @@ export interface Fixtures {
   cajeroPlain: Id<'employees'>;
   /** inactive employee with permissions 'all' */
   inactive: Id<'employees'>;
+  /** valid session token for `owner` (permissions 'all') */
+  ownerToken: string;
+  /** valid session token for `cajeroVoid` (view_reports + void_sales) */
+  cajeroVoidToken: string;
+  /** valid session token for `cajeroPlain` (manage_clients only) */
+  cajeroPlainToken: string;
+  /** session bound to the INACTIVE employee — requireSession must reject it */
+  inactiveToken: string;
 }
 
 export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
@@ -156,6 +198,11 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     createdAt: now,
   });
 
+  const ownerToken = await mintSession(ctx, owner);
+  const cajeroVoidToken = await mintSession(ctx, cajeroVoid);
+  const cajeroPlainToken = await mintSession(ctx, cajeroPlain);
+  const inactiveToken = await mintSession(ctx, inactive);
+
   return {
     settingsId,
     categoryId,
@@ -168,5 +215,9 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     cajeroVoid,
     cajeroPlain,
     inactive,
+    ownerToken,
+    cajeroVoidToken,
+    cajeroPlainToken,
+    inactiveToken,
   };
 }

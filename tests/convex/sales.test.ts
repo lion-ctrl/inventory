@@ -23,7 +23,7 @@ describe('sales.checkout', () => {
 
     // cola 1.50×2 (taxable) + agua 0.80×1 (exempt)
     const sale = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [
         { productId: fx.cola, qty: 2 },
@@ -72,7 +72,7 @@ describe('sales.checkout', () => {
     const { t, fx } = await setup();
 
     await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [
         { productId: fx.cola, qty: 2 },
@@ -93,7 +93,7 @@ describe('sales.checkout', () => {
 
     // Next sale gets the next number
     const second = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [{ productId: fx.cola, qty: 1 }],
       method: 'card',
@@ -106,7 +106,7 @@ describe('sales.checkout', () => {
     const { t, fx } = await setup();
     // cola 1.50×2 = 3.00 taxable → IVA 13% = 0.39, total 3.39.
     const sale = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [{ productId: fx.cola, qty: 2 }],
       method: 'cash',
@@ -120,7 +120,7 @@ describe('sales.checkout', () => {
   test('merges duplicate product lines before applying stock math', async () => {
     const { t, fx } = await setup();
     const sale = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [
         { productId: fx.cola, qty: 1 },
@@ -144,7 +144,7 @@ describe('sales.checkout', () => {
     // total = 4.19 → paying 4.17 (short by 0.02) is rejected
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items,
         method: 'cash',
@@ -154,7 +154,7 @@ describe('sales.checkout', () => {
 
     // ...but a 0.01 shortfall is within tolerance (characterized behavior)
     const sale = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items,
       method: 'cash',
@@ -167,7 +167,7 @@ describe('sales.checkout', () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [{ productId: fx.cafe, qty: 3 }],
         method: 'cash',
@@ -183,7 +183,7 @@ describe('sales.checkout', () => {
 
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [{ productId: fx.pintura, qty: 1 }],
         method: 'cash',
@@ -193,7 +193,7 @@ describe('sales.checkout', () => {
 
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [],
         method: 'cash',
@@ -203,7 +203,7 @@ describe('sales.checkout', () => {
 
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [{ productId: fx.cola, qty: 0 }],
         method: 'cash',
@@ -224,7 +224,7 @@ describe('sales.checkout', () => {
     });
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: goneClient,
         items: [{ productId: fx.cola, qty: 1 }],
         method: 'cash',
@@ -237,13 +237,13 @@ describe('sales.checkout', () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.inactive,
+        token: fx.inactiveToken,
         clientId: fx.clientId,
         items: [{ productId: fx.cola, qty: 1 }],
         method: 'cash',
         splits: cash(1.7),
       })
-    ).rejects.toThrow('Sin permisos para esta acción.');
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
   });
 });
 
@@ -257,7 +257,7 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
     // Reset cola to exactly stock 5, then hold 1 of it in a parked cart.
     await t.run((ctx) => ctx.db.patch('products', fx.cola, { stock: 5 }));
     await t.mutation(api.heldCarts.park, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       items: [{ productId: fx.cola, qty: 1 }],
     });
     return { t, fx };
@@ -267,7 +267,7 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
     const { t, fx } = await setupReserved();
     await expect(
       t.mutation(api.sales.checkout, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         clientId: fx.clientId,
         items: [{ productId: fx.cola, qty: 5 }],
         method: 'cash',
@@ -285,7 +285,7 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
   test('allows qty 4 when 1 unit is held, decrementing physical stock to 1', async () => {
     const { t, fx } = await setupReserved();
     const sale = await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [{ productId: fx.cola, qty: 4 }],
       method: 'cash',
@@ -301,10 +301,10 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
     const { t, fx } = await setupReserved(); // already holds 1 of cola (stock 5)
     // Parking a second cart holding all 5 must succeed — holds do not block holds.
     await t.mutation(api.heldCarts.park, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       items: [{ productId: fx.cola, qty: 5 }],
     });
-    const carts = await t.query(api.heldCarts.list, {});
+    const carts = await t.query(api.heldCarts.list, { token: fx.ownerToken });
     expect(carts).toHaveLength(2);
     // Parking never consumes stock either.
     const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
@@ -315,7 +315,7 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
 describe('sales.refund', () => {
   async function checkoutOnce(t: ReturnType<typeof convexTest>, fx: Fixtures) {
     return await t.mutation(api.sales.checkout, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       clientId: fx.clientId,
       items: [
         { productId: fx.cola, qty: 2 },
@@ -331,7 +331,7 @@ describe('sales.refund', () => {
     const sale = await checkoutOnce(t, fx);
 
     await t.mutation(api.sales.refund, {
-      actorId: fx.cajeroVoid, // has void_sales
+      token: fx.cajeroVoidToken, // has void_sales
       saleId: sale._id,
       reason: 'Producto dañado',
     });
@@ -351,13 +351,13 @@ describe('sales.refund', () => {
     const { t, fx } = await setup();
     const sale = await checkoutOnce(t, fx);
     await t.mutation(api.sales.refund, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       saleId: sale._id,
       reason: 'Error de cobro',
     });
     await expect(
       t.mutation(api.sales.refund, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         saleId: sale._id,
         reason: 'Otra vez',
       })
@@ -369,7 +369,7 @@ describe('sales.refund', () => {
     const sale = await checkoutOnce(t, fx);
     await expect(
       t.mutation(api.sales.refund, {
-        actorId: fx.cajeroPlain, // manage_clients only
+        token: fx.cajeroPlainToken, // manage_clients only
         saleId: sale._id,
         reason: 'No autorizado',
       })
@@ -382,7 +382,7 @@ describe('sales.refund', () => {
 
     await t.run((ctx) => ctx.db.delete('products', fx.cola));
     await t.mutation(api.sales.refund, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       saleId: sale._id,
       reason: 'Cliente devolvió todo',
     });

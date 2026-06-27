@@ -35,7 +35,7 @@ describe('products mutations', () => {
 
     await expect(
       t.mutation(api.products.create, {
-        actorId: fx.cajeroVoid, // no manage_products
+        token: fx.cajeroVoidToken, // no manage_products
         barcode: '7590000000001',
         sku: 'NUE-1',
         name: 'Nuevo producto',
@@ -47,7 +47,7 @@ describe('products mutations', () => {
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     const id = await t.mutation(api.products.create, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       barcode: '7590000000001',
       sku: 'NUE-1',
       name: 'Nuevo producto',
@@ -72,7 +72,7 @@ describe('products mutations', () => {
   test('update patches fields and rejects missing products', async () => {
     const { t, fx } = await setup();
     await t.mutation(api.products.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cola,
       patch: { price: 1.75, name: 'Coca-Cola 600ml retornable' },
     });
@@ -84,7 +84,7 @@ describe('products mutations', () => {
     await t.run((ctx) => ctx.db.delete('products', fx.cafe));
     await expect(
       t.mutation(api.products.update, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         productId: fx.cafe,
         patch: { price: 6 },
       })
@@ -94,7 +94,7 @@ describe('products mutations', () => {
   test('setSellable pauses and resumes a product', async () => {
     const { t, fx } = await setup();
     await t.mutation(api.products.setSellable, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cola,
       sellable: false,
     });
@@ -102,7 +102,7 @@ describe('products mutations', () => {
     expect(cola!.sellable).toBe(false);
 
     await t.mutation(api.products.setSellable, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cola,
       sellable: true,
     });
@@ -113,7 +113,7 @@ describe('products mutations', () => {
   test('adjustStock sets an absolute value and rejects negatives', async () => {
     const { t, fx } = await setup();
     await t.mutation(api.products.adjustStock, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cafe,
       stock: 50,
     });
@@ -122,7 +122,7 @@ describe('products mutations', () => {
 
     await expect(
       t.mutation(api.products.adjustStock, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         productId: fx.cafe,
         stock: -1,
       })
@@ -132,7 +132,7 @@ describe('products mutations', () => {
   test('remove deletes and is idempotent (sales keep their snapshots)', async () => {
     const { t, fx } = await setup();
     await t.mutation(api.products.remove, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cola,
     });
     await expect(
@@ -141,7 +141,7 @@ describe('products mutations', () => {
 
     // Second remove of the same id: silent no-op
     await t.mutation(api.products.remove, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       productId: fx.cola,
     });
   });

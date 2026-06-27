@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import { requirePerm } from './permissions';
+import { requirePerm, requireSession } from './permissions';
 import { productDocValidator } from './schema';
 
 export const list = query({
@@ -24,7 +24,7 @@ export const byBarcode = query({
 
 export const create = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     barcode: v.string(),
     sku: v.string(),
     name: v.string(),
@@ -37,15 +37,16 @@ export const create = mutation({
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
-    const { actorId: _actorId, ...fields } = args;
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
+    const { token: _token, ...fields } = args;
     return await ctx.db.insert('products', fields);
   },
 });
 
 export const update = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     productId: v.id('products'),
     patch: v.object({
       barcode: v.optional(v.string()),
@@ -62,7 +63,8 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     const product = await ctx.db.get('products', args.productId);
     if (!product) throw new ConvexError('Producto no encontrado.');
     await ctx.db.patch('products', args.productId, args.patch);
@@ -72,13 +74,14 @@ export const update = mutation({
 
 export const setSellable = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     productId: v.id('products'),
     sellable: v.boolean(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     const product = await ctx.db.get('products', args.productId);
     if (!product) throw new ConvexError('Producto no encontrado.');
     await ctx.db.patch('products', args.productId, { sellable: args.sellable });
@@ -88,13 +91,14 @@ export const setSellable = mutation({
 
 export const adjustStock = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     productId: v.id('products'),
     stock: v.number(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     const product = await ctx.db.get('products', args.productId);
     if (!product) throw new ConvexError('Producto no encontrado.');
     if (args.stock < 0) {
@@ -107,12 +111,13 @@ export const adjustStock = mutation({
 
 export const remove = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     productId: v.id('products'),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'manage_products');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'manage_products');
     // Plain delete: sales keep item snapshots and refunds skip missing products.
     const product = await ctx.db.get('products', args.productId);
     if (product) await ctx.db.delete('products', args.productId);

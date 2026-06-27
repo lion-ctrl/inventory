@@ -2,9 +2,10 @@ import { ConvexError, v, type Infer } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { getSettings, requirePerm, round2 } from './permissions';
+import { getSettings, requirePerm, requireSession, round2 } from './permissions';
 import {
   clientSnapshotValidator,
+  publicSaleDocValidator,
   saleDocValidator,
   saleItemValidator,
   splitItemValidator,
@@ -99,7 +100,7 @@ export async function snapshotLines(
 
 export const checkout = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     clientId: v.id('clients'),
     items: v.array(v.object({ productId: v.id('products'), qty: v.number() })),
     method: v.string(),
@@ -108,11 +109,9 @@ export const checkout = mutation({
   },
   returns: saleDocValidator,
   handler: async (ctx, args) => {
-    // 1. Any ACTIVE employee can sell — no specific permission required.
-    const actor = await ctx.db.get('employees', args.actorId);
-    if (!actor || !actor.active) {
-      throw new ConvexError('Sin permisos para esta acción.');
-    }
+    // 1. Any ACTIVE employee can sell — a valid session suffices, no specific
+    //    permission required. requireSession rejects unknown/expired/inactive.
+    const actor = await requireSession(ctx, args.token);
 
     // 2. Client + settings.
     const client = await ctx.db.get('clients', args.clientId);
@@ -215,26 +214,31 @@ export const checkout = mutation({
 });
 
 export const history = query({
-  args: {},
-  returns: v.array(saleDocValidator),
-  handler: async (ctx) => {
-    return await ctx.db
+  // Gated read: a valid session is required, and the stored cashierId is NOT
+  // returned (the cashierName snapshot is enough for display). AUTH-2.
+  args: { token: v.string() },
+  returns: v.array(publicSaleDocValidator),
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
+    const sales = await ctx.db
       .query('sales')
       .withIndex('by_soldAt')
       .order('desc')
       .collect();
+    return sales.map(({ cashierId: _cashierId, ...rest }) => rest);
   },
 });
 
 export const refund = mutation({
   args: {
-    actorId: v.id('employees'),
+    token: v.string(),
     saleId: v.id('sales'),
     reason: v.string(),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await requirePerm(ctx, args.actorId, 'void_sales');
+    const employee = await requireSession(ctx, args.token);
+    requirePerm(employee, 'void_sales');
     const sale = await ctx.db.get('sales', args.saleId);
     if (!sale) throw new ConvexError('Venta no encontrada.');
     if (sale.refund) {

@@ -1,7 +1,8 @@
 // Helper module — no exported Convex functions (queries/mutations) here.
 import { ConvexError } from 'convex/values';
-import type { Doc, Id } from './_generated/dataModel';
+import type { Doc } from './_generated/dataModel';
 import type { MutationCtx, QueryCtx } from './_generated/server';
+import { hashToken, IDLE_TTL_MS } from './sessions';
 
 export type PermissionId =
   | 'view_reports'
@@ -28,19 +29,75 @@ export function can(
 }
 
 /**
- * Load the acting employee and throw a Spanish ConvexError unless they hold
- * the given permission. Returns the employee doc for convenience.
+ * Pure permission gate on an already-resolved employee (resolved via
+ * `requireSession`). Throws a Spanish ConvexError unless the employee holds the
+ * given permission; returns the employee for convenient chaining.
+ *
+ * NOTE: this NO LONGER loads the employee from a client-supplied id — that was
+ * the impersonation hole. The acting employee MUST come from the session.
  */
-export async function requirePerm(
-  ctx: Ctx,
-  actorId: Id<'employees'>,
+export function requirePerm(
+  employee: Doc<'employees'> | null | undefined,
   perm: PermissionId
-): Promise<Doc<'employees'>> {
-  const employee = await ctx.db.get('employees', actorId);
+): Doc<'employees'> {
   if (!employee || !can(employee, perm)) {
     throw new ConvexError('Sin permisos para esta acción.');
   }
   return employee;
+}
+
+/**
+ * Resolve a session token to its employee WITHOUT throwing. Returns `null` when
+ * the token is absent, unknown, expired, or its employee is missing/inactive.
+ * Used by `auth.me` for boot revalidation (mirrors the old stale-id tolerance).
+ */
+export async function resolveSession(
+  ctx: Ctx,
+  token: string | null | undefined
+): Promise<{ session: Doc<'sessions'>; employee: Doc<'employees'> } | null> {
+  if (!token) return null;
+  const tokenHash = await hashToken(token);
+  const session = await ctx.db
+    .query('sessions')
+    .withIndex('by_tokenHash', (q) => q.eq('tokenHash', tokenHash))
+    .unique();
+  // Invalid once the IDLE deadline (expiresAt, slid by activity) OR the ABSOLUTE
+  // cap (absoluteExpiresAt, fixed at login) has passed — whichever comes first.
+  const now = Date.now();
+  if (!session || session.expiresAt <= now || session.absoluteExpiresAt <= now) {
+    return null;
+  }
+  const employee = await ctx.db.get('employees', session.employeeId);
+  if (!employee || employee.active === false) return null;
+  return { session, employee };
+}
+
+/**
+ * The authentication trust boundary for every privileged function. Validates
+ * the client-supplied session token and returns the acting employee, throwing
+ * if the token is missing / unknown / expired / inactive. On success it bumps
+ * `lastSeenAt` (only in a mutation context — queries cannot write).
+ */
+export async function requireSession(
+  ctx: Ctx,
+  token: string
+): Promise<Doc<'employees'>> {
+  const resolved = await resolveSession(ctx, token);
+  if (!resolved) {
+    throw new ConvexError('Sesión inválida o expirada. Inicia sesión de nuevo.');
+  }
+  // Slide the idle window forward + bump last-seen, but ONLY when we can write.
+  // `'patch' in ctx.db` narrows the union to the mutation writer, so query
+  // contexts (history/list) validate without writing. The new idle deadline is
+  // clamped to the absolute cap, so an active session can never outlive 24h.
+  if ('patch' in ctx.db) {
+    const now = Date.now();
+    await ctx.db.patch('sessions', resolved.session._id, {
+      expiresAt: Math.min(now + IDLE_TTL_MS, resolved.session.absoluteExpiresAt),
+      lastSeenAt: now,
+    });
+  }
+  return resolved.employee;
 }
 
 /** Load the settings singleton; throw if the deployment was never seeded. */

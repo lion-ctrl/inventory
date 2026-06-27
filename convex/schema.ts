@@ -171,6 +171,23 @@ export const settingsFields = {
   scannerMode: v.optional(scannerModeValidator),
 };
 
+/**
+ * A hashed, expiring session token bound to an employee. The raw token is
+ * returned to the client once (by `login`) and never stored — only its
+ * `sha256` hash lives here, so a DB read can never recover a usable credential.
+ *
+ * Expiry is two-layered: `expiresAt` is the IDLE deadline (slid forward by
+ * activity / `renewSession`), `absoluteExpiresAt` is the hard cap fixed at
+ * login. A session is invalid once EITHER deadline has passed.
+ */
+export const sessionFields = {
+  employeeId: v.id('employees'),
+  tokenHash: v.string(), // sha256(token); the raw token is never persisted
+  expiresAt: v.number(), // IDLE deadline; invalid once Date.now() >= this; slides on activity
+  absoluteExpiresAt: v.number(), // hard cap fixed at login; invalid once Date.now() >= this; never slides
+  lastSeenAt: v.number(), // bumped on each authenticated call
+};
+
 // ---------------------------------------------------------------------------
 // Full-document validators (for `returns` validators of functions that hand
 // whole docs to the client).
@@ -218,6 +235,30 @@ export const settingsDocValidator = v.object({
   ...settingsFields,
 });
 
+export const sessionDocValidator = v.object({
+  _id: v.id('sessions'),
+  _creationTime: v.number(),
+  ...sessionFields,
+});
+
+// Public projections — the stored `cashierId` is an employee-identity surface
+// (a would-be credential), so it is omitted from query *returns*. The
+// human-readable `cashierName` snapshot stays on sales for display; the id
+// remains STORED on both tables for audit. (AUTH-2.)
+const { cashierId: _saleCashierId, ...publicSaleFields } = saleFields;
+export const publicSaleDocValidator = v.object({
+  _id: v.id('sales'),
+  _creationTime: v.number(),
+  ...publicSaleFields,
+});
+
+const { cashierId: _heldCashierId, ...publicHeldCartFields } = heldCartFields;
+export const publicHeldCartDocValidator = v.object({
+  _id: v.id('heldCarts'),
+  _creationTime: v.number(),
+  ...publicHeldCartFields,
+});
+
 // ---------------------------------------------------------------------------
 // Schema
 // ---------------------------------------------------------------------------
@@ -241,4 +282,9 @@ export default defineSchema({
 
   // Singleton row
   settings: defineTable(settingsFields),
+
+  // Hashed, expiring session tokens (the bearer credential — never a doc _id).
+  sessions: defineTable(sessionFields)
+    .index('by_tokenHash', ['tokenHash'])
+    .index('by_employee', ['employeeId']),
 });

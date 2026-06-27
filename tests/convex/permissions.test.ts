@@ -61,10 +61,10 @@ describe('server-side guards (requirePerm through the API)', () => {
     const { t, fx } = await setup();
 
     await expect(
-      t.query(api.employees.list, { actorId: fx.cajeroPlain })
+      t.query(api.employees.list, { token: fx.cajeroPlainToken })
     ).rejects.toThrow('Sin permisos para esta acción.');
 
-    const list = await t.query(api.employees.list, { actorId: fx.owner });
+    const list = await t.query(api.employees.list, { token: fx.ownerToken });
     expect(list).toHaveLength(3); // 4 seeded minus the actor
     expect(list.some((e) => e._id === fx.owner)).toBe(false);
   });
@@ -74,13 +74,13 @@ describe('server-side guards (requirePerm through the API)', () => {
 
     await expect(
       t.mutation(api.settings.update, {
-        actorId: fx.cajeroPlain,
+        token: fx.cajeroPlainToken,
         patch: { bsRate: 40 },
       })
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     await t.mutation(api.settings.update, {
-      actorId: fx.owner,
+      token: fx.ownerToken,
       patch: { bsRate: 40 },
     });
     const settings = await t.run((ctx) =>
@@ -95,7 +95,7 @@ describe('PIN validation (6 digits, server-side)', () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.employees.create, {
-        actorId: fx.owner,
+        token: fx.ownerToken,
         name: 'Nuevo Cajero',
         email: 'nuevo@mitienda.com',
         phone: '04140000000',
@@ -112,13 +112,13 @@ describe('PIN validation (6 digits, server-side)', () => {
 
     await expect(
       t.mutation(api.employees.updateSelf, {
-        actorId: fx.cajeroPlain,
+        token: fx.cajeroPlainToken,
         patch: { pin: '12345a' },
       })
     ).rejects.toThrow('El PIN debe tener 6 dígitos.');
 
     await t.mutation(api.employees.updateSelf, {
-      actorId: fx.cajeroPlain,
+      token: fx.cajeroPlainToken,
       patch: { pin: '111222', name: 'Ana T. Actualizada' },
     });
     const ana = await t.run((ctx) => ctx.db.get('employees', fx.cajeroPlain));
