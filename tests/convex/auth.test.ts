@@ -6,6 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '@convex/_generated/api';
 import schema from '@convex/schema';
 import { ABSOLUTE_TTL_MS, hashToken, IDLE_TTL_MS } from '@convex/sessions';
+import { LOCKOUT_MSG, MAX_ATTEMPTS, WINDOW_MS } from '@convex/auth';
 import { mintSession, seedBase } from './fixtures';
 
 const modules = import.meta.glob('../../convex/**/*.ts');
@@ -281,5 +282,169 @@ describe('auth.renewSession', () => {
       token: 'not-a-real-token',
     });
     expect(res.ok).toBe(false);
+  });
+});
+
+// AUTH-3 — login rate-limiting / lockout. A 6-digit PIN is brute-forceable, so
+// `login` counts FAILED attempts per normalized email in a fixed window
+// (`loginAttempts` sentinel) and locks the email out after MAX_ATTEMPTS — even
+// when the correct PIN is later supplied — with a generic message that can't be
+// used to probe which emails exist. Success clears the counter; the window
+// auto-lifts. These assert behaviour against the SAME constants the handler uses.
+describe('auth.login — rate limiting / lockout (AUTH-3)', () => {
+  const REAL_EMAIL = 'carlos@mitienda.com';
+  const REAL_PIN = '482106';
+  const WRONG_PIN = '000000';
+  const WRONG_CREDS = 'Credenciales inválidas. Verifica e intenta de nuevo.';
+
+  const attemptRow = (t: Awaited<ReturnType<typeof setup>>['t'], email: string) =>
+    t.run((ctx) =>
+      ctx.db
+        .query('loginAttempts')
+        .withIndex('by_email', (q) => q.eq('email', email))
+        .unique()
+    );
+
+  const countSessions = async (t: Awaited<ReturnType<typeof setup>>['t']) =>
+    (await t.run((ctx) => ctx.db.query('sessions').collect())).length;
+
+  test('fewer than MAX_ATTEMPTS failures never trigger the lockout', async () => {
+    const { t } = await setup();
+    for (let i = 0; i < MAX_ATTEMPTS - 1; i++) {
+      const res = await t.mutation(api.auth.login, {
+        email: REAL_EMAIL,
+        pin: WRONG_PIN,
+      });
+      expect(res).toEqual({ ok: false, error: WRONG_CREDS });
+    }
+    // Counter sits one short of the cap — still no lockout.
+    const row = await attemptRow(t, REAL_EMAIL);
+    expect(row?.count).toBe(MAX_ATTEMPTS - 1);
+  });
+
+  test('the (MAX+1)th attempt is rejected even with the CORRECT PIN, minting no session', async () => {
+    const { t } = await setup();
+    const before = await countSessions(t);
+
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      const res = await t.mutation(api.auth.login, {
+        email: REAL_EMAIL,
+        pin: WRONG_PIN,
+      });
+      expect(res).toEqual({ ok: false, error: WRONG_CREDS });
+    }
+
+    // Correct PIN, but the lockout fires BEFORE credentials are evaluated.
+    const locked = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: REAL_PIN,
+    });
+    expect(locked).toEqual({ ok: false, error: LOCKOUT_MSG });
+    expect(await countSessions(t)).toBe(before); // no session while locked
+  });
+
+  test('the lockout lifts once the fixed window has expired', async () => {
+    const { t } = await setup();
+    // Plant a maxed-out counter whose window already elapsed.
+    await t.run((ctx) =>
+      ctx.db.insert('loginAttempts', {
+        email: REAL_EMAIL,
+        windowStart: Date.now() - WINDOW_MS - 1,
+        count: MAX_ATTEMPTS,
+      })
+    );
+
+    const res = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: REAL_PIN,
+    });
+    expect(res.ok).toBe(true); // expired window → fresh attempt → succeeds
+    // The successful login also cleared the stale sentinel.
+    expect(await attemptRow(t, REAL_EMAIL)).toBeNull();
+  });
+
+  test('a failure after the window expired restarts the counter at 1 (no duplicate rows)', async () => {
+    const { t } = await setup();
+    await t.run((ctx) =>
+      ctx.db.insert('loginAttempts', {
+        email: REAL_EMAIL,
+        windowStart: Date.now() - WINDOW_MS - 1,
+        count: MAX_ATTEMPTS,
+      })
+    );
+
+    // Wrong PIN: window is expired so NOT locked → recorded as a fresh failure.
+    const res = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: WRONG_PIN,
+    });
+    expect(res).toEqual({ ok: false, error: WRONG_CREDS });
+
+    // Exactly ONE row remains (stale window reset in place, not duplicated —
+    // `.unique()` would throw if a duplicate existed) with a fresh count of 1.
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('loginAttempts')
+        .withIndex('by_email', (q) => q.eq('email', REAL_EMAIL))
+        .collect()
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].count).toBe(1);
+    expect(Date.now() - rows[0].windowStart).toBeLessThanOrEqual(WINDOW_MS);
+  });
+
+  test('a successful login resets the counter to a clean slate', async () => {
+    const { t } = await setup();
+    for (let i = 0; i < 3; i++) {
+      await t.mutation(api.auth.login, { email: REAL_EMAIL, pin: WRONG_PIN });
+    }
+    expect((await attemptRow(t, REAL_EMAIL))?.count).toBe(3);
+
+    const ok = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: REAL_PIN,
+    });
+    expect(ok.ok).toBe(true);
+    expect(await attemptRow(t, REAL_EMAIL)).toBeNull(); // counter removed
+
+    // The next failure is the FIRST of a brand-new window, not a lockout.
+    const next = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: WRONG_PIN,
+    });
+    expect(next).toEqual({ ok: false, error: WRONG_CREDS });
+    expect((await attemptRow(t, REAL_EMAIL))?.count).toBe(1);
+  });
+
+  test('an unknown email is counted and locks out with the SAME message — no enumeration', async () => {
+    const { t } = await setup();
+    const ghost = 'ghost@nowhere.com';
+
+    // Drive both a real and a non-existent email to the threshold.
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      await t.mutation(api.auth.login, { email: REAL_EMAIL, pin: WRONG_PIN });
+      await t.mutation(api.auth.login, { email: ghost, pin: WRONG_PIN });
+    }
+
+    const realLocked = await t.mutation(api.auth.login, {
+      email: REAL_EMAIL,
+      pin: REAL_PIN,
+    });
+    const ghostLocked = await t.mutation(api.auth.login, {
+      email: ghost,
+      pin: REAL_PIN,
+    });
+    if (realLocked.ok || ghostLocked.ok) {
+      throw new Error('expected both emails to be locked out');
+    }
+
+    // Byte-for-byte identical lockout error, and NOT the wrong-credentials copy.
+    expect(realLocked.error).toBe(LOCKOUT_MSG);
+    expect(ghostLocked.error).toBe(realLocked.error);
+    expect(realLocked.error).not.toBe(WRONG_CREDS);
+
+    // The unknown email accumulated a real counter — proof it was counted, so
+    // lockout timing can't reveal which addresses exist.
+    expect((await attemptRow(t, ghost))?.count).toBe(MAX_ATTEMPTS);
   });
 });

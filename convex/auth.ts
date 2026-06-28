@@ -16,6 +16,26 @@ import {
   ABSOLUTE_TTL_MS,
 } from './sessions';
 
+// ---------------------------------------------------------------------------
+// AUTH-3 — login rate-limiting (homegrown fixed-window lockout; no dependency).
+//
+// A 6-digit PIN is only 10^6 combinations, so the public `login` endpoint must
+// throttle brute force. We count FAILED attempts per normalized email in a
+// fixed window via the `loginAttempts` sentinel table (one row per email):
+// after MAX_ATTEMPTS failures the email is locked out for the rest of the
+// window — even when the correct PIN is later supplied — and the lockout error
+// is generic so it can never be used to probe which emails exist. A successful
+// login clears the counter; the window auto-lifts with no admin action.
+//
+// Exported so the test suite asserts against the SAME values (single source of
+// truth) and so the policy stays tunable in exactly one place. If WINDOW_MS
+// changes, update the minutes quoted in LOCKOUT_MSG to match.
+// ---------------------------------------------------------------------------
+export const MAX_ATTEMPTS = 5;
+export const WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+export const LOCKOUT_MSG =
+  'Demasiados intentos. Intenta de nuevo en 15 minutos.';
+
 export const login = mutation({
   args: {
     email: v.string(),
@@ -33,29 +53,71 @@ export const login = mutation({
   ),
   handler: async (ctx, args) => {
     const email = args.email.trim().toLowerCase();
+    const now = Date.now();
+
+    // AUTH-3: read the rate-limit sentinel for this email BEFORE evaluating any
+    // credentials, so a locked-out email never reveals whether the PIN matched.
+    // `.unique()` is safe: the handler only ever UPSERTs one row per email.
+    const attempt = await ctx.db
+      .query('loginAttempts')
+      .withIndex('by_email', (q) => q.eq('email', email))
+      .unique();
+    const withinWindow =
+      attempt !== null && now - attempt.windowStart <= WINDOW_MS;
+
+    // Locked out → reject immediately with the generic message. Do NOT evaluate
+    // credentials and do NOT increment (the counter is already at the cap).
+    if (attempt !== null && withinWindow && attempt.count >= MAX_ATTEMPTS) {
+      return { ok: false as const, error: LOCKOUT_MSG };
+    }
+
     const employees = await ctx.db.query('employees').collect();
     const employee =
       employees.find((e) => e.email.trim().toLowerCase() === email) ?? null;
 
     if (!employee || employee.pin !== args.pin) {
+      // Record the failed attempt. Single-row UPSERT keyed by email — never an
+      // extra insert when a row exists, so the `.unique()` lookup stays valid.
+      // Unknown emails are counted exactly like known ones (no enumeration).
+      if (attempt === null) {
+        await ctx.db.insert('loginAttempts', {
+          email,
+          windowStart: now,
+          count: 1,
+        });
+      } else if (withinWindow) {
+        await ctx.db.patch('loginAttempts', attempt._id, {
+          count: attempt.count + 1,
+        });
+      } else {
+        // Stale window → reset it in place (fresh window, count 1).
+        await ctx.db.patch('loginAttempts', attempt._id, {
+          windowStart: now,
+          count: 1,
+        });
+      }
       return {
         ok: false as const,
         error: 'Credenciales inválidas. Verifica e intenta de nuevo.',
       };
     }
     if (!employee.active) {
+      // Correct credentials but a disabled account: not a brute-force signal, so
+      // the attempt counter is left untouched (neither incremented nor reset).
       return {
         ok: false as const,
         error: 'Usuario inactivo. Contacta al propietario.',
       };
     }
 
-    // Mint a session: store only the hash, return the raw token once. The
+    // Success → clear this email's attempt counter (clean slate for next time),
+    // then mint the session: store only the hash, return the raw token once. The
     // returned `expiresAt` is the IDLE deadline (when the client must renew or
     // re-login); the 24h absolute cap is stored but not surfaced.
+    if (attempt) await ctx.db.delete('loginAttempts', attempt._id);
+
     const token = generateToken();
     const tokenHash = await hashToken(token);
-    const now = Date.now();
     const expiresAt = now + IDLE_TTL_MS;
     const absoluteExpiresAt = now + ABSOLUTE_TTL_MS;
     await ctx.db.insert('sessions', {

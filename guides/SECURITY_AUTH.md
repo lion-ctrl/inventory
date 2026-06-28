@@ -20,7 +20,7 @@
 |--------|--------|------|--------|
 | AUTH-1 | Reemplazar la credencial `_id` por **tokens de sesión** | 🔴 | 🔧 backend ✓ |
 | AUTH-2 | Dejar de **filtrar el `_id`** de empleado por queries públicas + gatearlas | 🔴 | 🔧 backend ✓ |
-| AUTH-3 | **Rate-limit / lockout** en `login` | 🟠 | [ ] |
+| AUTH-3 | **Rate-limit / lockout** en `login` | 🟠 | 🔧 backend ✓ |
 | AUTH-4 | **Hashear los PIN** (PBKDF2 + salt) y dejar de devolver el PIN | 🟠 | [ ] |
 | AUTH-5 | Cliente: guardar **token** (no `_id`), `logout` real + **CSP** | 🟡 | [ ] |
 | AUTH-6 | **Expiración por inactividad** (sliding 30 min) + **tope absoluto** (24 h) + `renewSession` | 🟡 | 🔧 backend ✓ |
@@ -114,18 +114,29 @@ incluido el dueño) → impersonás (AUTH-1).
 
 - [ ] **Cerrado y verificado**
 
+> 🔧 **Backend implementado y verde** (vitest **219 passed / 4 skipped**, 2026-06-28).
+> **Decisión** (en `openspec/changes/login-hardening/design.md`): rate-limit **homegrown**, NO
+> `@convex-dev/rate-limiter` y **sin dependencia nueva**. Hecho: tabla `loginAttempts`
+> (`by_email`) con un centinela `{ email, windowStart, count }` por email; el `login` revisa el
+> lockout **ANTES** de evaluar credenciales (**5 intentos / 15 min** por email normalizado),
+> cuenta también los emails inexistentes (no se puede sondear existencia), usa un mensaje de
+> lockout genérico **distinto** del de credenciales, resetea al éxito y la ventana se
+> **auto-levanta**. El **tope global** opcional se omitió a propósito (el límite por email es la
+> guardia requerida). **Falta para CERRAR:** `tsc`/lint tras `codegen`, deploy. Sin commit ni deploy.
+
 **Problema.** PIN de 6 dígitos = **1.000.000** de combinaciones (`assertPin` →
 `/^\d{6}$/`, `convex/permissions.ts:56`). El `login` (`convex/auth.ts:8-40`) **no tiene
 ningún throttle ni lockout** (servidor ni cliente). Fuerza bruta de cualquier email en
 minutos contra el endpoint público.
 
-**Fix.** `@convex-dev/rate-limiter` (fixed-window), ej. **5 intentos / 15 min** por email
-normalizado + un tope global; reset al éxito. Mensaje genérico (no revelar si el email existe).
+**Fix.** Tabla **homegrown** `loginAttempts` (centinela fixed-window por email), **5 intentos /
+15 min** por email normalizado; reset al éxito; ventana auto-levantada. Lockout chequeado antes
+de validar credenciales. Mensaje genérico (no revela si el email existe). Sin `@convex-dev/rate-limiter`.
 
 **Listo cuando:**
-- [ ] `login` cuenta intentos fallidos y bloquea tras el umbral.
-- [ ] El bloqueo se resetea al login exitoso / al expirar la ventana.
-- [ ] TDD: N+1 intentos → bloqueado; éxito resetea. Lint + tests verdes.
+- [x] `login` cuenta intentos fallidos y bloquea tras el umbral.
+- [x] El bloqueo se resetea al login exitoso / al expirar la ventana.
+- [x] TDD: N+1 intentos → bloqueado; éxito resetea — **tests verdes (vitest 219/4)**. _Lint/`tsc` pendiente de `codegen`._
 
 ---
 

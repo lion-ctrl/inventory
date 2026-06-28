@@ -188,6 +188,20 @@ export const sessionFields = {
   lastSeenAt: v.number(), // bumped on each authenticated call
 };
 
+/**
+ * AUTH-3 login rate-limiting sentinel: ONE row per normalized email tracking
+ * FAILED login attempts inside a fixed window. `login` reads it before
+ * evaluating credentials (locking the email out at `MAX_ATTEMPTS`), increments
+ * it on each failure, and deletes it on success. The window auto-lifts: a
+ * lookup whose `windowStart` is older than `WINDOW_MS` is treated as a fresh
+ * window. Purely additive — no existing table or row is touched.
+ */
+export const loginAttemptFields = {
+  email: v.string(), // normalized: trim() + toLowerCase() — same as login
+  windowStart: v.number(), // Date.now() when the current window began
+  count: v.number(), // failed attempts recorded so far in this window
+};
+
 // ---------------------------------------------------------------------------
 // Full-document validators (for `returns` validators of functions that hand
 // whole docs to the client).
@@ -241,6 +255,12 @@ export const sessionDocValidator = v.object({
   ...sessionFields,
 });
 
+export const loginAttemptDocValidator = v.object({
+  _id: v.id('loginAttempts'),
+  _creationTime: v.number(),
+  ...loginAttemptFields,
+});
+
 // Public projections — the stored `cashierId` is an employee-identity surface
 // (a would-be credential), so it is omitted from query *returns*. The
 // human-readable `cashierName` snapshot stays on sales for display; the id
@@ -287,4 +307,8 @@ export default defineSchema({
   sessions: defineTable(sessionFields)
     .index('by_tokenHash', ['tokenHash'])
     .index('by_employee', ['employeeId']),
+
+  // AUTH-3 login rate-limiting: one fixed-window failed-attempt counter per
+  // normalized email (looked up by `login` before evaluating credentials).
+  loginAttempts: defineTable(loginAttemptFields).index('by_email', ['email']),
 });
