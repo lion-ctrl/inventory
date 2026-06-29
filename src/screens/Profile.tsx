@@ -47,19 +47,24 @@ function ProfileEditSheet({
     name: me.name || '',
     email: me.email || '',
     phone: me.phone || '',
-    pin: me.pin || '',
+    // AUTH-4: the stored PIN is hashed at rest and never reaches the client, so
+    // the field starts BLANK. Leaving it blank keeps the current PIN; only a
+    // freshly typed 6-digit value is sent to the server.
+    pin: '',
   }));
   const setPin = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, pin: e.target.value.replace(/\D/g, '').slice(0, 6) });
   const canSave =
     form.name.trim().length > 1 &&
     /\S+@\S+\.\S+/.test(form.email) &&
-    form.pin.length === 6;
+    // Blank keeps the current PIN; otherwise it must be a full 6 digits.
+    (form.pin === '' || form.pin.length === 6);
   const dirty =
     form.name !== (me.name || '') ||
     form.email !== (me.email || '') ||
     form.phone !== (me.phone || '') ||
-    form.pin !== (me.pin || '');
+    // The stored PIN is unreadable; a typed 6-digit value is the only PIN change.
+    form.pin.length === 6;
 
   return (
     <Sheet onClose={onCancel} title="Editar perfil">
@@ -126,10 +131,9 @@ function ProfileEditSheet({
 
 export default function ProfileScreen() {
   const online = useOnline();
-  const { user: me } = useSession();
+  const { user: me, token } = useSession();
   const updateSelf = useMutation(api.employees.updateSelf);
   const [editOpen, setEditOpen] = useState(false);
-  const [showPin, setShowPin] = useState(false);
 
   if (!me) return null;
 
@@ -147,12 +151,13 @@ export default function ProfileScreen() {
   const save = async (form: ProfileForm) => {
     try {
       await updateSelf({
-        actorId: me._id,
+        token: token!,
         patch: {
           name: form.name,
           email: form.email,
           phone: form.phone,
-          pin: form.pin,
+          // Only send a PIN when the user typed a new one (blank = keep current).
+          ...(form.pin ? { pin: form.pin } : {}),
         },
       });
       setEditOpen(false);
@@ -207,19 +212,9 @@ export default function ProfileScreen() {
             </div>
             <div className="prod-detail-row">
               <span className="k">PIN de acceso</span>
-              <span className="v mono profile-pin">
-                {me.pin ? (showPin ? me.pin : '••••••') : '—'}
-                {me.pin && (
-                  <button
-                    type="button"
-                    className="profile-pin-toggle"
-                    aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
-                    onClick={() => setShowPin((s) => !s)}
-                  >
-                    <Icon name={showPin ? 'eye-off' : 'eye'} size={16} />
-                  </button>
-                )}
-              </span>
+              {/* AUTH-4: the PIN is hashed at rest and never leaves the server,
+                  so it can no longer be revealed — only shown as set. */}
+              <span className="v mono profile-pin">••••••</span>
             </div>
             <div className="prod-detail-row">
               <span className="k">Miembro desde</span>

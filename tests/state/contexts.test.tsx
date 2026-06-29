@@ -21,6 +21,8 @@ import type { Client, Product } from '@/types';
 const useQueryMock = vi.mocked(useQuery);
 const useMutationMock = vi.mocked(useMutation);
 
+// Mirrors auth.me's PUBLIC projection: no pin / pinHash / pinSalt ever reaches
+// the client. The session credential is the TOKEN, persisted under pos.sessionToken.
 const owner = {
   _id: 'e_owner',
   _creationTime: 0,
@@ -29,10 +31,12 @@ const owner = {
   phone: '0',
   role: 'owner',
   permissions: 'all',
-  pin: '482106',
   active: true,
   createdAt: 0,
 };
+
+const OWNER_TOKEN = 'tok_owner';
+const futureExpiry = () => Date.now() + 30 * 60 * 1000;
 
 const cola = {
   _id: 'p_cola',
@@ -132,8 +136,11 @@ const cartWrapper = ({ children }: { children: ReactNode }) => (
 );
 
 describe('SessionContext', () => {
-  test('a stale persisted id resolves to null and gets cleaned up', async () => {
-    localStorage.setItem('pos.employeeId', 'stale-id-from-old-deployment');
+  test('a stale persisted token resolves to null and gets cleaned up (legacy id wiped too)', async () => {
+    localStorage.setItem('pos.sessionToken', 'stale-token-from-old-deployment');
+    localStorage.setItem('pos.sessionExpiresAt', String(futureExpiry()));
+    // A pre-AUTH-5 deployment may have left this key behind — boot must clear it.
+    localStorage.setItem('pos.employeeId', 'legacy-id');
     wireQueries({ me: null });
 
     const { result } = renderHook(() => useSession(), {
@@ -141,14 +148,19 @@ describe('SessionContext', () => {
     });
 
     await waitFor(() => {
-      expect(localStorage.getItem('pos.employeeId')).toBeNull();
+      expect(localStorage.getItem('pos.sessionToken')).toBeNull();
     });
+    expect(localStorage.getItem('pos.employeeId')).toBeNull();
     expect(result.current.user).toBeNull();
   });
 
-  test('login persists the employee id and exposes the user + can()', async () => {
+  test('login persists the session token and exposes the user + can()', async () => {
     wireQueries({ me: owner });
-    mutationFor('auth:login').mockResolvedValue({ ok: true, employee: owner });
+    mutationFor('auth:login').mockResolvedValue({
+      ok: true,
+      token: OWNER_TOKEN,
+      expiresAt: futureExpiry(),
+    });
 
     const { result } = renderHook(() => useSession(), {
       wrapper: sessionWrapper,
@@ -160,12 +172,17 @@ describe('SessionContext', () => {
       expect(res.ok).toBe(true);
     });
 
-    expect(localStorage.getItem('pos.employeeId')).toBe('e_owner');
+    expect(localStorage.getItem('pos.sessionToken')).toBe(OWNER_TOKEN);
+    expect(result.current.token).toBe(OWNER_TOKEN);
     expect(result.current.user?.name).toBe('Carlos Méndez');
     expect(result.current.can('manage_settings')).toBe(true);
 
     act(() => result.current.logout());
-    expect(localStorage.getItem('pos.employeeId')).toBeNull();
+    // logout revokes the session server-side, THEN clears local state.
+    expect(mutationFor('auth:logout')).toHaveBeenCalledWith({
+      token: OWNER_TOKEN,
+    });
+    expect(localStorage.getItem('pos.sessionToken')).toBeNull();
     expect(result.current.user).toBeNull();
   });
 
@@ -186,14 +203,15 @@ describe('SessionContext', () => {
         error: 'Credenciales inválidas. Verifica e intenta de nuevo.',
       });
     });
-    expect(localStorage.getItem('pos.employeeId')).toBeNull();
+    expect(localStorage.getItem('pos.sessionToken')).toBeNull();
     expect(result.current.user).toBeNull();
   });
 });
 
 describe('CartContext', () => {
   function renderCart(opts: Wiring) {
-    localStorage.setItem('pos.employeeId', 'e_owner');
+    localStorage.setItem('pos.sessionToken', OWNER_TOKEN);
+    localStorage.setItem('pos.sessionExpiresAt', String(futureExpiry()));
     wireQueries({ me: owner, ...opts });
     return renderHook(() => useCart(), { wrapper: cartWrapper });
   }
@@ -253,7 +271,7 @@ describe('CartContext', () => {
     });
 
     expect(park).toHaveBeenCalledWith({
-      actorId: 'e_owner',
+      token: OWNER_TOKEN,
       clientId: undefined,
       items: [{ productId: 'p_cola', qty: 2 }],
       splits: [{ method: 'cash', amount: 3 }],

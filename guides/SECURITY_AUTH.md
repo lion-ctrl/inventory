@@ -23,7 +23,7 @@
 | AUTH-3 | **Rate-limit / lockout** en `login` | 🟠 | 🔧 backend ✓ |
 | AUTH-4 | **Hashear los PIN** (PBKDF2 + salt) y dejar de devolver el PIN | 🟠 | 🔧 backend ✓ |
 | AUTH-5 | Cliente: guardar **token** (no `_id`), `logout` real + **CSP** | 🟡 | [ ] |
-| AUTH-6 | **Expiración por inactividad** (sliding 30 min) + **tope absoluto** (24 h) + `renewSession` | 🟡 | 🔧 backend ✓ |
+| AUTH-6 | **Expiración por inactividad** (sliding 2 h) + **tope absoluto** (72 h) + `renewSession` | 🟡 | 🔧 backend ✓ |
 
 > **Orden recomendado:** AUTH-1 y AUTH-2 van **juntas** (cierran la impersonación, el agujero
 > crítico) → luego AUTH-3 → AUTH-4 → AUTH-5. Hacerlo **ahora** mientras los datos son dummy
@@ -197,16 +197,16 @@ sesión que matar en el servidor**). Un XSS lo exfiltra y sirve para siempre.
 
 - [ ] **Cerrado y verificado**
 
-> 🔧 **Backend implementado y verde** (vitest **213 passed / 4 skipped**, 2026-06-26). Resuelve la *Open Question* del `design.md` (era *"fixed 12h"*). **Decisión:** **idle 30 min** (deslizante, se renueva con actividad) + **tope absoluto 24 h** (la sesión muere al techo aunque haya actividad); valores **ajustables**. Hecho: `sessions.absoluteExpiresAt`, `requireSession` desliza topeado al cap, nuevo `renewSession`. **Falta para CERRAR:** el refresh del **cliente** (~5 min antes, condicionado a actividad → grupo 5 / AUTH-5), `tsc`/lint tras `codegen`, deploy. Sin commit ni deploy.
+> 🔧 **Backend implementado y verde** (vitest **213 passed / 4 skipped**, 2026-06-26). Resuelve la *Open Question* del `design.md` (era *"fixed 12h"*). **Decisión:** **idle 2 h** (deslizante, se renueva con actividad) + **tope absoluto 72 h** (la sesión muere al techo aunque haya actividad); valores **ajustables**. Hecho: `sessions.absoluteExpiresAt`, `requireSession` desliza topeado al cap, nuevo `renewSession`. **Falta para CERRAR:** el refresh del **cliente** (~5 min antes, condicionado a actividad → grupo 5 / AUTH-5), `tsc`/lint tras `codegen`, deploy. Sin commit ni deploy.
 
 **Problema.** La sesión de AUTH-1 expira a las **~12 h FIJAS** desde el login: el cajero se cae a mitad de turno aunque esté facturando. Y un idle puro **sin techo** dejaría una sesión robada (XSS) viva para siempre mientras el atacante la mantenga activa.
 
 **Decisión / Fix.**
-- `expiresAt` pasa a ser el **deadline de idle** (`now + 30 min`); se **desliza** en cada operación (mutation) y vía `renewSession`.
-- Campo nuevo `absoluteExpiresAt` (`now + 24 h` al login) = **techo duro**: la sesión muere al cap pase lo que pase.
+- `expiresAt` pasa a ser el **deadline de idle** (`now + 2 h`); se **desliza** en cada operación (mutation) y vía `renewSession`.
+- Campo nuevo `absoluteExpiresAt` (`now + 72 h` al login) = **techo duro**: la sesión muere al cap pase lo que pase.
 - `requireSession` valida idle **y** cap; en mutation empuja `expiresAt = min(now + idle, absoluteExpiresAt)`.
 - Nuevo `renewSession(token)`: el cliente lo llama ~5 min antes de vencer **solo si hubo actividad real** del usuario (no incondicional, si no el idle no sirve); empuja la expiración, nunca más allá del cap; pasado el cap → re-login.
-- Constantes `IDLE_TTL_MS` (30 min) / `ABSOLUTE_TTL_MS` (24 h), ajustables.
+- Constantes `IDLE_TTL_MS` (2 h) / `ABSOLUTE_TTL_MS` (72 h), ajustables.
 
 **Archivos.** `convex/schema.ts` (`sessions.absoluteExpiresAt`), `convex/sessions.ts` (constantes), `convex/permissions.ts` (`requireSession`/`resolveSession` deslizan + cap), `convex/auth.ts` (`login` setea ambos, nuevo `renewSession`), `src/state/SessionContext.tsx` (refresh proactivo condicionado a actividad — grupo 5). Specs: `openspec/changes/session-token-auth/{design,specs/session-auth/spec,tasks}.md`.
 

@@ -119,7 +119,7 @@ export const login = mutation({
     // Success → clear this email's attempt counter (clean slate for next time),
     // then mint the session: store only the hash, return the raw token once. The
     // returned `expiresAt` is the IDLE deadline (when the client must renew or
-    // re-login); the 24h absolute cap is stored but not surfaced.
+    // re-login); the 72h absolute cap is stored but not surfaced.
     if (attempt) await ctx.db.delete('loginAttempts', attempt._id);
 
     const token = generateToken();
@@ -172,7 +172,7 @@ export const me = query({
 
 export const renewSession = mutation({
   // Sliding-window heartbeat: the client calls this to push the IDLE deadline
-  // forward while a cashier stays active — WITHOUT ever exceeding the 24h
+  // forward while a cashier stays active — WITHOUT ever exceeding the 72h
   // absolute cap (the returned expiresAt is clamped to absoluteExpiresAt). A
   // session already idled out, past its cap, or otherwise invalid is rejected so
   // the client must re-login. Mirrors `login`'s `{ ok }` discriminated union and

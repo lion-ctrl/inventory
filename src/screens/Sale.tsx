@@ -17,6 +17,7 @@ import {
   Sheet,
 } from '@/components';
 import { useCart } from '@/state/CartContext';
+import { useSession } from '@/state/SessionContext';
 import {
   useBsRate,
   useCategories,
@@ -1317,6 +1318,7 @@ export default function SaleScreen({
     pausedRemovals,
     dismissPausedRemovals,
   } = useCart();
+  const { token } = useSession();
   const createClient = useMutation(api.clients.create);
   const w = useViewport();
   const isWide = w >= 1000;
@@ -1335,6 +1337,7 @@ export default function SaleScreen({
   }) => {
     try {
       const created = await createClient({
+        token: token!,
         name: form.name,
         taxPrefix: form.taxPrefix as 'V' | 'E' | 'J',
         taxId: form.taxId,

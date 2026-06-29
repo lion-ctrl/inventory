@@ -16,7 +16,7 @@ import {
  *
  * Forge specific expiry states for tests:
  *  - `expiresAt` in the past → an idle-expired session.
- *  - `absoluteExpiresAt` in the past → a session past its 24h absolute cap
+ *  - `absoluteExpiresAt` in the past → a session past its 72h absolute cap
  *    (even when the idle window is still fresh).
  */
 export async function mintSession(

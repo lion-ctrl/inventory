@@ -54,10 +54,13 @@ interface CartValue {
 const CartContext = createContext<CartValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { user } = useSession();
+  const { token } = useSession();
   const products = useProducts();
   const clients = useClients();
-  const heldCartsQuery = useQuery(api.heldCarts.list, user ? {} : 'skip');
+  const heldCartsQuery = useQuery(
+    api.heldCarts.list,
+    token ? { token } : 'skip'
+  );
   // Memoized so the `?? []` fallback doesn't invalidate downstream memo deps every render.
   const heldCarts = useMemo<HeldCart[]>(
     () => heldCartsQuery ?? [],
@@ -167,7 +170,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       pausedRemovals,
       dismissPausedRemovals: () => setPausedRemovals([]),
       pauseSale: async (note?: string) => {
-        if (cart.length === 0 || !user) return;
+        if (cart.length === 0 || !token) return;
         const cleanSplits = splits
           .filter((r) => parseFloat(r.amount) > 0)
           .map((r) => ({
@@ -175,7 +178,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             amount: parseFloat(r.amount) || 0,
           }));
         await park({
-          actorId: user._id,
+          token,
           clientId: selectedClientId ?? undefined,
           items: cart.map((i) => ({ productId: i._id, qty: i.qty })),
           splits: cleanSplits.length > 0 ? cleanSplits : undefined,
@@ -186,8 +189,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         resetPayment();
       },
       resumeSale: async (heldCartId: Id<'heldCarts'>) => {
-        if (!user) return;
-        const res = await resume({ actorId: user._id, heldCartId });
+        if (!token) return;
+        const res = await resume({ token, heldCartId });
         const byId = new Map(products.map((p) => [p._id, p]));
         const items: CartItem[] = [];
         // Lines whose product was PAUSED since parking are dropped AND recorded
@@ -225,8 +228,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
       },
       discardStored: async (heldCartId: Id<'heldCarts'>) => {
-        if (!user) return;
-        await discard({ actorId: user._id, heldCartId });
+        if (!token) return;
+        await discard({ token, heldCartId });
       },
     };
   }, [
@@ -238,7 +241,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     heldCarts,
     completedSale,
     pausedRemovals,
-    user,
+    token,
     products,
     park,
     resume,

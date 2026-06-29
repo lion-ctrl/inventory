@@ -100,7 +100,7 @@ function SuccessRoute({ online }: { online: boolean }) {
 }
 
 export default function AppShell() {
-  const { user, loading, can, logout } = useSession();
+  const { user, token, loading, can, logout } = useSession();
   const cart = useCart();
   const online = useOnline();
   const bsRate = useBsRate();
@@ -221,13 +221,13 @@ export default function AppShell() {
     tendered: number,
     splits: CleanSplit[]
   ) => {
-    if (!user || !cart.selectedClient) {
+    if (!user || !token || !cart.selectedClient) {
       setPaymentOpen(false);
       return;
     }
     try {
       const sale = await checkout({
-        actorId: user._id,
+        token,
         clientId: cart.selectedClient._id,
         items: pendingCart.map((i) => ({ productId: i._id, qty: i.qty })),
         method,

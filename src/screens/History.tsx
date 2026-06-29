@@ -631,8 +631,9 @@ function RefundSheet({ sale, onConfirm, onCancel, bsRate }: RefundSheetProps) {
 }
 
 export default function HistoryScreen() {
-  const sales = useQuery(api.sales.history) ?? [];
-  const { user, can } = useSession();
+  // useSession() first so the token is in scope for the gated history query.
+  const { token, can } = useSession();
+  const sales = useQuery(api.sales.history, token ? { token } : 'skip') ?? [];
   const online = useOnline();
   const bsRate = useBsRate();
   const _navigate = useNavigate();
@@ -654,7 +655,7 @@ export default function HistoryScreen() {
     // The server returns the sold units back to inventory and flags the sale;
     // useQuery reactivity refreshes the list.
     try {
-      await refund({ actorId: user!._id, saleId: sale._id, reason });
+      await refund({ token: token!, saleId: sale._id, reason });
     } catch (e: any) {
       alert(
         typeof e?.data === 'string'

@@ -4,19 +4,19 @@
 // functions; it is a helper used by auth / permissions / employees.
 
 /**
- * Idle (sliding) lifetime: a session dies after 30 minutes of INACTIVITY. Each
+ * Idle (sliding) lifetime: a session dies after 2 hours of INACTIVITY. Each
  * authenticated mutation — and an explicit `auth.renewSession` — slides this
  * deadline forward as `expiresAt = min(now + IDLE_TTL_MS, absoluteExpiresAt)`,
  * so an actively used session never idles out, yet can never escape the cap.
  */
-export const IDLE_TTL_MS = 30 * 60 * 1000;
+export const IDLE_TTL_MS = 2 * 60 * 60 * 1000;
 
 /**
- * Absolute cap: a session dies 24 hours after LOGIN no matter how active it is.
+ * Absolute cap: a session dies 72 hours after LOGIN no matter how active it is.
  * `absoluteExpiresAt` is fixed at issuance and NEVER slides — it is the hard
  * ceiling that every slide of `expiresAt` is clamped to.
  */
-export const ABSOLUTE_TTL_MS = 24 * 60 * 60 * 1000;
+export const ABSOLUTE_TTL_MS = 72 * 60 * 60 * 1000;
 
 /** Encode raw bytes as url-safe base64 without `=` padding. */
 function toBase64Url(bytes: Uint8Array): string {

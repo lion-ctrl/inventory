@@ -19,6 +19,7 @@ import SettingsScreen from '@/screens/Settings';
 const useQueryMock = vi.mocked(useQuery);
 const useMutationMock = vi.mocked(useMutation);
 
+// auth.me PUBLIC projection — no pin material. The session credential is the token.
 const owner = {
   _id: 'e_owner',
   _creationTime: 0,
@@ -27,10 +28,11 @@ const owner = {
   phone: '0',
   role: 'owner',
   permissions: 'all',
-  pin: '482106',
   active: true,
   createdAt: 0,
 };
+
+const OWNER_TOKEN = 'tok_owner';
 
 const settingsDoc = {
   _id: 's1',
@@ -64,7 +66,8 @@ const mutationFor = (name: string) => {
 
 beforeEach(() => {
   localStorage.clear();
-  localStorage.setItem('pos.employeeId', 'e_owner');
+  localStorage.setItem('pos.sessionToken', OWNER_TOKEN);
+  localStorage.setItem('pos.sessionExpiresAt', String(Date.now() + 30 * 60 * 1000));
   mutationFns.clear();
   useQueryMock.mockImplementation(((query: any, args: any) => {
     if (args === 'skip') return undefined;
@@ -112,7 +115,7 @@ describe('Ajustes — Modo de escaneo', () => {
 
     await user.click(guardar);
     expect(mutationFor('settings:update')).toHaveBeenCalledWith({
-      actorId: 'e_owner',
+      token: OWNER_TOKEN,
       patch: { scannerMode: 'camera' },
     });
   });

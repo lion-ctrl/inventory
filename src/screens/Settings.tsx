@@ -230,7 +230,7 @@ function SettingsEditSheet({
 }
 
 export default function SettingsScreen() {
-  const { user } = useSession();
+  const { user, token } = useSession();
   const online = useOnline();
   const settings = useSettingsDoc();
   const update = useMutation(api.settings.update);
@@ -256,7 +256,7 @@ export default function SettingsScreen() {
 
   const save = async (patch: SettingsPatch) => {
     try {
-      await update({ actorId: user!._id, patch });
+      await update({ token: token!, patch });
     } catch (e: any) {
       alert(
         typeof e?.data === 'string'

@@ -142,7 +142,11 @@ function EmployeeForm({
     role: initial?.role || 'cajero',
     email: initial?.email || '',
     phone: initial?.phone || '',
-    pin: initial?.pin || '',
+    // AUTH-4: the stored PIN never reaches the client (it's hashed at rest), so
+    // the field starts BLANK. On a new employee a PIN is required; when editing,
+    // blank means "keep the current PIN" and only a freshly typed 6-digit value
+    // is sent to the server.
+    pin: '',
     active: initial?.active ?? true,
     permissions:
       initial?.permissions === 'all'
@@ -167,7 +171,9 @@ function EmployeeForm({
   const canSave =
     form.name.trim().length > 1 &&
     /\S+@\S+\.\S+/.test(form.email) &&
-    form.pin.length === 6;
+    // New employee: a 6-digit PIN is mandatory. Editing: blank keeps the current
+    // PIN, otherwise it must be a full 6 digits.
+    (initial ? form.pin === '' || form.pin.length === 6 : form.pin.length === 6);
 
   // Dirty check — for an existing employee, only enable Save when something changed.
   const initialPerms: Partial<PermissionMap> =
@@ -180,7 +186,8 @@ function EmployeeForm({
       form.role !== (initial.role || 'cajero') ||
       form.email !== (initial.email || '') ||
       form.phone !== (initial.phone || '') ||
-      form.pin !== (initial.pin || '') ||
+      // The stored PIN is unreadable; a typed 6-digit value is the only PIN change.
+      form.pin.length === 6 ||
       form.active !== (initial.active ?? true) ||
       PERMISSIONS.some(
         (p) => !!form.permissions[p.id] !== !!initialPerms[p.id]
@@ -416,7 +423,7 @@ function EmployeeDetailSheet({
           </div>
           <div className="prod-detail-row">
             <span className="k">PIN de acceso</span>
-            <span className="v mono">{emp.pin ? '••••••' : '—'}</span>
+            <span className="v mono">••••••</span>
           </div>
           <div className="prod-detail-row">
             <span className="k">Última actividad</span>
@@ -537,11 +544,11 @@ function EmployeeRow({
 
 // --- Main screen -------------------------------------------------------------
 export default function EmployeesScreen() {
-  const { user } = useSession();
+  const { token } = useSession();
   const online = useOnline();
-  // Server already excludes the logged-in actor from the list.
+  // Server already excludes the logged-in actor from the list (resolved from token).
   const employees =
-    useQuery(api.employees.list, user ? { actorId: user._id } : 'skip') ?? [];
+    useQuery(api.employees.list, token ? { token } : 'skip') ?? [];
   const createEmployee = useMutation(api.employees.create);
   const updateEmployee = useMutation(api.employees.update);
   const removeEmployee = useMutation(api.employees.remove);
@@ -620,16 +627,19 @@ export default function EmployeesScreen() {
   const openDetail = (e: Employee) => setDetail(e);
 
   const save = async (form: EmployeeFormValues) => {
-    if (!user) return;
+    if (!token) return;
     try {
       if (editing) {
+        // Omit the PIN from the patch unless a new one was typed — sending an
+        // empty PIN would fail the server's assertPin; an absent PIN is kept.
+        const { pin, ...rest } = form;
         await updateEmployee({
-          actorId: user._id,
+          token,
           employeeId: editing._id,
-          patch: { ...form },
+          patch: pin ? { ...rest, pin } : rest,
         });
       } else {
-        await createEmployee({ actorId: user._id, ...form });
+        await createEmployee({ token, ...form });
       }
       setEditorOpen(false);
     } catch (e: any) {
@@ -642,9 +652,9 @@ export default function EmployeesScreen() {
   };
 
   const remove = async (emp: Employee) => {
-    if (!user) return;
+    if (!token) return;
     try {
-      await removeEmployee({ actorId: user._id, employeeId: emp._id });
+      await removeEmployee({ token, employeeId: emp._id });
     } catch (e: any) {
       alert(
         typeof e?.data === 'string'

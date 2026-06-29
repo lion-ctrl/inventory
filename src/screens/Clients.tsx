@@ -474,7 +474,7 @@ export function ClientPickerSheet({
 
 export default function ClientsScreen() {
   const clients = useClients();
-  const { user } = useSession();
+  const { token } = useSession();
   const online = useOnline();
   const createClient = useMutation(api.clients.create);
   const updateClient = useMutation(api.clients.update);
@@ -546,17 +546,17 @@ export default function ClientsScreen() {
   const openDetail = (c: Client) => setDetail(c);
 
   const save = async (form: ClientFormValues) => {
-    if (!user) return;
+    if (!token) return;
     try {
       if (editing) {
         await updateClient({
-          actorId: user._id,
+          token,
           clientId: editing._id,
           patch: { ...form },
         });
       } else {
-        // NO actorId — clients.create is also used inline at the Venta gate.
         await createClient({
+          token,
           name: form.name,
           taxPrefix: form.taxPrefix,
           taxId: form.taxId,
@@ -577,9 +577,9 @@ export default function ClientsScreen() {
   };
 
   const remove = async (client: Client) => {
-    if (!user) return;
+    if (!token) return;
     try {
-      await removeClient({ actorId: user._id, clientId: client._id });
+      await removeClient({ token, clientId: client._id });
     } catch (e: any) {
       alert(
         typeof e?.data === 'string'

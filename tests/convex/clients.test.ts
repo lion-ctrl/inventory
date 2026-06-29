@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-// Clients: the Venta-gate lookup + ungated inline creation + guarded edits.
+// Clients: the Venta-gate lookup + session-only inline creation + manage_clients-guarded edits.
 import { convexTest } from 'convex-test';
 import { describe, expect, test } from 'vitest';
 import { api } from '@convex/_generated/api';
@@ -30,8 +30,24 @@ describe('clients.byTaxId — the Venta identification gate', () => {
   });
 });
 
-describe('clients.create — AUTH-2: now guarded by manage_clients', () => {
-  test('an authorized cashier creates and receives the full doc back', async () => {
+describe('clients.create — session-only (part of the sale flow)', () => {
+  test('a logged-in employee WITHOUT manage_clients CAN create (sale-flow contract)', async () => {
+    const { t, fx } = await setup();
+    // cajeroVoid holds view_reports + void_sales — NOT manage_clients. Under the
+    // revised contract a valid session alone is enough to register a walk-in
+    // mid-sale, so this must SUCCEED (it was rejected before AUTH-2 was relaxed).
+    const client = await t.mutation(api.clients.create, {
+      token: fx.cajeroVoidToken,
+      name: 'Cliente de mostrador',
+      taxPrefix: 'V',
+      taxId: '1.000.000',
+      kind: 'person',
+    });
+    expect(client._id).toBeDefined();
+    expect(client.name).toBe('Cliente de mostrador');
+  });
+
+  test('a manager (manage_clients) creates and receives the full doc back', async () => {
     const { t, fx } = await setup();
     const client = await t.mutation(api.clients.create, {
       token: fx.cajeroPlainToken, // has manage_clients
@@ -64,9 +80,10 @@ describe('clients.create — AUTH-2: now guarded by manage_clients', () => {
     expect(client.kind).toBe('foreign');
   });
 
-  test('rejects an unknown session and an actor lacking manage_clients', async () => {
-    const { t, fx } = await setup();
-    // No valid session at all → rejected before any write.
+  test('still rejects when there is no valid session', async () => {
+    const { t } = await setup();
+    // Session precedes any business logic: an unknown token is rejected before
+    // any write, exactly as for update/remove.
     await expect(
       t.mutation(api.clients.create, {
         token: 'not-a-real-token',
@@ -76,28 +93,41 @@ describe('clients.create — AUTH-2: now guarded by manage_clients', () => {
         kind: 'person',
       })
     ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
-
-    // Valid session, but view_reports + void_sales does NOT include manage_clients.
-    await expect(
-      t.mutation(api.clients.create, {
-        token: fx.cajeroVoidToken,
-        name: 'X',
-        taxPrefix: 'V',
-        taxId: '1.000.000',
-        kind: 'person',
-      })
-    ).rejects.toThrow('Sin permisos para esta acción.');
   });
 });
 
 describe('clients.update / remove — guarded by manage_clients', () => {
-  test('rejects actors without manage_clients', async () => {
+  test('reject without a valid session (token verified before the perm gate)', async () => {
+    const { t, fx } = await setup();
+    await expect(
+      t.mutation(api.clients.update, {
+        token: 'not-a-real-token',
+        clientId: fx.clientId,
+        patch: { name: 'X' },
+      })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+    await expect(
+      t.mutation(api.clients.remove, {
+        token: 'not-a-real-token',
+        clientId: fx.clientId,
+      })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+  });
+
+  test('rejects actors without manage_clients (both update and remove)', async () => {
     const { t, fx } = await setup();
     await expect(
       t.mutation(api.clients.update, {
         token: fx.cajeroVoidToken, // view_reports + void_sales only
         clientId: fx.clientId,
         patch: { name: 'Otro nombre' },
+      })
+    ).rejects.toThrow('Sin permisos para esta acción.');
+    // remove stays management-only too — relaxing create must not leak here.
+    await expect(
+      t.mutation(api.clients.remove, {
+        token: fx.cajeroVoidToken,
+        clientId: fx.clientId,
       })
     ).rejects.toThrow('Sin permisos para esta acción.');
   });

@@ -89,7 +89,7 @@ export async function requireSession(
   // Slide the idle window forward + bump last-seen, but ONLY when we can write.
   // `'patch' in ctx.db` narrows the union to the mutation writer, so query
   // contexts (history/list) validate without writing. The new idle deadline is
-  // clamped to the absolute cap, so an active session can never outlive 24h.
+  // clamped to the absolute cap, so an active session can never outlive 72h.
   if ('patch' in ctx.db) {
     const now = Date.now();
     await ctx.db.patch('sessions', resolved.session._id, {

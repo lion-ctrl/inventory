@@ -5,9 +5,13 @@ import type { Doc, Id } from '@convex/_generated/dataModel';
 export type Product = Doc<'products'>;
 export type Category = Doc<'categories'>;
 export type Client = Doc<'clients'>;
-export type Employee = Doc<'employees'>;
-export type Sale = Doc<'sales'>;
-export type HeldCart = Doc<'heldCarts'>;
+// Employees / sales / held carts reach the client as PUBLIC projections: the PIN
+// hashing material (pinHash/pinSalt — AUTH-4) and the cashierId credential
+// surface (AUTH-2) never leave the server. These aliases mirror auth.me,
+// employees.list, sales.history and heldCarts.list so call sites stay 1:1.
+export type Employee = Omit<Doc<'employees'>, 'pinHash' | 'pinSalt'>;
+export type Sale = Omit<Doc<'sales'>, 'cashierId'>;
+export type HeldCart = Omit<Doc<'heldCarts'>, 'cashierId'>;
 export type Settings = Doc<'settings'>;
 
 export type CategoryWithCount = Category & { count: number };

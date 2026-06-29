@@ -58,13 +58,13 @@ describe('employees.create — AUTH-4 PIN hashing', () => {
     expect(stored!).not.toHaveProperty('pin');
     // hash+salt are stored
     expect(typeof stored!.pinHash).toBe('string');
-    expect(stored!.pinHash!.length).toBe(64); // 256 bits hex
+    expect(stored!.pinHash.length).toBe(64); // 256 bits hex
     expect(typeof stored!.pinSalt).toBe('string');
-    expect(stored!.pinSalt!.length).toBeGreaterThan(0);
+    expect(stored!.pinSalt.length).toBeGreaterThan(0);
     // PBKDF2 round-trip
-    expect(await verifyPin('123456', stored!.pinSalt!, stored!.pinHash!)).toBe(true);
+    expect(await verifyPin('123456', stored!.pinSalt, stored!.pinHash)).toBe(true);
     // Wrong PIN must NOT verify
-    expect(await verifyPin('000000', stored!.pinSalt!, stored!.pinHash!)).toBe(false);
+    expect(await verifyPin('000000', stored!.pinSalt, stored!.pinHash)).toBe(false);
   });
 });
 
@@ -88,9 +88,9 @@ describe('employees.update — AUTH-4 PIN hashing', () => {
     // fresh salt — must differ from the previous one
     expect(after!.pinSalt).not.toBe(before!.pinSalt);
     // new PIN verifies
-    expect(await verifyPin('111222', after!.pinSalt!, after!.pinHash!)).toBe(true);
+    expect(await verifyPin('111222', after!.pinSalt, after!.pinHash)).toBe(true);
     // old PIN no longer works
-    expect(await verifyPin('975330', after!.pinSalt!, after!.pinHash!)).toBe(false);
+    expect(await verifyPin('975330', after!.pinSalt, after!.pinHash)).toBe(false);
   });
 
   test('non-PIN fields update without touching pinHash/pinSalt', async () => {
@@ -124,7 +124,7 @@ describe('employees.updateSelf — AUTH-4 PIN hashing', () => {
 
     const ana = await t.run((ctx) => ctx.db.get('employees', fx.cajeroPlain));
     expect(ana!).not.toHaveProperty('pin');
-    expect(await verifyPin('999888', ana!.pinSalt!, ana!.pinHash!)).toBe(true);
+    expect(await verifyPin('999888', ana!.pinSalt, ana!.pinHash)).toBe(true);
     expect(ana!.name).toBe('Ana T. Nueva');
   });
 });
@@ -231,7 +231,7 @@ describe('seed.run — AUTH-4 hashed PINs end-to-end', () => {
     expect(owner).not.toBeNull();
     expect(owner!).not.toHaveProperty('pin');
     expect(typeof owner!.pinHash).toBe('string');
-    expect(owner!.pinHash!.length).toBe(64);
+    expect(owner!.pinHash.length).toBe(64);
     expect(typeof owner!.pinSalt).toBe('string');
 
     // Login with the known owner PIN must succeed end-to-end

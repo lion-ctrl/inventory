@@ -31,9 +31,13 @@ export const byTaxId = query({
   },
 });
 
-// AUTH-2: now guarded by manage_clients (previously ungated — anyone with the
-// deployment URL could create clients). The Venta-gate caller must hold the
-// permission; the acting employee is resolved from the session, never an id.
+// AUTH-2 (revised): create is SESSION-ONLY. Creating a client is part of MAKING
+// A SALE — the Venta client-gate lets a cashier register a walk-in mid-checkout —
+// so ANY employee with a valid session may add one; it must not require
+// management rights. A valid session is still mandatory: the token is verified
+// and the acting employee resolved server-side (never a client-supplied id).
+// Editing the client base IS management, so update/remove below stay behind
+// manage_clients.
 export const create = mutation({
   args: {
     token: v.string(),
@@ -47,8 +51,9 @@ export const create = mutation({
   },
   returns: clientDocValidator,
   handler: async (ctx, args) => {
-    const employee = await requireSession(ctx, args.token);
-    requirePerm(employee, 'manage_clients');
+    // Session required (verifies the token + touches the acting employee); no
+    // permission gate — see the contract note above.
+    await requireSession(ctx, args.token);
     const clientId = await ctx.db.insert('clients', {
       name: args.name,
       taxPrefix: args.taxPrefix,

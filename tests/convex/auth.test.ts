@@ -183,7 +183,7 @@ describe('auth.me — boot revalidation by token', () => {
 });
 
 describe('auth.login — idle deadline + absolute cap', () => {
-  test('sets expiresAt to the idle TTL and stores a 24h absolute cap', async () => {
+  test('sets expiresAt to the idle TTL and stores a 72h absolute cap', async () => {
     const { t } = await setup();
     const before = Date.now();
     const res = await t.mutation(api.auth.login, {
@@ -193,7 +193,7 @@ describe('auth.login — idle deadline + absolute cap', () => {
     if (!res.ok) throw new Error('expected ok login');
     const after = Date.now();
 
-    // The returned expiresAt is the IDLE deadline (~30 min out), not 12h.
+    // The returned expiresAt is the IDLE deadline (~2 h out), not 12h.
     expect(res.expiresAt).toBeGreaterThanOrEqual(before + IDLE_TTL_MS);
     expect(res.expiresAt).toBeLessThanOrEqual(after + IDLE_TTL_MS);
 
@@ -205,7 +205,7 @@ describe('auth.login — idle deadline + absolute cap', () => {
         .unique();
     });
     expect(session!.expiresAt).toBe(res.expiresAt);
-    // absoluteExpiresAt is the 24h cap, strictly beyond the idle deadline.
+    // absoluteExpiresAt is the 72h cap, strictly beyond the idle deadline.
     expect(session!.absoluteExpiresAt).toBeGreaterThanOrEqual(
       before + ABSOLUTE_TTL_MS
     );

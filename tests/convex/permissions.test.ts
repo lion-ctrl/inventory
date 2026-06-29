@@ -127,7 +127,7 @@ describe('PIN validation (6 digits, server-side)', () => {
     const ana = await t.run((ctx) => ctx.db.get('employees', fx.cajeroPlain));
     // AUTH-4: no plaintext pin in storage; verify via PBKDF2 round-trip.
     expect(ana!).not.toHaveProperty('pin');
-    expect(await verifyPin('111222', ana!.pinSalt!, ana!.pinHash!)).toBe(true);
+    expect(await verifyPin('111222', ana!.pinSalt, ana!.pinHash)).toBe(true);
     expect(ana!.name).toBe('Ana T. Actualizada');
   });
 });

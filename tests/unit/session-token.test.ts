@@ -59,12 +59,12 @@ describe('hashToken()', () => {
 });
 
 describe('session lifetimes', () => {
-  test('IDLE_TTL_MS is a 30-minute sliding (idle) window', () => {
-    expect(IDLE_TTL_MS).toBe(30 * 60 * 1000);
+  test('IDLE_TTL_MS is a 2-hour sliding (idle) window', () => {
+    expect(IDLE_TTL_MS).toBe(2 * 60 * 60 * 1000);
   });
 
-  test('ABSOLUTE_TTL_MS is a 24-hour hard cap from login', () => {
-    expect(ABSOLUTE_TTL_MS).toBe(24 * 60 * 60 * 1000);
+  test('ABSOLUTE_TTL_MS is a 72-hour hard cap from login', () => {
+    expect(ABSOLUTE_TTL_MS).toBe(72 * 60 * 60 * 1000);
   });
 
   test('the idle window is far shorter than the absolute cap', () => {

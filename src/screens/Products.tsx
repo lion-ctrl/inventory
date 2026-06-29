@@ -499,7 +499,7 @@ function CategoriesSheet({
 }) {
   // Convex categories.list returns only real categories ('all' is a UI-only
   // sentinel in the parent filter row); `count` is the live product count.
-  const { user } = useSession();
+  const { token } = useSession();
   const createCat = useMutation(api.categories.create);
   const updateCat = useMutation(api.categories.update);
   const removeCat = useMutation(api.categories.removeWithReassign);
@@ -517,7 +517,7 @@ function CategoriesSheet({
     const name = newName.trim();
     if (name.length < 2) return;
     try {
-      await createCat({ actorId: user!._id, label: name });
+      await createCat({ token: token!, label: name });
       setNewName('');
     } catch (e: any) {
       alertError(e);
@@ -531,7 +531,7 @@ function CategoriesSheet({
       return;
     }
     try {
-      await updateCat({ actorId: user!._id, categoryId: cat._id, label: name });
+      await updateCat({ token: token!, categoryId: cat._id, label: name });
     } catch (e: any) {
       alertError(e);
     }
@@ -550,7 +550,7 @@ function CategoriesSheet({
       // removeWithReassign always requires a target; for empty categories any
       // other category works (nothing gets reassigned).
       await removeCat({
-        actorId: user!._id,
+        token: token!,
         categoryId: cat._id,
         reassignToId: (reassignTo || cat._id) as Id<'categories'>,
       });
@@ -739,7 +739,7 @@ export default function ProductsScreen() {
   // productId → units held in "en espera" carts; drives the informational chip.
   const { reserved } = useCart();
   const categories = useCategories();
-  const { user } = useSession();
+  const { token } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
   const _navigate = useNavigate();
@@ -861,7 +861,7 @@ export default function ProductsScreen() {
     try {
       if (editing) {
         await updateProduct({
-          actorId: user!._id,
+          token: token!,
           productId: editing._id,
           patch: {
             barcode: form.barcode,
@@ -878,7 +878,7 @@ export default function ProductsScreen() {
         });
       } else {
         const id = await createProduct({
-          actorId: user!._id,
+          token: token!,
           barcode: form.barcode,
           sku: form.sku,
           name: form.name,
@@ -892,7 +892,7 @@ export default function ProductsScreen() {
         // create() has no `sellable` arg — pause right after when the toggle was off
         if (form.sellable === false) {
           await setSellableMut({
-            actorId: user!._id,
+            token: token!,
             productId: id,
             sellable: false,
           });
@@ -908,7 +908,7 @@ export default function ProductsScreen() {
   const adjustStock = async (id: Id<'products'>, newStock: number) => {
     try {
       await adjustStockMut({
-        actorId: user!._id,
+        token: token!,
         productId: id,
         stock: newStock,
       });
@@ -921,7 +921,7 @@ export default function ProductsScreen() {
 
   const remove = async (p: Product) => {
     try {
-      await removeProduct({ actorId: user!._id, productId: p._id });
+      await removeProduct({ token: token!, productId: p._id });
     } catch (e: any) {
       alertError(e);
     }

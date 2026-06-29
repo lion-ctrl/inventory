@@ -53,6 +53,11 @@ vi.mock('@/state/hooks', () => ({
   useProducts: () => productsMock.current,
   useSettingsDoc: () => ({ scannerMode: 'scanner' }),
 }));
+vi.mock('@/state/SessionContext', () => ({
+  // SaleScreen only reads `token` inside the create-client handler (not on
+  // render), so a stub session is enough to render the Venta screen.
+  useSession: () => ({ token: 'tok_test' }),
+}));
 vi.mock('@/state/CartContext', () => ({ useCart: () => cartMock }));
 
 import SaleScreen from '@/screens/Sale';

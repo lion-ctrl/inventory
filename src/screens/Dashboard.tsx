@@ -43,11 +43,11 @@ function money(n: number) {
 }
 
 export default function Dashboard() {
-  const { user, can } = useSession();
+  const { user, token, can } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
   const navigate = useNavigate();
-  const salesHistory = useQuery(api.sales.history) ?? [];
+  const salesHistory = useQuery(api.sales.history, token ? { token } : 'skip') ?? [];
   const products = useProducts();
   const clients = useClients();
   const categories = useCategories();
