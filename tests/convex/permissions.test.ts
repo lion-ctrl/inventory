@@ -5,6 +5,7 @@ import { describe, expect, test } from 'vitest';
 import { api } from '@convex/_generated/api';
 import schema from '@convex/schema';
 import { can } from '@convex/permissions';
+import { verifyPin } from '@convex/sessions';
 import type { Doc } from '@convex/_generated/dataModel';
 import { permsOf, seedBase } from './fixtures';
 
@@ -23,7 +24,9 @@ const emp = (overrides: Partial<Doc<'employees'>>): Doc<'employees'> =>
     phone: '0',
     role: 'cajero',
     permissions: permsOf(),
-    pin: '000000',
+    // AUTH-4: schema uses pinHash/pinSalt; can() never reads them, so dummy hex is fine.
+    pinHash: 'a'.repeat(64),
+    pinSalt: 'b'.repeat(32),
     active: true,
     createdAt: 0,
     ...overrides,
@@ -122,7 +125,9 @@ describe('PIN validation (6 digits, server-side)', () => {
       patch: { pin: '111222', name: 'Ana T. Actualizada' },
     });
     const ana = await t.run((ctx) => ctx.db.get('employees', fx.cajeroPlain));
-    expect(ana!.pin).toBe('111222');
+    // AUTH-4: no plaintext pin in storage; verify via PBKDF2 round-trip.
+    expect(ana!).not.toHaveProperty('pin');
+    expect(await verifyPin('111222', ana!.pinSalt!, ana!.pinHash!)).toBe(true);
     expect(ana!.name).toBe('Ana T. Actualizada');
   });
 });

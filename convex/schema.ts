@@ -109,7 +109,10 @@ export const employeeFields = {
   phone: v.string(),
   role: roleValidator,
   permissions: permissionsValidator,
-  pin: v.string(),
+  // AUTH-4: PIN is stored as a PBKDF2-SHA-256 hash+salt (never plaintext).
+  // Both are lowercase hex strings (see convex/sessions.ts hashPin/verifyPin).
+  pinHash: v.string(), // PBKDF2 derived bits, hex-encoded (64 chars / 256 bits)
+  pinSalt: v.string(), // random 16-byte salt, hex-encoded (32 chars)
   active: v.boolean(),
   createdAt: v.number(),
   lastActive: v.optional(v.number()),
@@ -229,6 +232,22 @@ export const employeeDocValidator = v.object({
   _id: v.id('employees'),
   _creationTime: v.number(),
   ...employeeFields,
+});
+
+// AUTH-4: Public projection of an employee — strips pinHash + pinSalt so that
+// sensitive hashing material never leaves the server. Mirror of the existing
+// publicSaleDocValidator / publicHeldCartDocValidator pattern.
+// Use this as the `returns` validator for any function that returns an employee
+// to a client (me, employees.list, etc.).
+const {
+  pinHash: _empPinHash,
+  pinSalt: _empPinSalt,
+  ...publicEmployeeFields
+} = employeeFields;
+export const publicEmployeeValidator = v.object({
+  _id: v.id('employees'),
+  _creationTime: v.number(),
+  ...publicEmployeeFields,
 });
 
 export const saleDocValidator = v.object({

@@ -3,6 +3,7 @@
 import { v } from 'convex/values';
 import { internalMutation, internalQuery } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { hashPin, verifyPin } from './sessions';
 
 // `+n.toFixed(2)` — the EXACT rounding the prototype's _mkSale used.
 const fix2 = (n: number) => +n.toFixed(2);
@@ -953,16 +954,18 @@ export const run = internalMutation({
       clientIdByMock.set(c.id, id);
     }
 
-    // 4. Employees.
+    // 4. Employees — AUTH-4: hash each PIN fresh; never store plaintext.
     const employeeIdByMock = new Map<string, Id<'employees'>>();
     for (const e of EMPLOYEES) {
+      const { pinHash, pinSalt } = await hashPin(e.pin);
       const id = await ctx.db.insert('employees', {
         name: e.name,
         email: e.email,
         phone: e.phone,
         role: e.role,
         permissions: e.permissions,
-        pin: e.pin,
+        pinHash,
+        pinSalt,
         active: e.active,
         createdAt: Date.parse(e.createdAt),
         lastActive: Date.parse(e.lastActive),
@@ -1066,11 +1069,12 @@ export const verify = internalQuery({
     const settings = await ctx.db.query('settings').first();
     return {
       staleIdNormalizesToNull: staleNormalized === null,
+      // AUTH-4: pin field is gone; verify via PBKDF2 round-trip instead.
       owner: owner && {
         active: owner.active,
         role: owner.role,
         permissions: owner.permissions,
-        pinIs482106: owner.pin === '482106',
+        pinHashValid: await verifyPin('482106', owner.pinSalt, owner.pinHash),
       },
       sale42: sale42 && {
         subtotal: sale42.subtotal,

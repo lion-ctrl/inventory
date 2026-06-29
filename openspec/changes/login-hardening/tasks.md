@@ -28,10 +28,35 @@
 
 - [x] 1.4 Run `pnpm test:run` — all tests green (existing ~213 + the new rate-limit tests). No pre-existing test may regress. If `pnpm test:run` is unavailable use `pnpm vitest run`.
 
-## 2 — AUTH-4: PIN hashing (LATER phase — not implemented now)
+## 2 — AUTH-4: PIN hashing at rest + stop returning the credential
 
-- [ ] 2.1 _(later phase)_ Add `pinHash: v.optional(v.string())` and `pinSalt: v.optional(v.string())` to `employees` (widen); backfill all rows via PBKDF2 + `crypto.subtle` (or re-seed with dummy data); remove `pin: v.string()` (narrow).
-- [ ] 2.2 _(later phase)_ Update `login` to hash the input PIN and compare against `pinHash`; remove `pin` from any response or seed file; update tests.
+- [x] 2.1 **Schema** (`convex/schema.ts`): remove `pin: v.string()` from `employeeFields`; add `pinHash: v.string()` (PBKDF2 output, hex-encoded, 64 chars / 256 bits) and `pinSalt: v.string()` (16-byte CSPRNG salt, hex-encoded, 32 chars). Also add `publicEmployeeValidator` = full employee doc minus `pinHash`/`pinSalt` — following the existing `publicSaleDocValidator` pattern — and export it for use as a `returns` validator.
+
+- [x] 2.2 **Crypto helpers** (`convex/sessions.ts`): add `hashPin(pin, salt?)` and `verifyPin(pin, pinSalt, pinHash)` using `crypto.subtle` PBKDF2 (SHA-256, 100 000 iterations, 256-bit output, hex encoding). No `"use node"`, default Convex runtime only. Helper `fromHex` added for salt round-trip. Known vector frozen in unit tests: PIN `'123456'`, salt `0102030405060708090a0b0c0d0e0f10` → hash `817d1b4df96a0a34a0a6ce16443088d71b6393f87deae91a51fa6797f8aef906`.
+
+- [x] 2.3 **`login`** (`convex/auth.ts`): replace plaintext `employee.pin !== args.pin` with `await verifyPin(args.pin, employee.pinSalt, employee.pinHash)`. All AUTH-3 rate-limit logic (attempt counting, lockout, reset-on-success), session minting, and `lastActive` bump are preserved. Response shape `{ ok, token, expiresAt }` is unchanged.
+
+- [x] 2.4 **`me`** (`convex/auth.ts`): change `returns` from `employeeDocValidator` to `v.union(publicEmployeeValidator, v.null())`; handler destructures `{ pinHash, pinSalt, ...pub }` and returns `pub` so hashing material never leaves the server.
+
+- [x] 2.5 **`employees.list`** (`convex/employees.ts`): change `returns` to `v.array(publicEmployeeValidator)`; handler maps each row through `{ pinHash: _h, pinSalt: _s, ...pub }` before returning.
+
+- [x] 2.6 **`employees.create`** (`convex/employees.ts`): accept `pin: v.string()` from client (unchanged), call `assertPin(pin)` + `hashPin(pin)`, store `pinHash`/`pinSalt` (never `pin`).
+
+- [x] 2.7 **`employees.update`** (`convex/employees.ts`): when patch includes `pin`, call `assertPin` + `hashPin` and patch `{ ...rest, pinHash, pinSalt }` (destructuring `pin` out of the patch before it reaches `ctx.db.patch`).
+
+- [x] 2.8 **`employees.updateSelf`** (`convex/employees.ts`): same pattern as 2.7 for own-profile PIN change.
+
+- [x] 2.9 **`seed.run`** (`convex/seed.ts`): import `hashPin`; for each employee, call `await hashPin(e.pin)` and insert `pinHash`/`pinSalt` (keep `EMPLOYEES` array with plaintext as source data; never persist plaintext). Update `seed.verify` to use `verifyPin('482106', ...)` instead of `owner.pin === '482106'`.
+
+- [x] 2.10 **Fixtures** (`tests/convex/fixtures.ts`): import `hashPin`; for each of the 4 fixture employees, call `await hashPin('pin')` and insert `pinHash`/`pinSalt` (no `pin` field). Existing PIN values preserved so login tests continue using the same PINs.
+
+- [x] 2.11 **`permissions.test.ts`** (`tests/convex/permissions.test.ts`): update `emp()` helper (`pin: '000000'` → `pinHash: 'a'.repeat(64), pinSalt: 'b'.repeat(32)`); update `ana.pin` assertion → `not.toHaveProperty('pin')` + `verifyPin('111222', ...)`.
+
+- [x] 2.12 **Unit tests** (`tests/unit/pin-hash.test.ts`): new file; RED → GREEN tests: round-trip, wrong PIN, random salt, deterministic same-salt, salt round-trip, frozen known vector.
+
+- [x] 2.13 **Integration tests** (`tests/convex/employees.test.ts`): new file; RED → GREEN tests: `employees.list` no pin/pinHash/pinSalt; `employees.create` stores hash+salt + verifyPin true; `employees.update` fresh salt + verifyPin; `employees.updateSelf` re-hashes; `auth.me` no pin/pinHash/pinSalt; `auth.login` verifies against hash + rate-limit preserved; `seed.run` end-to-end.
+
+- [x] 2.14 **Full suite green**: 235 passed / 4 skipped / 0 failed (baseline was 219/4/0; +16 net new tests).
 
 ## 3 — AUTH-5: CSP headers (LATER phase — not implemented now)
 

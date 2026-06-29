@@ -4,6 +4,7 @@ import type { Id } from '@convex/_generated/dataModel';
 import {
   generateToken,
   hashToken,
+  hashPin,
   IDLE_TTL_MS,
   ABSOLUTE_TTL_MS,
 } from '@convex/sessions';
@@ -157,43 +158,53 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     createdAt: now,
   });
 
+  // AUTH-4: store PBKDF2 hash+salt for each fixture employee (never plaintext).
+  // PIN values are preserved so login tests can still call login({pin:'...'}).
+  const ownerPin = await hashPin('482106');
   const owner = await ctx.db.insert('employees', {
     name: 'Carlos Méndez',
     email: 'carlos@mitienda.com',
     phone: '04141112233',
     role: 'owner',
     permissions: 'all',
-    pin: '482106',
+    pinHash: ownerPin.pinHash,
+    pinSalt: ownerPin.pinSalt,
     active: true,
     createdAt: now,
   });
+  const cajeroVoidPin = await hashPin('582441');
   const cajeroVoid = await ctx.db.insert('employees', {
     name: 'Pedro Ramírez',
     email: 'pedro.ramirez@mitienda.com',
     phone: '04141239988',
     role: 'cajero',
     permissions: permsOf('view_reports', 'void_sales'),
-    pin: '582441',
+    pinHash: cajeroVoidPin.pinHash,
+    pinSalt: cajeroVoidPin.pinSalt,
     active: true,
     createdAt: now,
   });
+  const cajeroPlainPin = await hashPin('975330');
   const cajeroPlain = await ctx.db.insert('employees', {
     name: 'Ana Torres',
     email: 'ana.torres@mitienda.com',
     phone: '04167788990',
     role: 'cajero',
     permissions: permsOf('manage_clients'),
-    pin: '975330',
+    pinHash: cajeroPlainPin.pinHash,
+    pinSalt: cajeroPlainPin.pinSalt,
     active: true,
     createdAt: now,
   });
+  const inactivePin = await hashPin('864253');
   const inactive = await ctx.db.insert('employees', {
     name: 'Carlos Rivas',
     email: 'carlos.rivas@mitienda.com',
     phone: '04122233445',
     role: 'cajero',
     permissions: 'all',
-    pin: '864253',
+    pinHash: inactivePin.pinHash,
+    pinSalt: inactivePin.pinSalt,
     active: false,
     createdAt: now,
   });

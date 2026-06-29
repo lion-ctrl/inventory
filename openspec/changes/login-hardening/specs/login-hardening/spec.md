@@ -56,3 +56,46 @@ The lockout error string returned by `login` SHALL be the same static value rega
 
 - **WHEN** `login` has exceeded `MAX_ATTEMPTS` for both a real employee's email and a non-existent email address
 - **THEN** both calls return `{ ok: false, error: '<lockout message>' }` where the `error` string is byte-for-byte identical in both cases and is not equal to the wrong-credentials message
+
+---
+
+### Requirement: Employee PINs are stored as a slow hash at rest (AUTH-4)
+
+The system SHALL store employee PINs using PBKDF2-SHA-256 with a per-employee random salt — never as plaintext. The `employees` table SHALL contain `pinHash` (PBKDF2 output, 256 bits, hex-encoded) and `pinSalt` (16-byte CSPRNG random salt, hex-encoded) instead of a `pin` field. The `login` mutation SHALL derive the hash of the supplied PIN with the stored salt and compare it to `pinHash`; the comparison SHALL be the same hex-string equality used to verify session tokens — no timing-safe library is needed because PBKDF2 makes brute-force expensive independently.
+
+#### Scenario: Correct PIN verifies against the stored hash
+
+- **WHEN** `login` is called with the correct PIN for an employee
+- **THEN** `verifyPin(suppliedPin, employee.pinSalt, employee.pinHash)` returns `true` and `login` proceeds to the session-minting flow (rate-limit path unchanged)
+
+#### Scenario: Wrong PIN fails the hash comparison
+
+- **WHEN** `login` is called with a PIN that does not match the stored hash
+- **AND** the account is not locked out
+- **THEN** `verifyPin(suppliedPin, employee.pinSalt, employee.pinHash)` returns `false`, `login` returns `{ ok: false, error: 'Credenciales inválidas. Verifica e intenta de nuevo.' }`, and the AUTH-3 failed-attempt counter is incremented
+
+#### Scenario: PIN change creates a fresh hash with a fresh salt
+
+- **WHEN** `employees.update` or `employees.updateSelf` is called with a new `pin` value
+- **THEN** a fresh 16-byte CSPRNG salt is generated, `hashPin(newPin)` is called with that fresh salt, and only `pinHash` and `pinSalt` are stored — the previous salt/hash are replaced entirely
+
+---
+
+### Requirement: The stored PIN hash (pinHash/pinSalt) is never returned to any client (AUTH-4)
+
+The system SHALL strip `pinHash` and `pinSalt` from every employee document before returning it to a client. The `publicEmployeeValidator` schema export defines the allowed return shape. Any registered Convex function whose `returns` validator includes an employee document MUST use `publicEmployeeValidator` (not `employeeDocValidator`) and MUST project the stored doc to exclude `pinHash` and `pinSalt`.
+
+#### Scenario: me() returns an employee without hashing material
+
+- **WHEN** `auth.me` is called with a valid session token
+- **THEN** the returned employee object has no `pin`, `pinHash`, or `pinSalt` fields, while all other employee fields (`_id`, `name`, `email`, `role`, `permissions`, `active`, `createdAt`, `lastActive`) are present
+
+#### Scenario: employees.list returns employees without hashing material
+
+- **WHEN** `employees.list` is called by an authenticated actor with `manage_employees` permission
+- **THEN** every employee in the returned array has no `pin`, `pinHash`, or `pinSalt` fields
+
+#### Scenario: login response contains no credential material
+
+- **WHEN** `login` succeeds
+- **THEN** the response is exactly `{ ok: true, token, expiresAt }` with no `pin`, `pinHash`, `pinSalt`, or `_id` fields

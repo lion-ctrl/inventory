@@ -21,7 +21,7 @@
 | AUTH-1 | Reemplazar la credencial `_id` por **tokens de sesión** | 🔴 | 🔧 backend ✓ |
 | AUTH-2 | Dejar de **filtrar el `_id`** de empleado por queries públicas + gatearlas | 🔴 | 🔧 backend ✓ |
 | AUTH-3 | **Rate-limit / lockout** en `login` | 🟠 | 🔧 backend ✓ |
-| AUTH-4 | **Hashear los PIN** (PBKDF2 + salt) y dejar de devolver el PIN | 🟠 | [ ] |
+| AUTH-4 | **Hashear los PIN** (PBKDF2 + salt) y dejar de devolver el PIN | 🟠 | 🔧 backend ✓ |
 | AUTH-5 | Cliente: guardar **token** (no `_id`), `logout` real + **CSP** | 🟡 | [ ] |
 | AUTH-6 | **Expiración por inactividad** (sliding 30 min) + **tope absoluto** (24 h) + `renewSession` | 🟡 | 🔧 backend ✓ |
 
@@ -144,6 +144,8 @@ de validar credenciales. Mensaje genérico (no revela si el email existe). Sin `
 
 - [ ] **Cerrado y verificado**
 
+> 🔧 **Backend implementado y verde** (vitest **235 passed / 4 skipped**, `tsc --noEmit` de `convex/` en **0**, 2026-06-28). Hecho: `employees.pin` → `pinHash` + `pinSalt` (PBKDF2-SHA-256, 100k iter + salt 16B CSPRNG, hex), `login` verifica con `verifyPin`, `me`/`employees.list` usan `publicEmployeeValidator` (sin `pin`/`pinHash`/`pinSalt`), `seed` siembra hasheado (mismos PINs). **Falta para CERRAR:** re-seed + deploy en tu hardware. ⚠️ Deuda menor anotada: (1) **timing de enumeración** residual — email existente corre PBKDF2, inexistente corta antes (mitigable con un `verifyPin` "dummy"); (2) **`employeeDocValidator`** todavía lleva `pinHash`/`pinSalt` pero ya sin uso en ningún `returns` (footgun latente — anotar o remover).
+
 **Problema.** PIN en **texto plano**: `convex/schema.ts:113` (`pin: v.string()`), sembrados
 plano en `convex/seed.ts` (dueño `'482106'`, etc.), y `login` compara plano
 (`convex/auth.ts:23`). **Peor:** `login` **devuelve el empleado completo incluido el `pin`**
@@ -159,10 +161,10 @@ todas las credenciales en claro.
   con re-seedear hasheado.
 
 **Listo cuando:**
-- [ ] Schema usa `pinHash` + `pinSalt`; `pin` plano eliminado.
-- [ ] `login` hashea y compara; ya **no** devuelve el PIN (ni el empleado completo crudo).
-- [ ] `seed` siembra hasheado; datos existentes migrados.
-- [ ] TDD: PIN correcto/incorrecto contra hash; el retorno no incluye `pin`. Lint + tests verdes.
+- [x] Schema usa `pinHash` + `pinSalt`; `pin` plano eliminado.
+- [x] `login` hashea y compara; ya **no** devuelve el PIN (ni el empleado completo crudo) — vía `publicEmployeeValidator`.
+- [x] `seed` siembra hasheado. _(el re-seed real de datos lo corrés al deploy)_
+- [x] TDD: PIN correcto/incorrecto contra hash; el retorno no incluye `pin` — **tests verdes (vitest 235/4) + `tsc` de `convex/` limpio**. _Deploy pendiente._
 
 ---
 

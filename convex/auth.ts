@@ -1,17 +1,17 @@
 // Plain employees-table login (email + 6-digit PIN). No auth package — by
-// explicit owner decision. Login no longer hands back the employee document
-// `_id` as the credential; it mints a hashed, expiring SESSION TOKEN (returned
-// once) that the client persists and replays on every privileged call.
-//
-// NOTE: the plaintext PIN compare is DELIBERATELY kept here — PIN hashing and
-// removing the PIN from any response is the deferred `login-hardening` change.
+// explicit owner decision. Login mints a hashed, expiring SESSION TOKEN
+// (returned once) that the client persists and replays on every privileged call.
+// AUTH-4: login now verifies the PIN against PBKDF2 hash+salt stored at rest
+// (never plaintext). me() uses the publicEmployeeValidator projection so that
+// pinHash/pinSalt never leave the server.
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
-import { employeeDocValidator } from './schema';
+import { publicEmployeeValidator } from './schema';
 import { resolveSession } from './permissions';
 import {
   generateToken,
   hashToken,
+  verifyPin,
   IDLE_TTL_MS,
   ABSOLUTE_TTL_MS,
 } from './sessions';
@@ -75,7 +75,13 @@ export const login = mutation({
     const employee =
       employees.find((e) => e.email.trim().toLowerCase() === email) ?? null;
 
-    if (!employee || employee.pin !== args.pin) {
+    // AUTH-4: compare against the stored PBKDF2 hash; never plaintext.
+    // verifyPin is only called when the employee row exists (short-circuit).
+    const pinMatch = employee
+      ? await verifyPin(args.pin, employee.pinSalt, employee.pinHash)
+      : false;
+
+    if (!employee || !pinMatch) {
       // Record the failed attempt. Single-row UPSERT keyed by email — never an
       // extra insert when a row exists, so the `.unique()` lookup stays valid.
       // Unknown emails are counted exactly like known ones (no enumeration).
@@ -152,11 +158,15 @@ export const logout = mutation({
 export const me = query({
   // Boot revalidation: the client persists the TOKEN (not the id). A stale or
   // expired token from an older deployment must resolve to null — NEVER throw.
+  // AUTH-4: returns publicEmployeeValidator (pinHash/pinSalt stripped) so that
+  // hashing material never leaves the server.
   args: { token: v.union(v.string(), v.null()) },
-  returns: v.union(employeeDocValidator, v.null()),
+  returns: v.union(publicEmployeeValidator, v.null()),
   handler: async (ctx, args) => {
     const resolved = await resolveSession(ctx, args.token);
-    return resolved ? resolved.employee : null;
+    if (!resolved) return null;
+    const { pinHash: _h, pinSalt: _s, ...pub } = resolved.employee;
+    return pub;
   },
 });
 
