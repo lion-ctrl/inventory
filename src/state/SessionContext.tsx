@@ -156,10 +156,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const tick = async () => {
       const remaining = expiresAt - Date.now();
       // Past the idle deadline → the session has lapsed; drop it locally.
-      // if (remaining <= 0) {
-      //   clearLocalSession();
-      //   return;
-      // }
+      if (remaining <= 0) {
+        clearLocalSession();
+        return;
+      }
       // Not yet near the deadline → nothing to do.
       if (remaining > RENEW_LEAD_MS) return;
       // Within the lead window: renew ONLY if the cashier was active since the

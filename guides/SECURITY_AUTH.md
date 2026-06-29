@@ -22,7 +22,7 @@
 | AUTH-2 | Dejar de **filtrar el `_id`** de empleado por queries públicas + gatearlas | 🔴 | 🔧 backend ✓ |
 | AUTH-3 | **Rate-limit / lockout** en `login` | 🟠 | 🔧 backend ✓ |
 | AUTH-4 | **Hashear los PIN** (PBKDF2 + salt) y dejar de devolver el PIN | 🟠 | 🔧 backend ✓ |
-| AUTH-5 | Cliente: guardar **token** (no `_id`), `logout` real + **CSP** | 🟡 | [ ] |
+| AUTH-5 | Cliente: guardar **token** (no `_id`), `logout` real + **CSP** | 🟡 | 🔧 cliente+CSP ✓ · falta validar CSP en navegador |
 | AUTH-6 | **Expiración por inactividad** (sliding 2 h) + **tope absoluto** (72 h) + `renewSession` | 🟡 | 🔧 backend ✓ |
 
 > **Orden recomendado:** AUTH-1 y AUTH-2 van **juntas** (cierran la impersonación, el agujero
@@ -172,6 +172,8 @@ todas las credenciales en claro.
 
 - [ ] **Cerrado y verificado**
 
+> 🔧 **Cliente migrado + CSP configurada** (2026-06-29). Hecho y verde: el cliente persiste **solo el token** (`pos.sessionToken` + `pos.sessionExpiresAt`, nunca el `_id`; la key legacy `pos.employeeId` se purga en el boot), `logout` **real** que revoca la sesión server-side, refresh proactivo (cliente de AUTH-6) y se **restauró la limpieza local al vencer el idle** (el bloque `remaining <= 0` del heartbeat estaba comentado → reactivado en `src/state/SessionContext.tsx`). **CSP estricta** inyectada como `<meta http-equiv>` **solo en el build** (`vite.config.ts`, plugin `cspMetaPlugin` con `apply: 'build'` — NO se aplica en `vite dev` para no romper el HMR): `default-src 'self'`; `script-src 'self' 'wasm-unsafe-eval'` (el `'wasm-unsafe-eval'` es **obligatorio** para zxing-wasm, sin él la cámara muere); `style-src 'self' 'unsafe-inline'` (los `style={{…}}` inline de React no se pueden hashear); `connect-src 'self' https://*.convex.cloud wss://*.convex.cloud` (el WebSocket de Convex — **sin esto la app no conecta**); `img-src 'self' data:`; `font-src 'self'` (fuentes self-hosted); `object-src 'none'`/`base-uri 'self'`/`manifest-src`/`worker-src`/`form-action 'self'` endurecidos. **Falta para CERRAR: validar la CSP en el navegador del owner** — la app debe cargar y Convex debe conectar (WS) sin violaciones en consola; y publicar `frame-ancestors 'none'` + `X-Frame-Options: DENY` como **headers reales** en el hosting (no viajan en `<meta>`). Sin commit ni deploy.
+
 **Problema.** El `_id` vive en `localStorage` como valor permanente, no expira y no se revoca
 (`logout` es solo cliente: `src/state/SessionContext.tsx:78-85` borra localStorage, **no hay
 sesión que matar en el servidor**). Un XSS lo exfiltra y sirve para siempre.
@@ -186,10 +188,10 @@ sesión que matar en el servidor**). Un XSS lo exfiltra y sirve para siempre.
   Por lo mismo, **CSRF no aplica** (no hay credencial auto-enviada por cookie).
 
 **Listo cuando:**
-- [ ] El cliente guarda el token (no el `_id`) y respeta la expiración.
-- [ ] `logout` borra la sesión en el servidor.
-- [ ] CSP configurada en el build.
-- [ ] TDD: logout invalida el token server-side. Lint + tests verdes.
+- [x] El cliente guarda el token (no el `_id`) y respeta la expiración.
+- [x] `logout` borra la sesión en el servidor.
+- [x] CSP configurada en el build. _(meta build-only en `vite.config.ts`; **falta validar en el navegador del owner** + subir headers `frame-ancestors`/`X-Frame-Options` al hosting)_
+- [x] TDD: logout invalida el token server-side (`tests/convex/auth.test.ts` → "After logout the session is gone"). Lint + tests verdes.
 
 ---
 
@@ -214,5 +216,5 @@ sesión que matar en el servidor**). Un XSS lo exfiltra y sirve para siempre.
 - [x] `sessions` tiene `absoluteExpiresAt`; `expiresAt` es el deadline de idle.
 - [x] `requireSession` desliza el idle y rechaza al pasar idle **o** cap.
 - [x] `renewSession(token)` empuja la expiración topeada al cap; rechaza pasado el cap.
-- [ ] Cliente: refresh ~5 min antes, **condicionado a actividad** (no incondicional). _(grupo 5 / AUTH-5)_
+- [x] Cliente: refresh ~5 min antes, **condicionado a actividad** (no incondicional) + limpieza local al vencer el idle (heartbeat en `src/state/SessionContext.tsx`). _(grupo 5 / AUTH-5)_
 - [x] TDD: desliza con actividad; muere por idle; muere por cap aunque activa; clamp del renew — **tests verdes (vitest 213/4)**. _Lint/`tsc` pendiente de `codegen`._
