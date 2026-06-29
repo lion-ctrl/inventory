@@ -22,11 +22,20 @@ describe('categories.list', () => {
       label: 'Limpieza',
     });
 
-    const list = await t.query(api.categories.list, {});
+    const list = await t.query(api.categories.list, {
+      token: fx.cajeroPlainToken,
+    });
     const bebidas = list.find((c) => c._id === fx.categoryId)!;
     const limpieza = list.find((c) => c._id === empty)!;
     expect(bebidas.count).toBe(4); // the four seeded products
     expect(limpieza.count).toBe(0);
+  });
+
+  test('rejects when there is no valid session (internal POS, no public endpoints)', async () => {
+    const { t } = await setup();
+    await expect(
+      t.query(api.categories.list, { token: 'not-a-real-token' })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
   });
 });
 
@@ -60,11 +69,15 @@ describe('categories mutations', () => {
       reassignToId: target,
     });
 
-    const products = await t.query(api.products.list, {});
+    const products = await t.query(api.products.list, {
+      token: fx.cajeroPlainToken,
+    });
     expect(products).toHaveLength(4);
     expect(products.every((p) => p.categoryId === target)).toBe(true);
 
-    const list = await t.query(api.categories.list, {});
+    const list = await t.query(api.categories.list, {
+      token: fx.cajeroPlainToken,
+    });
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({ label: 'Limpieza', count: 4 });
   });

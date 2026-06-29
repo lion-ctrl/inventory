@@ -15,17 +15,45 @@ async function setup() {
 }
 
 describe('products.byBarcode — the scanner lookup', () => {
-  test('finds the exact barcode and returns null for unknown codes', async () => {
+  test('finds the exact barcode and returns null for unknown codes (session-gated)', async () => {
     const { t, fx } = await setup();
+    // Operational read: cajeroPlain (no manage_products) may still scan.
     const found = await t.query(api.products.byBarcode, {
+      token: fx.cajeroPlainToken,
       barcode: '7591000000123',
     });
     expect(found?._id).toBe(fx.cola);
     expect(found?.name).toBe('Coca-Cola 600ml');
 
     await expect(
-      t.query(api.products.byBarcode, { barcode: '0000000000000' })
+      t.query(api.products.byBarcode, {
+        token: fx.cajeroPlainToken,
+        barcode: '0000000000000',
+      })
     ).resolves.toBeNull();
+  });
+});
+
+describe('products reads — gated by requireSession (internal POS, no public endpoints)', () => {
+  test('list returns the catalog for any valid session', async () => {
+    const { t, fx } = await setup();
+    const products = await t.query(api.products.list, {
+      token: fx.cajeroPlainToken,
+    });
+    expect(products.some((p) => p._id === fx.cola)).toBe(true);
+  });
+
+  test('list and byBarcode reject when there is no valid session', async () => {
+    const { t } = await setup();
+    await expect(
+      t.query(api.products.list, { token: 'not-a-real-token' })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+    await expect(
+      t.query(api.products.byBarcode, {
+        token: 'not-a-real-token',
+        barcode: '7591000000123',
+      })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
   });
 });
 

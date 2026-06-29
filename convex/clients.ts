@@ -7,21 +7,29 @@ import {
   taxPrefixValidator,
 } from './schema';
 
+// Internal POS — no public endpoints. Reading the client base requires a valid
+// session (operational read: any active employee may look clients up during a
+// sale), so it is gated by requireSession only — never a management permission.
 export const list = query({
-  args: {},
+  args: { token: v.string() },
   returns: v.array(clientDocValidator),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     return await ctx.db.query('clients').collect();
   },
 });
 
+// The Venta identification gate: a cashier looks a walk-in up by tax id mid-sale.
+// Session-gated (any active employee), no management permission required.
 export const byTaxId = query({
   args: {
+    token: v.string(),
     taxPrefix: taxPrefixValidator,
     taxId: v.string(),
   },
   returns: v.union(clientDocValidator, v.null()),
   handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     return await ctx.db
       .query('clients')
       .withIndex('by_taxId', (q) =>

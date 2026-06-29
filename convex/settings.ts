@@ -3,8 +3,14 @@ import { mutation, query } from './_generated/server';
 import { getSettings, requirePerm, requireSession } from './permissions';
 import { scannerModeValidator, settingsDocValidator } from './schema';
 
-// PUBLIC by design (documented decision): the login screen needs store branding
-// (name/logo) before a session exists. Returns only non-sensitive store config.
+// THE ONE INTENTIONALLY-PUBLIC QUERY (documented owner decision). Everything
+// else in this internal POS is gated by requireSession, but store branding
+// (name/logo/currency) must be readable BEFORE a session exists: AppShell calls
+// useBsRate() → settings.get unconditionally while the unauthenticated Login
+// screen is mounted, so gating this would throw on the boot path. It returns
+// only non-sensitive store config (no credentials, no employee data). If this
+// ever needs to carry sensitive fields, split a public branding projection out
+// rather than gating this read. See auth/gate-all-functions policy.
 export const get = query({
   args: {},
   returns: v.union(settingsDocValidator, v.null()),

@@ -15,9 +15,12 @@ async function setup() {
 }
 
 describe('clients.byTaxId — the Venta identification gate', () => {
-  test('matches prefix + taxId exactly', async () => {
+  test('matches prefix + taxId exactly (session-gated, any active employee)', async () => {
     const { t, fx } = await setup();
+    // cajeroPlain has manage_clients only — an operational lookup needs just a
+    // valid session, no management permission.
     const found = await t.query(api.clients.byTaxId, {
+      token: fx.cajeroPlainToken,
       taxPrefix: 'V',
       taxId: '5.123.456',
     });
@@ -25,8 +28,36 @@ describe('clients.byTaxId — the Venta identification gate', () => {
 
     // Same number under a different prefix → no match
     await expect(
-      t.query(api.clients.byTaxId, { taxPrefix: 'J', taxId: '5.123.456' })
+      t.query(api.clients.byTaxId, {
+        token: fx.cajeroPlainToken,
+        taxPrefix: 'J',
+        taxId: '5.123.456',
+      })
     ).resolves.toBeNull();
+  });
+});
+
+describe('clients reads — gated by requireSession (internal POS, no public endpoints)', () => {
+  test('list returns the client base for any valid session', async () => {
+    const { t, fx } = await setup();
+    const clients = await t.query(api.clients.list, {
+      token: fx.cajeroPlainToken,
+    });
+    expect(clients.some((c) => c._id === fx.clientId)).toBe(true);
+  });
+
+  test('list and byTaxId reject when there is no valid session', async () => {
+    const { t } = await setup();
+    await expect(
+      t.query(api.clients.list, { token: 'not-a-real-token' })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+    await expect(
+      t.query(api.clients.byTaxId, {
+        token: 'not-a-real-token',
+        taxPrefix: 'V',
+        taxId: '5.123.456',
+      })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
   });
 });
 

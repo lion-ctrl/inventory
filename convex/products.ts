@@ -3,18 +3,25 @@ import { mutation, query } from './_generated/server';
 import { requirePerm, requireSession } from './permissions';
 import { productDocValidator } from './schema';
 
+// Internal POS — no public endpoints. The catalog is an operational read every
+// cashier needs (Venta/Escanear), so it is gated by requireSession only — a
+// valid session suffices, never a management permission.
 export const list = query({
-  args: {},
+  args: { token: v.string() },
   returns: v.array(productDocValidator),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     return await ctx.db.query('products').collect();
   },
 });
 
+// Scanner lookup by barcode — operational read, session-gated (any active
+// employee), no management permission required.
 export const byBarcode = query({
-  args: { barcode: v.string() },
+  args: { token: v.string(), barcode: v.string() },
   returns: v.union(productDocValidator, v.null()),
   handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     return await ctx.db
       .query('products')
       .withIndex('by_barcode', (q) => q.eq('barcode', args.barcode))

@@ -20,10 +20,6 @@ import type { PermissionId } from '@/lib/rbac';
 // the acting employee is resolved from the token on boot via auth.me.
 const TOKEN_KEY = 'pos.sessionToken';
 const EXPIRES_KEY = 'pos.sessionExpiresAt';
-// Pre-AUTH-5 builds persisted the acting employee id here. It is no longer read,
-// but must be wiped on boot (see the mount effect below) so a stale id can never
-// linger in storage.
-const LEGACY_EMPLOYEE_KEY = 'pos.employeeId';
 
 // AUTH-6 (client half): slide the idle window ~5 min before it lapses, but ONLY
 // when the cashier was actually active since the last renew — an unconditional
@@ -119,8 +115,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // after mount, so the 0 placeholder before this runs is never observed by the
   // renew gate (first tick is 30 s out).
   useEffect(() => {
+    // Wipe the legacy pre-AUTH-5 employee-id key: the session TOKEN is now the
+    // only persisted credential, so a stale id must never linger. Best-effort —
+    // storage may be unavailable.
     try {
-      localStorage.removeItem(LEGACY_EMPLOYEE_KEY);
+      localStorage.removeItem('pos.employeeId');
     } catch {
       /* ignore */
     }

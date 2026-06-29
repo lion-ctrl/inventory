@@ -3,8 +3,11 @@ import { mutation, query } from './_generated/server';
 import { requirePerm, requireSession } from './permissions';
 import { categoryFields } from './schema';
 
+// Internal POS — no public endpoints. Operational read (Venta/Escanear/Productos
+// all show category chips), so it is gated by requireSession only — any active
+// employee, never a management permission.
 export const list = query({
-  args: {},
+  args: { token: v.string() },
   returns: v.array(
     v.object({
       _id: v.id('categories'),
@@ -13,7 +16,8 @@ export const list = query({
       count: v.number(),
     })
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     const categories = await ctx.db.query('categories').collect();
     const products = await ctx.db.query('products').collect();
     const counts = new Map<string, number>();

@@ -17,6 +17,7 @@ import type * as permissions from "../permissions.js";
 import type * as products from "../products.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
+import type * as sessions from "../sessions.js";
 import type * as settings from "../settings.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   products: typeof products;
   sales: typeof sales;
   seed: typeof seed;
+  sessions: typeof sessions;
   settings: typeof settings;
 }>;
 
