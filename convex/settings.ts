@@ -3,18 +3,17 @@ import { mutation, query } from './_generated/server';
 import { getSettings, requirePerm, requireSession } from './permissions';
 import { scannerModeValidator, settingsDocValidator } from './schema';
 
-// THE ONE INTENTIONALLY-PUBLIC QUERY (documented owner decision). Everything
-// else in this internal POS is gated by requireSession, but store branding
-// (name/logo/currency) must be readable BEFORE a session exists: AppShell calls
-// useBsRate() → settings.get unconditionally while the unauthenticated Login
-// screen is mounted, so gating this would throw on the boot path. It returns
-// only non-sensitive store config (no credentials, no employee data). If this
-// ever needs to carry sensitive fields, split a public branding projection out
-// rather than gating this read. See auth/gate-all-functions policy.
+// Session-gated read (owner directive: NOTHING is public). The store config
+// singleton — including the Bs rate consumed at payment time — is only readable
+// with a valid session, exactly like every other read in this internal POS. The
+// Login screen never reads settings (its branding is static), so gating this is
+// safe: the client skips the call until a token exists (see useSettingsDoc).
+// `auth.login` is the ONLY credential-free endpoint in the backend.
 export const get = query({
-  args: {},
+  args: { token: v.string() },
   returns: v.union(settingsDocValidator, v.null()),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
+    await requireSession(ctx, args.token);
     return await ctx.db.query('settings').first();
   },
 });

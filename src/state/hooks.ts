@@ -6,11 +6,17 @@ import type { CategoryWithCount, Client, Product, Settings } from '@/types';
 // Stable empty array so effects depending on these lists don't re-fire every render.
 const EMPTY: never[] = [];
 
-// settings.get is the ONE intentionally-public query (store branding is read on
-// the unauthenticated Login boot path), so it is NOT token-gated. See
-// convex/settings.ts for the documented decision.
+// settings.get is session-gated server-side like every other read (owner
+// directive: NOTHING is public). The Login screen never reads settings, so we
+// 'skip' the call until a token exists — no session → no server call, no data.
+// Same pattern as useProducts/useClients/useCategories below.
 export function useSettingsDoc(): Settings | null | undefined {
-  return useCachedQuery(api.settings.get, {}, 'settings');
+  const { token } = useSession();
+  return useCachedQuery(
+    api.settings.get,
+    token ? { token } : 'skip',
+    'settings'
+  ) as Settings | null | undefined;
 }
 
 export function useBsRate(): number {

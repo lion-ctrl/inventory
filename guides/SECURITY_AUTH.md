@@ -81,7 +81,7 @@ funciones con `actorId` (`sales`, `heldCarts`, `products`, `clients`, `categorie
 
 - [ ] **Cerrado y verificado**
 
-> 🔧 **Backend implementado y verde** (2026-06-26). Hecho: `sales.history` y `heldCarts.list` ya NO devuelven `cashierId` y exigen sesión; `clients.create` ahora pide `manage_clients`; `settings.get` se deja **público a propósito** (branding del login). **Falta para CERRAR:** está atada a AUTH-1 — el cliente todavía manda `actorId`, así que end-to-end no corre hasta migrar el grupo 5; más `tsc`/lint + deploy. ⚠️ Ojo: el guard `manage_clients` en `clients.create` puede cambiar el flujo de venta para un cajero sin ese permiso — revisar al migrar el cliente.
+> 🔧 **Backend implementado y verde** (2026-06-26). Hecho: `sales.history` y `heldCarts.list` ya NO devuelven `cashierId` y exigen sesión; `clients.create` ahora pide `manage_clients`; `settings.get` **ahora exige sesión** (`requireSession`) — el dueño revirtió la excepción de branding (el Login no lee settings): **NADA es público salvo `auth.login`**. **Falta para CERRAR:** está atada a AUTH-1 — el cliente todavía manda `actorId`, así que end-to-end no corre hasta migrar el grupo 5; más `tsc`/lint + deploy. ⚠️ Ojo: el guard `manage_clients` en `clients.create` puede cambiar el flujo de venta para un cajero sin ese permiso — revisar al migrar el cliente.
 
 **Problema.** Como el `_id` es la credencial, **cualquier query pública que lo devuelva
 reparte credenciales usables** a quien sepa `VITE_CONVEX_URL` (que viaja en el bundle).
@@ -91,7 +91,7 @@ reparte credenciales usables** a quien sepa `VITE_CONVEX_URL` (que viaja en el b
 | `sales.history` | `convex/sales.ts:217-227` — pública, **sin args** | `cashierId: v.id('employees')` en cada venta |
 | `heldCarts.list` | `convex/heldCarts.ts:12-18` — pública, **sin args** | `cashierId` en cada carrito |
 | `clients.create` | `convex/clients.ts:35` | **sin ningún guard** (cualquiera inserta clientes) |
-| `settings.get` | `convex/settings.ts:6` | lectura pública sin auth |
+| `settings.get` | `convex/settings.ts` | ~~lectura pública sin auth~~ → **gateada con `requireSession`** (revertido 2026-06-29) |
 
 **Exploit.** `fetch` a `sales.history` → tomás un `cashierId` (mapean a empleados reales,
 incluido el dueño) → impersonás (AUTH-1).
@@ -105,7 +105,7 @@ incluido el dueño) → impersonás (AUTH-1).
 **Listo cuando:**
 - [x] `sales.history` / `heldCarts.list` no devuelven `cashierId` y exigen sesión.
 - [x] `clients.create` tiene guard de permisos (`manage_clients`).
-- [x] `settings.get` revisado → **lectura pública a propósito** (branding del login), documentado.
+- [x] `settings.get` **gateada con `requireSession`** (2026-06-29) — el dueño revirtió la excepción de branding (el Login no lee settings); el cliente hace `'skip'` sin token. Ahora `auth.login` es el ÚNICO endpoint sin credencial.
 - [x] TDD: las queries rechazan sin sesión; no exponen `_id` — **tests verdes (vitest)**. _Lint/`tsc` pendiente de `codegen`._
 
 ---
