@@ -127,11 +127,14 @@ function ProductForm({
   categories,
   onSave,
   onCancel,
+  online,
 }: {
   initial: Product | null;
   categories: CategoryWithCount[];
   onSave: (values: ProductFormValues) => void;
   onCancel: () => void;
+  /** Offline blocks the write (FEATURES §18) — create/edit require connection. */
+  online: boolean;
 }) {
   const [form, setForm] = useState<ProductFormState>(() => ({
     name: initial?.name || '',
@@ -184,6 +187,14 @@ function ProductForm({
 
   return (
     <div className="prod-form">
+      {!online && (
+        <Banner
+          tone="warn"
+          icon="wifi-off"
+          title="Sin conexión"
+          message="No disponible sin conexión. Guardar el producto requiere conexión."
+        />
+      )}
       <div className="prod-form-icon-row">
         <div className="prod-form-icon-preview" aria-hidden="true">
           {form.glyph || '📦'}
@@ -334,7 +345,7 @@ function ProductForm({
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button disabled={!valid} onClick={submit}>
+        <Button disabled={!valid || !online} onClick={submit}>
           {initial ? 'Guardar cambios' : 'Crear producto'}
         </Button>
       </div>
@@ -351,6 +362,7 @@ function ProductDetailSheet({
   bsRate,
   catMap,
   reservedUnits = 0,
+  online,
 }: {
   product: Product;
   onClose: () => void;
@@ -361,6 +373,8 @@ function ProductDetailSheet({
   catMap: Map<string, string>;
   /** Units reserved by held ("en espera") carts — informational chip only. */
   reservedUnits?: number;
+  /** Offline blocks the writes (FEATURES §18): edit / adjust stock / delete. */
+  online: boolean;
 }) {
   const [adjust, setAdjust] = useState('');
   if (!product) return null;
@@ -371,6 +385,14 @@ function ProductDetailSheet({
   return (
     <Sheet onClose={onClose} title="Detalle del producto">
       <div className="prod-detail">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="No disponible sin conexión. Editar, ajustar stock y eliminar requieren conexión."
+          />
+        )}
         <div className="prod-detail-head">
           <div className="prod-detail-glyph">{product.glyph}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -450,7 +472,9 @@ function ProductDetailSheet({
             <Button
               size="md"
               icon="check"
-              disabled={delta === null || delta === 0 || isNaN(delta)}
+              disabled={
+                delta === null || delta === 0 || isNaN(delta) || !online
+              }
               onClick={() => {
                 onAdjustStock(product._id, newStock!);
                 setAdjust('');
@@ -470,7 +494,12 @@ function ProductDetailSheet({
       </div>
 
       <div className="prod-detail-actions">
-        <Button icon="edit-3" onClick={() => onEdit(product)} block>
+        <Button
+          icon="edit-3"
+          onClick={() => onEdit(product)}
+          block
+          disabled={!online}
+        >
           Editar
         </Button>
         <div className="row" style={{ gap: 10 }}>
@@ -478,6 +507,7 @@ function ProductDetailSheet({
             variant="danger"
             icon="trash-2"
             onClick={() => onDelete(product)}
+            disabled={!online}
           >
             Eliminar
           </Button>
@@ -493,9 +523,12 @@ function ProductDetailSheet({
 function CategoriesSheet({
   categories,
   onClose,
+  online,
 }: {
   categories: CategoryWithCount[];
   onClose: () => void;
+  /** Offline blocks the writes (FEATURES §18): create / rename / delete. */
+  online: boolean;
 }) {
   // Convex categories.list returns only real categories ('all' is a UI-only
   // sentinel in the parent filter row); `count` is the live product count.
@@ -566,6 +599,14 @@ function CategoriesSheet({
     const targets = real.filter((c) => c._id !== deleting._id);
     return (
       <Sheet onClose={() => setDeleting(null)} title="Eliminar categoría">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="No disponible sin conexión. Eliminar categorías requiere conexión."
+          />
+        )}
         <div className="cat-del">
           <div className="cat-del-head">
             <div className="cat-del-icon">
@@ -626,7 +667,9 @@ function CategoriesSheet({
           <Button
             variant="danger"
             icon="trash-2"
-            disabled={count > 0 && (targets.length === 0 || !reassignTo)}
+            disabled={
+              !online || (count > 0 && (targets.length === 0 || !reassignTo))
+            }
             onClick={() => void confirmDelete()}
           >
             {count > 0 ? 'Reasignar y eliminar' : 'Eliminar'}
@@ -638,6 +681,14 @@ function CategoriesSheet({
 
   return (
     <Sheet onClose={onClose} title="Categorías">
+      {!online && (
+        <Banner
+          tone="warn"
+          icon="wifi-off"
+          title="Sin conexión"
+          message="No disponible sin conexión. Crear, renombrar y eliminar categorías requieren conexión."
+        />
+      )}
       <div className="cat-add-row">
         <Input
           value={newName}
@@ -650,7 +701,7 @@ function CategoriesSheet({
         <Button
           icon="plus"
           onClick={() => void addCategory()}
-          disabled={newName.trim().length < 2}
+          disabled={newName.trim().length < 2 || !online}
         >
           Crear
         </Button>
@@ -680,6 +731,7 @@ function CategoriesSheet({
                       icon="check"
                       ariaLabel="Guardar"
                       onClick={() => void saveRename(cat)}
+                      disabled={!online}
                     />
                     <IconButton
                       icon="x"
@@ -712,11 +764,13 @@ function CategoriesSheet({
                         setEditingId(cat._id);
                         setDraft(cat.label);
                       }}
+                      disabled={!online}
                     />
                     <IconButton
                       icon="trash-2"
                       ariaLabel="Eliminar"
                       onClick={() => startDelete(cat)}
+                      disabled={!online}
                     />
                   </div>
                 </>
@@ -946,7 +1000,12 @@ export default function ProductsScreen() {
             >
               Categorías
             </Button>
-            <Button size="sm" icon="plus" onClick={openNew}>
+            <Button
+              size="sm"
+              icon="plus"
+              onClick={openNew}
+              disabled={!online}
+            >
               Nuevo producto
             </Button>
           </>
@@ -954,6 +1013,15 @@ export default function ProductsScreen() {
       />
 
       <div className="content prod-content">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="Solo lectura. No puedes crear, editar o eliminar productos ni categorías hasta reconectar."
+          />
+        )}
+
         {/* Stats */}
         <div className="prod-stats">
           <div className="prod-stat">
@@ -1178,6 +1246,7 @@ export default function ProductsScreen() {
           bsRate={bsRate}
           catMap={catMap}
           reservedUnits={reserved[detail._id] || 0}
+          online={online}
           onEdit={openEdit}
           onAdjustStock={(...args: Parameters<typeof adjustStock>) => {
             void adjustStock(...args);
@@ -1189,6 +1258,7 @@ export default function ProductsScreen() {
       {catManagerOpen && (
         <CategoriesSheet
           categories={categories}
+          online={online}
           onClose={() => setCatManagerOpen(false)}
         />
       )}
@@ -1204,6 +1274,7 @@ export default function ProductsScreen() {
           <ProductForm
             initial={editing}
             categories={categories}
+            online={online}
             onSave={(...args: Parameters<typeof save>) => {
               void save(...args);
             }}

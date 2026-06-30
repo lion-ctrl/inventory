@@ -34,8 +34,8 @@ export function useBsRate(): number {
 // signature is unchanged (returns Product[]), so every consumer (Products,
 // Dashboard, Scan, Sale, Stored, CartContext) becomes product-offline in one
 // move: online it reads Convex live and mirrors into the `products` table;
-// offline it serves that mirror. (useCategories/useClients/useSettingsDoc stay
-// on useCachedQuery until their own phases.)
+// offline it serves that mirror. (useClients/useSettingsDoc stay on
+// useCachedQuery until their own phases.)
 export function useProducts(): Product[] {
   const { token } = useSession();
   return (
@@ -47,14 +47,21 @@ export function useProducts(): Product[] {
   );
 }
 
+// Phase 2 — Categories: this read is now Dexie-backed via useMirroredQuery. The
+// signature is unchanged (still returns CategoryWithCount[] — the live `count`
+// per category is part of the mirrored doc, so it survives offline as a
+// snapshot), so every consumer (Products, Dashboard, Scan, Sale) becomes
+// category-offline in one move: online it reads Convex live and mirrors into the
+// `categories` table; offline it serves that mirror. (useClients/useSettingsDoc
+// stay on useCachedQuery until their own phases.)
 export function useCategories(): CategoryWithCount[] {
   const { token } = useSession();
   return (
-    (useCachedQuery(
+    useMirroredQuery<CategoryWithCount>(
       api.categories.list,
       token ? { token } : 'skip',
       'categories'
-    ) as CategoryWithCount[] | undefined) ?? EMPTY
+    ) ?? EMPTY
   );
 }
 

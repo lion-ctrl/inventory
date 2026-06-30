@@ -15,8 +15,12 @@ queue drains against Convex when the connection returns.
 phase per screen**. Each screen phase is independently shippable and testable: it
 migrates that screen's reads to the Dexie mirror, says exactly what works offline
 and what stays blocked, names the new hook that replaces the old one, and records
-**which old hook dies in that phase**. `useCachedQuery` is removed in the **final
-phase**, once no hook imports it anymore.
+**which old hook dies in that phase**. **Offline write-blocking (FEATURES §18) is part
+of EACH screen's phase — never deferred:** the same phase that migrates a screen's reads
+ALSO disables that screen's admin writes while offline, with a visible "Sin conexión"
+affordance. That is distinct from offline write *queueing* (the durable `pendingOps`
+queue), a separate capability born in Phase 6 — **blocking a write ≠ queueing it**.
+`useCachedQuery` is removed in the **final phase**, once no hook imports it anymore.
 
 Stack already in place: `convex@^1.36.1`, `vite-plugin-pwa@^1.3.0`, PWA shell + service
 worker registered (`src/main.tsx:28`, `vite.config.ts`). **Not yet installed:** `dexie`,
@@ -58,9 +62,9 @@ lit up. The final phase deletes `useCachedQuery`.
 ```
 Phase 0  Setup (db.ts schema, useMirroredQuery, guarded logout)   ← prerequisite
 Phase 1  Products      ┐ master-data READS → Dexie. Fills the mirror tables that
-Phase 2  Categories    │ every other screen depends on. Pure read-cache, lowest risk,
-Phase 3  Clients       │ no offline writes yet. Each deletes one old useCachedQuery hook.
-Phase 4  Settings      ┘ (ivaPct/bsRate/scannerMode — needed by Scan/Sale/Payment math)
+Phase 2  Categories    │ every other screen depends on. Lowest risk. Reads migrate AND
+Phase 3  Clients       │ each phase blocks its own admin writes offline in-phase (§18);
+Phase 4  Settings      ┘ no offline write QUEUE yet (Phase 6). Each deletes one old hook.
 Phase 5  Scan            lightest consumer of the mirror; PROVES offline scan/search
                          end-to-end before we tackle Venta's writes. No hook deleted.
 Phase 6  Venta/Sale      the heavy one: persistent cart + pendingOps + sales.syncOffline
@@ -78,9 +82,11 @@ Phase 14 Remove useCachedQuery  (final; grep proves zero references).
 Why master-data first: a consumer screen (Scan/Sale/Dashboard/Stored) can only read
 offline once the hook feeding it is Dexie-backed. Why Venta after Scan: Scan is the
 simplest read-only consumer — proving it offline de-risks the much larger Venta phase.
-Why writes start at Venta: it is the first screen that must persist data (cart, sale)
-without the server, so `pendingOps` + the sync engine are born there and then reused by
-later phases (`CUSTOMER_CREATE` from Clients/Sale, future `PRODUCT_CREATE_DRAFT`).
+Why offline write *queueing* starts at Venta (note: admin-write *blocking* already
+happens in every screen's own phase, §18): Venta is the first screen that must persist
+data (cart, sale) without the server, so `pendingOps` + the sync engine are born there
+and then reused by later phases (`CUSTOMER_CREATE` from Clients/Sale, future
+`PRODUCT_CREATE_DRAFT`).
 
 ---
 
@@ -302,10 +308,17 @@ including price/stock **snapshots** and `sellable` status. The products-driven c
 reconciliation in `CartContext.tsx:100-126` keeps reading from this hook, so it self-heals
 from the mirror too.
 
-**Offline (blocked, §18):** `create` / `update` / `setSellable` / `adjustStock` / `remove`
-(`Products.tsx:751-755`) — price changes, stock adjustments, deletes are risky-admin →
-disabled offline with a "requiere conexión" notice. (Optional future: queue
-`PRODUCT_CREATE_DRAFT` once the queue exists in Phase 6.)
+**Offline (blocked, §18) — DONE in this phase:** `create` / `update` / `setSellable` /
+`adjustStock` / `remove` (`Products.tsx`) — price changes, stock adjustments and deletes
+are risky-admin, so **every trigger is disabled offline** with a visible "Sin conexión"
+banner (the app's standard offline-banner affordance, `tone="warn" icon="wifi-off"`).
+Threaded via an `online` prop (from `useOnline`) into each control: the **"Nuevo
+producto"** button, the detail sheet's **Editar / Ajustar stock / Eliminar**, and the
+product form's **submit** (defense-in-depth if the editor is open at disconnect). A
+screen-level banner states the catalog is read-only offline; each sheet repeats the
+notice in context so the disabled buttons are explained. Reads (catalog view) stay fully
+available. (Offline write *queueing* — e.g. a `PRODUCT_CREATE_DRAFT` op — is NOT built
+here; that capability is Phase 6. Blocking ≠ queueing.)
 
 **New hook / old hook deleted:** rewrite `useProducts` (`hooks.ts:31-40`) to call
 `useMirroredQuery(api.products.list, token ? { token } : 'skip', 'products')`. Signature
@@ -315,7 +328,10 @@ CartContext)** become product-offline in one move. **DELETE the old
 
 **Tests (offline):** load Products online once → DevTools Offline → reload → catalog still
 renders from `products` mirror; create/edit/delete are disabled with the offline notice;
-`db.products.count()` matches the server list.
+`db.products.count()` matches the server list. Automated:
+`tests/components/products-offline-blocking.test.tsx` asserts every product write trigger
+is disabled offline + the "Sin conexión" banner shows, and that the same controls are
+enabled online with no banner.
 
 ---
 
@@ -335,8 +351,11 @@ governs that section.
 **Offline (works):** render category chips / filters from the mirror (Scan and Sale filter
 products by `categoryId` against this list).
 
-**Offline (blocked, §18):** category `create` / `update` / `removeWithReassign`
-(`Products.tsx:503-505`) — admin writes, disabled offline.
+**Offline (blocked, §18) — DONE in this phase:** category `create` / `update` /
+`removeWithReassign` (`Products.tsx`, the `CategoriesSheet`). The Categorías sheet still
+**OPENS offline** (reading the list + counts is allowed), but **Crear / Renombrar /
+Eliminar** (and the reassign-delete confirm) are **disabled offline** with a visible "Sin
+conexión" banner inside the sheet. Same `online`-prop threading as Phase 1.
 
 **New hook / old hook deleted:** rewrite `useCategories` (`hooks.ts:42-51`) to
 `useMirroredQuery(api.categories.list, …, 'categories')`. **DELETE the old
@@ -344,7 +363,9 @@ products by `categoryId` against this list).
 Scan, Sale simultaneously.
 
 **Tests (offline):** category chips render offline in Products/Scan/Sale; CRUD modals
-disabled offline.
+disabled offline. Automated: `tests/components/products-offline-blocking.test.tsx`
+asserts the Categorías sheet still opens offline (read) while Crear/Renombrar/Eliminar are
+disabled + the "Sin conexión" banner shows, and that they are enabled online.
 
 ---
 
