@@ -1,5 +1,6 @@
 import { api } from '@convex/_generated/api';
 import { useCachedQuery } from './useCachedQuery';
+import { useMirroredQuery } from './useMirroredQuery';
 import { useSession } from './SessionContext';
 import type { CategoryWithCount, Client, Product, Settings } from '@/types';
 
@@ -28,14 +29,21 @@ export function useBsRate(): number {
 // public endpoints). The acting employee is resolved from the session token, so
 // every read must replay it. No session → 'skip' (no server call, no data),
 // which is correct: only the login-gated screens render these lists.
+//
+// Phase 1 — Products: this read is now Dexie-backed via useMirroredQuery. The
+// signature is unchanged (returns Product[]), so every consumer (Products,
+// Dashboard, Scan, Sale, Stored, CartContext) becomes product-offline in one
+// move: online it reads Convex live and mirrors into the `products` table;
+// offline it serves that mirror. (useCategories/useClients/useSettingsDoc stay
+// on useCachedQuery until their own phases.)
 export function useProducts(): Product[] {
   const { token } = useSession();
   return (
-    (useCachedQuery(
+    useMirroredQuery<Product>(
       api.products.list,
       token ? { token } : 'skip',
       'products'
-    ) as Product[] | undefined) ?? EMPTY
+    ) ?? EMPTY
   );
 }
 

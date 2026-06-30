@@ -19,6 +19,8 @@
     "@fontsource/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "convex": "^1.36.1",
+    "dexie": "^4.4.4",
+    "dexie-react-hooks": "^4.4.0",
     "lucide-react": "^1.17.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

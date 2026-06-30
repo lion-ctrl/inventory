@@ -12,6 +12,37 @@ vi.mock('convex/react', () => ({
   useMutation: vi.fn(),
 }));
 
+// Phase 0/1: useProducts (consumed by CartContext) now reads through
+// useMirroredQuery → Dexie, and the logout guard touches db.pendingOps. Neither
+// IndexedDB nor Dexie's liveQuery exists in jsdom, so stub the local store with a
+// benign in-memory mock (0 unsynced ops) and short-circuit useLiveQuery. These
+// tests assert on the Convex-live path, which is unaffected.
+vi.mock('dexie-react-hooks', () => ({ useLiveQuery: () => undefined }));
+vi.mock('@/state/db', () => {
+  const mirror = () => ({
+    clear: vi.fn(async () => {}),
+    bulkPut: vi.fn(async () => {}),
+    toArray: vi.fn(async () => []),
+  });
+  return {
+    db: {
+      products: mirror(),
+      categories: mirror(),
+      clients: mirror(),
+      settings: mirror(),
+      cartDraft: { clear: vi.fn(async () => {}) },
+      pendingOps: {
+        where: () => ({ anyOf: () => ({ count: async () => 0 }) }),
+      },
+      transaction: vi.fn(async (_mode: unknown, ...rest: unknown[]) => {
+        const scope = rest[rest.length - 1] as () => unknown;
+        return scope();
+      }),
+      delete: vi.fn(async () => {}),
+    },
+  };
+});
+
 import { useMutation, useQuery } from 'convex/react';
 import { getFunctionName } from 'convex/server';
 import { SessionProvider, useSession } from '@/state/SessionContext';

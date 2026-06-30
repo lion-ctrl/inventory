@@ -1,5 +1,7 @@
 # Offline-First Features to Implement
 
+> Implementation roadmap (the **HOW**, with Dexie.js, screen-by-screen): [`OFFLINE_FIRST_PLAN.md`](./OFFLINE_FIRST_PLAN.md)
+
 ## 1. PWA App Shell
 
 - Configure the app as an installable PWA.

@@ -14,6 +14,7 @@ import type { Id } from '@convex/_generated/dataModel';
 import type { Employee } from '@/types';
 import { can as rbacCan } from '@/lib/rbac';
 import type { PermissionId } from '@/lib/rbac';
+import { db } from './db';
 
 // AUTH-5: the bearer credential is the SESSION TOKEN minted by auth.login. The
 // client persists ONLY the token (+ its idle deadline) — never the employee id;
@@ -99,13 +100,60 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const clearLocalSession = useCallback(() => {
     try {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(EXPIRES_KEY);
+      localStorage.removeItem(TOKEN_KEY); // pos.sessionToken
+      localStorage.removeItem(EXPIRES_KEY); // pos.sessionExpiresAt
     } catch {
       /* ignore */
     }
+    // Drop React session state immediately for an instant UI logout (the server
+    // session is revoked separately by `logout`). The Dexie teardown below runs
+    // in the background and must never block — or fail — the logout.
     setToken(null);
     setExpiresAt(null);
+
+    // GUARD (Phase 0.4 — DECIDED POLICY): logout must NOT destroy unconfirmed
+    // durable writes. The disposable mirror (products/categories/clients/
+    // settings), cartDraft and meta MAY be cleared, but pendingOps the backend
+    // has NOT yet confirmed MUST survive — only the sync engine (Phase 6)
+    // deletes a pending op, and only after the server confirms receipt.
+    void (async () => {
+      try {
+        const unsynced = await db.pendingOps
+          .where('status')
+          .anyOf('pending', 'syncing', 'failed', 'conflict')
+          .count();
+
+        if (unsynced > 0) {
+          // Clear ONLY the disposable mirror + cartDraft. pendingOps (+ their
+          // idempotency keys) SURVIVE; the sync engine drains them after
+          // re-login and deletes each on server confirmation. (Phases 0-5 never
+          // reach this branch — the count is 0.)
+          await db.transaction(
+            'rw',
+            db.products,
+            db.categories,
+            db.clients,
+            db.settings,
+            db.cartDraft,
+            () =>
+              Promise.all([
+                db.products.clear(),
+                db.categories.clear(),
+                db.clients.clear(),
+                db.settings.clear(),
+                db.cartDraft.clear(),
+              ])
+          );
+        } else {
+          // No durable writes at risk → safe full wipe (also self-heals a
+          // corrupted store). pendingOps is never cleared here either: this
+          // branch only runs when the unsynced count is 0.
+          await db.delete();
+        }
+      } catch {
+        /* local-store maintenance is best-effort; never block logout */
+      }
+    })();
   }, []);
 
   // One-time boot effect: wipe the legacy pre-AUTH-5 employee-id key and seed the
@@ -120,6 +168,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // storage may be unavailable.
     try {
       localStorage.removeItem('pos.employeeId');
+      // One-time legacy cleanup (Phase 0.4): shed the old localStorage read
+      // mirror written by useCachedQuery (posCache.*). The Dexie mirror replaces
+      // it; leaving these keys behind would re-leak cached business data to a
+      // logged-out device on old installs.
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('posCache.')) localStorage.removeItem(key);
+      }
     } catch {
       /* ignore */
     }
