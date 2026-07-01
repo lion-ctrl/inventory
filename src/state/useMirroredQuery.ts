@@ -25,8 +25,19 @@ export function useMirroredQuery<T extends { _id: string }>(
   useEffect(() => {
     if (live === undefined) return; // loading / offline → keep last mirror
     void db.transaction('rw', db[table], async () => {
+      // Preserve locally-created (offline) rows tagged `_local` across the refresh.
+      // The server result does NOT yet include a queued draft (e.g. a Phase 6.2
+      // offline client), so a naive clear()+bulkPut(live) would WIPE it. Read the
+      // `_local` rows first and re-put them after the live refresh. No-op for tables
+      // with no drafts (products/categories). The sync engine (Phase 6.4) removes a
+      // draft only after it is remapped to the real Convex row.
+      const all: Array<{ _local?: boolean }> = await (
+        db[table] as any
+      ).toArray();
+      const localRows = all.filter((r) => r._local === true);
       await db[table].clear(); // full refresh (small single-store POS)
       await (db[table] as any).bulkPut(live); // bulkPut upserts by _id
+      if (localRows.length > 0) await (db[table] as any).bulkPut(localRows);
     });
   }, [live, table]);
 

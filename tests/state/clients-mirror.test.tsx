@@ -153,4 +153,33 @@ describe('useClients (Phase 3 — Dexie-backed)', () => {
     // A logged-out device must not read the local client mirror.
     expect(store.clients.toArray).not.toHaveBeenCalled();
   });
+
+  // Phase 6.2 — an offline-created client (minted with a `local:` id and tagged
+  // `_local`) lives in the same `clients` mirror. The background refresh does
+  // clear() + bulkPut(live), and the reconnected server result does NOT yet include
+  // the draft — so without preservation it would be WIPED. useMirroredQuery reads
+  // the `_local` rows first and re-puts them after the live refresh.
+  test('a queued local client survives the mirror refresh (clear + bulkPut does not wipe it)', async () => {
+    const localClient = {
+      _id: 'local:abc',
+      name: 'Juan Pérez (offline)',
+      taxPrefix: 'V',
+      taxId: '9.999.999',
+      kind: 'person',
+      createdAt: 99,
+      _local: true,
+    };
+    // The mirror state read just before the refresh holds the queued draft.
+    store.clients.toArray.mockImplementation(async () => [localClient]);
+    useQueryMock.mockReturnValue(LIVE); // server reconnects; result excludes the draft
+
+    renderHook(() => useClients());
+
+    await waitFor(() => {
+      // The fresh live rows are written…
+      expect(store.clients.bulkPut).toHaveBeenCalledWith(LIVE);
+      // …and the `_local` draft is re-put, so it is NOT wiped by the refresh.
+      expect(store.clients.bulkPut).toHaveBeenCalledWith([localClient]);
+    });
+  });
 });

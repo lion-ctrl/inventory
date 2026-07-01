@@ -26,6 +26,7 @@ import {
   useSettingsDoc,
 } from '@/state/hooks';
 import { useOnline } from '@/state/useOnline';
+import { createOfflineClient } from '@/state/offlineClient';
 import type { CartItem, Client, Product, SplitRow } from '@/types';
 import { splitUsd } from './Payment';
 import { ClientForm, ClientPickerSheet, formatTaxId } from './Clients';
@@ -1278,7 +1279,6 @@ export function ClientGate({
                   type="button"
                   icon="user-plus"
                   onClick={() => onCreateClient({ prefix, taxId })}
-                  disabled={!online}
                 >
                   Crear cliente
                 </Button>
@@ -1336,6 +1336,28 @@ export default function SaleScreen({
     phone?: string;
     address?: string;
   }) => {
+    // Phase 6.2 — offline CUSTOMER_CREATE. Offline: mint a local id, mirror a
+    // `_local` client row and enqueue a CUSTOMER_CREATE op; the cart proceeds with
+    // the local id and the sync engine (Phase 6.4) remaps it to the real client on
+    // reconnect. Online: the unchanged direct api.clients.create path (Convex owns
+    // the id).
+    if (!online) {
+      try {
+        const localId = await createOfflineClient({
+          name: form.name,
+          taxPrefix: form.taxPrefix as Client['taxPrefix'],
+          taxId: form.taxId,
+          kind: form.kind as Client['kind'],
+          email: form.email,
+          phone: form.phone,
+          address: form.address,
+        });
+        setSelectedClientId(localId);
+      } catch {
+        alert('No se pudo guardar el cliente sin conexión. Intenta de nuevo.');
+      }
+      return;
+    }
     try {
       const created = await createClient({
         token: token!,
@@ -1568,6 +1590,7 @@ export default function SaleScreen({
             >
               <ClientForm
                 online={online}
+                queueOffline
                 initial={
                   prefillCreate
                     ? {
@@ -2009,6 +2032,7 @@ export default function SaleScreen({
           <ClientPickerSheet
             clients={clients}
             online={online}
+            queueOffline
             currentId={selectedClient?._id}
             onPick={(c: Client) => {
               onSelectClient(c._id);
@@ -2041,6 +2065,7 @@ export default function SaleScreen({
           >
             <ClientForm
               online={online}
+              queueOffline
               initial={
                 prefillCreate
                   ? {
@@ -2094,6 +2119,7 @@ export default function SaleScreen({
           >
             <ClientForm
               online={online}
+              queueOffline
               initial={
                 prefillCreate
                   ? {
@@ -2297,6 +2323,7 @@ export default function SaleScreen({
         <ClientPickerSheet
           clients={clients}
           online={online}
+          queueOffline
           currentId={selectedClient?._id}
           onPick={(c: Client) => {
             onSelectClient(c._id);
@@ -2323,6 +2350,7 @@ export default function SaleScreen({
         <Sheet onClose={() => setClientFormOpen(false)} title="Nuevo cliente">
           <ClientForm
             online={online}
+            queueOffline
             onSave={(form: any) => {
               void onCreateClient(form);
               setClientFormOpen(false);

@@ -260,6 +260,13 @@ export interface ClientFormProps {
   onCancel: () => void;
   /** Offline blocks the write (FEATURES §18) — create/edit require connection. */
   online: boolean;
+  /**
+   * Phase 6.2 — Venta only. When true the offline write is QUEUED (CUSTOMER_CREATE)
+   * instead of blocked, so Save stays enabled offline and the notice explains the
+   * client will sync on reconnect. Clients.tsx admin create/edit leaves it false
+   * (stays blocked offline).
+   */
+  queueOffline?: boolean;
 }
 
 export function ClientForm({
@@ -267,6 +274,7 @@ export function ClientForm({
   onSave,
   onCancel,
   online,
+  queueOffline = false,
 }: ClientFormProps) {
   const kindFromPrefix = (p: string): Client['kind'] =>
     p === 'J' ? 'business' : p === 'E' ? 'foreign' : 'person';
@@ -317,7 +325,11 @@ export function ClientForm({
           tone="warn"
           icon="wifi-off"
           title="Sin conexión"
-          message="No disponible sin conexión. Guardar el cliente requiere conexión."
+          message={
+            queueOffline
+              ? 'El cliente se guardará y se sincronizará al reconectar.'
+              : 'No disponible sin conexión. Guardar el cliente requiere conexión.'
+          }
         />
       )}
       <label className="client-field">
@@ -399,7 +411,7 @@ export function ClientForm({
           Cancelar
         </Button>
         <Button
-          disabled={!canSave || !dirty || !online}
+          disabled={!canSave || !dirty || (!online && !queueOffline)}
           onClick={() => onSave({ ...form, kind })}
         >
           {initial ? 'Guardar cambios' : 'Crear cliente'}
@@ -419,6 +431,11 @@ export interface ClientPickerSheetProps {
   onCreate?: () => void;
   /** Offline blocks creating a client (FEATURES §18); search/pick stay available. */
   online: boolean;
+  /**
+   * Phase 6.2 — Venta only. When true, "Crear nuevo cliente" stays enabled offline
+   * (the create is QUEUED, not blocked). Clients.tsx leaves it false.
+   */
+  queueOffline?: boolean;
 }
 
 export function ClientPickerSheet({
@@ -428,6 +445,7 @@ export function ClientPickerSheet({
   onClose,
   onCreate,
   online,
+  queueOffline = false,
 }: ClientPickerSheetProps) {
   const [q, setQ] = useState('');
   const norm = (s?: string) => (s || '').toLowerCase();
@@ -451,7 +469,11 @@ export function ClientPickerSheet({
           tone="warn"
           icon="wifi-off"
           title="Sin conexión"
-          message="Puedes buscar y seleccionar un cliente existente. Crear un cliente requiere conexión."
+          message={
+            queueOffline
+              ? 'Puedes buscar, seleccionar o crear un cliente; el nuevo cliente se sincronizará al reconectar.'
+              : 'Puedes buscar y seleccionar un cliente existente. Crear un cliente requiere conexión.'
+          }
         />
       )}
       <Input
@@ -467,7 +489,7 @@ export function ClientPickerSheet({
           icon="user-plus"
           onClick={() => onCreate && onCreate()}
           block
-          disabled={!online}
+          disabled={!online && !queueOffline}
         >
           Crear nuevo cliente
         </Button>

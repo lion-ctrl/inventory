@@ -117,7 +117,11 @@ describe('Clientes — offline write-blocking (FEATURES §18)', () => {
   });
 });
 
-describe('Venta · ClientGate — offline blocks "Crear cliente" (FEATURES §18)', () => {
+// Phase 6.2 supersedes the Phase 3 block for Venta's ClientGate: offline create is
+// now QUEUE-able (CUSTOMER_CREATE), so "Crear cliente" is ENABLED offline and fires
+// the inline create (the SaleScreen handler mints a local id + enqueues the op).
+// The Clients.tsx admin create/edit/delete above stays blocked offline.
+describe('Venta · ClientGate — offline create is queued, not blocked (Phase 6.2)', () => {
   const renderGate = (online: boolean, onCreateClient = vi.fn()) => {
     render(
       <ClientGate
@@ -130,21 +134,28 @@ describe('Venta · ClientGate — offline blocks "Crear cliente" (FEATURES §18)
     return { onCreateClient };
   };
 
-  test('offline: searching stays allowed (read) but "Crear cliente" is blocked', async () => {
+  test('offline: searching stays allowed and "Crear cliente" fires the queued create', async () => {
     const user = userEvent.setup();
-    renderGate(false);
+    const { onCreateClient } = renderGate(false);
 
     // Buscar cliente (search/read) stays enabled offline.
     const search = btn(/Buscar cliente/);
     expect(search).toHaveProperty('disabled', false);
 
-    // An unknown id surfaces the create prompt — but the create write is blocked.
+    // An unknown id surfaces the create prompt — offline it is now ACTIONABLE.
     await user.type(screen.getByPlaceholderText('12.345.678'), '9999999');
     await user.click(search);
 
-    expect(btn(/Crear cliente/)).toHaveProperty('disabled', true);
-    // The standard "Sin conexión" banner is present.
+    const create = btn(/Crear cliente/);
+    expect(create).toHaveProperty('disabled', false);
+    // The offline banner still shows (the sale syncs on reconnect).
     expect(screen.getByText('Sin conexión')).toBeDefined();
+
+    await user.click(create);
+    expect(onCreateClient).toHaveBeenCalledWith({
+      prefix: 'V',
+      taxId: '9.999.999',
+    });
   });
 
   test('online: "Crear cliente" is enabled and fires the inline create', async () => {
