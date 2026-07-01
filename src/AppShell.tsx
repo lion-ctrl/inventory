@@ -17,6 +17,7 @@ import { useSession } from '@/state/SessionContext';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
 import { useBsRate } from '@/state/hooks';
+import { db } from '@/state/db';
 import type { PermissionId } from '@/lib/rbac';
 import type { CartItem, CleanSplit } from './types';
 
@@ -249,6 +250,7 @@ export default function AppShell() {
       cart.setCart([]);
       cart.setSelectedClientId(null);
       cart.resetPayment();
+      void db.cartDraft.delete('active'); // drop the persisted draft (Phase 6.1)
       void navigate('/venta/exito');
     } catch (e: any) {
       alert(

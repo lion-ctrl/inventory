@@ -454,7 +454,7 @@ returns the cached rate offline (verify the Payment Bs total and Sale IVA comput
 
 ---
 
-## Phase 5 — Scan (`/escanear`, any role) — offline search proof
+## Phase 5 — Scan (`/escanear`, any role) — offline search proof — DONE
 
 **Consumes today:** `useBsRate()` (`Scan.tsx:145`), `useProducts()` (`147`),
 `useCart().reserved` (`149`), `useCategories()` (`150`), `useSettingsDoc()` (`151`). Plus
@@ -476,12 +476,20 @@ the camera scanner boots offline too.
 **Offline (works):** full barcode/SKU/name lookup and category browse from the mirror —
 read-only.
 
-**Offline (blocked):** nothing — Scan is read-only. **Add** a banner: "Sin conexión —
-precios y stock pueden estar desactualizados" (FEATURES §4) driven by `useOnline`.
+**Offline (blocked) — DONE in this phase:** nothing — Scan is read-only, so there is no
+admin write to block here. The one deliverable is the **outdated-data affordance**: the
+screen-level offline `Banner` (`Scan.tsx`, `tone="warn" icon="wifi-off"`, driven by
+`useOnline`) now warns that **BOTH prices and stock** may be stale — copy updated to
+`title="Sin conexión"` / `message="Los precios y el stock pueden estar desactualizados."`
+(FEATURES §4 requires stock **and** prices; the prior copy mentioned only prices). No hook
+migration, no write-blocking — products/categories/settings are already Dexie-backed
+(Phases 1, 2, 4) and offline search already works in-memory with zero Scan changes.
 
-**Tests (offline):** Offline → scan a known barcode (HID + camera) → product resolves from
-the mirror; search by name/SKU returns cached matches; the "datos desactualizados" banner
-shows offline and hides online.
+**Tests (offline):** `tests/components/scan-offline.test.tsx` — the "datos desactualizados"
+banner shows offline and hides online; the cached catalog renders and search by
+name/SKU/barcode filters it offline; an offline HID barcode scan of a cached product
+resolves against the catalog and opens its info sheet. (The camera scan path shares the
+same `catalog.find` lookup and is covered by `camera-scanner.test.tsx`.)
 
 ---
 
@@ -547,6 +555,55 @@ keep StrictMode's double-effects (`main.tsx:33`) safe.
 Each offline write becomes a row (Phase 0.2 shape). The CUSTOMER_CREATE draft specced in
 Phase 3 activates now: when offline, `Sale`'s inline create (`Sale.tsx:1322`) enqueues a
 `CUSTOMER_CREATE` op and inserts a local client row so the cart can proceed; it syncs later.
+
+### 6.2.1 End-to-end flow — a NEW client + its sale, created offline (id resolution)
+
+This is the subtle piece the rest of 6.3-6.5 hinge on, so it gets its own picture.
+**Convex owns every `_id`** — a client's real id only exists after the server inserts it.
+Offline you don't have it, yet the sale must reference the client. The solution is
+**local ids while offline, then a `createdAt`-ordered sync that remaps local → real before
+the dependent op is sent.**
+
+**Offline — the cashier creates "Juan Pérez" (new) and sells to him:**
+
+1. Mint a **local id** `local:abc`; insert a Dexie `clients` row with it AND enqueue a
+   `CUSTOMER_CREATE` op carrying `local:abc`. This op is created FIRST → smaller `createdAt`.
+2. The cart proceeds with `selectedClientId = local:abc`.
+3. Checkout enqueues a `SALE_CREATE` whose `clientId = local:abc` — a **local reference**,
+   not a real `Id<'clients'>`. Created after the client → larger `createdAt`.
+
+**Online — the sync engine (6.4) drains `pendingOps` in `createdAt` order:**
+
+```
+  pendingOps  (createdAt ↑)                     Convex
+  ┌────────────────────────────┐
+  │ ① CUSTOMER_CREATE           │ ──►  clients.create  ──►  real _id = k17xyz
+  │      localId = local:abc    │                               │
+  └────────────────────────────┘        store in `meta`:  local:abc → k17xyz
+                                                                 │
+  ┌────────────────────────────┐                                ▼
+  │ ② SALE_CREATE               │ ──►  rewrite clientId: local:abc → k17xyz
+  │      clientId = local:abc   │      then sales.syncOffline({ clientId: k17xyz, … })
+  │      idempotencyKey = K      │ ──►  official sale + invoice #
+  └────────────────────────────┘
+```
+
+**Three rules keep it safe:**
+
+- **`createdAt` order = dependency order.** The client is enqueued before the sale, so its
+  `CUSTOMER_CREATE` syncs first. Backstop: if a `SALE_CREATE` still holds an *unresolved*
+  `local:` id (no map entry yet), the engine **skips it this pass** and retries after the
+  client resolves — a sale never reaches the server with a local id.
+- **Remap local → real.** On `CUSTOMER_CREATE` success the engine writes `local:abc → k17xyz`
+  into the `meta` table and rewrites every queued op that referenced `local:abc` before it
+  is sent.
+- **Idempotency (6.3).** Every op carries an `idempotencyKey`; a retry after the server
+  already accepted it returns the existing row, never a duplicate. So "the client and the
+  sale land together" holds even across retries, reloads, or a crash mid-sync.
+
+**Conflict case:** if `CUSTOMER_CREATE` collides with an existing server client (same tax
+id → §15), the engine maps `local:abc` to that existing `_id` and continues — the sale
+still lands on the correct client.
 
 ### 6.3 Idempotent sync mutation — new `sales.syncOffline` (FEATURES §8-9)
 

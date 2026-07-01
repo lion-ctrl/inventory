@@ -25,6 +25,7 @@ import type {
 } from '@/types';
 import { useSession } from './SessionContext';
 import { useClients, useProducts } from './hooks';
+import { db } from './db';
 
 interface CartValue {
   cart: CartItem[];
@@ -94,6 +95,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     cartRef.current = cart;
   }, [cart]);
 
+  // Phase 6.1 — persistent cart. The in-progress sale (cart + selected client +
+  // payment splits + next split id) lives in React state and would die on reload;
+  // write it through to the durable `cartDraft` singleton on every change and
+  // hydrate it once on mount. `hydratedRef` gates the write-through so the initial
+  // empty state never clobbers a saved draft, and — with the fixed 'active' key
+  // making `put` an idempotent upsert — keeps StrictMode's double-invoked effects
+  // (main.tsx) safe. A restored draft self-heals against live products through the
+  // reconciliation effect below (deleted/paused lines pruned), so no extra work here.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    // 1) Hydrate ONCE, before any write-through.
+    void (async () => {
+      const draft = await db.cartDraft.get('active');
+      if (draft) {
+        setCart(draft.cart);
+        setSelectedClientId(draft.selectedClientId);
+        setSplits(draft.splits);
+        splitsIdRef.current = draft.splitsNextId;
+      }
+      hydratedRef.current = true;
+    })();
+  }, []);
+  useEffect(() => {
+    // 2) Write-through on every mutation, guarded until hydration has run.
+    if (!hydratedRef.current) return; // don't clobber the saved draft with []
+    void db.cartDraft.put({
+      id: 'active',
+      cart,
+      selectedClientId,
+      splits,
+      splitsNextId: splitsIdRef.current,
+      updatedAt: Date.now(),
+    });
+  }, [cart, selectedClientId, splits]);
+
   // Port of the prototype's setProductsAndSyncCart: when products change, refresh
   // the cart snapshots and drop lines that became unsellable (paused) or were
   // removed. Paused lines are also recorded so the cashier gets a notice.
@@ -152,6 +188,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setCart([]);
       setSelectedClientId(null);
       resetPayment();
+      void db.cartDraft.delete('active'); // drop the persisted draft (Phase 6.1)
     };
     return {
       cart,

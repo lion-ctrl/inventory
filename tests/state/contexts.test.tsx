@@ -30,7 +30,15 @@ vi.mock('@/state/db', () => {
       categories: mirror(),
       clients: mirror(),
       settings: mirror(),
-      cartDraft: { clear: vi.fn(async () => {}) },
+      // Phase 6.1: CartProvider hydrates from + writes through to cartDraft.
+      // No saved draft here (get → undefined), so these tests keep asserting the
+      // Convex-live cart behavior; put/delete are benign no-ops.
+      cartDraft: {
+        clear: vi.fn(async () => {}),
+        get: vi.fn(async () => undefined),
+        put: vi.fn(async () => {}),
+        delete: vi.fn(async () => {}),
+      },
       pendingOps: {
         where: () => ({ anyOf: () => ({ count: async () => 0 }) }),
       },
