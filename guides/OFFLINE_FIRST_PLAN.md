@@ -412,7 +412,7 @@ stay enabled; the same controls enabled online with no banner).
 
 ---
 
-## Phase 4 — Settings (`/ajustes`, `manage_settings`)
+## Phase 4 — Settings (`/ajustes`, `manage_settings`) — DONE
 
 **Consumes today:** `useSettingsDoc()` (`Settings.tsx:235`; also `Scan.tsx:151`,
 `Sale.tsx:1307`, `Payment.tsx:381`, and indirectly **every** `useBsRate()` caller). Writes
@@ -425,8 +425,15 @@ via `api.settings.update` (`Settings.tsx:236`).
 `taxName`, `currency` (`schema.ts:158-175`) — from the mirror. This is what makes Scan's
 camera/physical mode, Sale's IVA math, and Payment's Bs conversion work offline.
 
-**Offline (blocked, §18):** all edits (`Settings.tsx:236`, tax/rate/config) — disabled
-offline.
+**Offline (blocked, §18) — DONE in this phase:** every `settings.update` write is
+disabled offline via an `online` prop (from `useOnline`) + the standard "Sin conexión"
+`Banner` (`tone="warn" icon="wifi-off"`) — same affordance as Phases 1-3. Blocked: the
+four preference **toggles** (`printAuto`/`emailReceipt`/`lowStockAlerts`/`soundScan`,
+which call `settings.update` on tap) and the **Guardar** button of every editor sheet
+(store / billing-taxes / bs-rate / currency / scanner). A screen-level banner states the
+config is read-only offline; each editor sheet repeats the notice in context and its
+Guardar is disabled. The `save` helper also no-ops offline (defense-in-depth). Editor
+sheets still **OPEN offline** to VIEW current values (read) — only the write is blocked.
 
 **New hook / old hook deleted:** rewrite `useSettingsDoc` (`hooks.ts:13-20`) to the Dexie
 singleton pattern. `useBsRate` (`hooks.ts:22-25`) needs **no change** — it reads
@@ -434,8 +441,13 @@ singleton pattern. `useBsRate` (`hooks.ts:22-25`) needs **no change** — it rea
 Stored, Products, History all get the offline `bsRate`). **DELETE the old
 `useCachedQuery`-based body of `useSettingsDoc`.**
 
-> After Phase 4, **all four** `useCachedQuery` consumers are gone. `useCachedQuery.ts`
-> now has zero importers but is deleted in Phase 14 (keep the diff focused per phase).
+> **After Phase 4 (now done), all four** `useCachedQuery` consumers are gone —
+> `useSettingsDoc` was the LAST one. `useCachedQuery.ts` now has **zero importers**
+> (`rg -n "useCachedQuery" src` shows only its own definition + a one-line orphan
+> notice), but it is left in place and deleted in Phase 14 (keep the diff focused per
+> phase). `useSettingsDoc` follows the Dexie singleton adaptation of `useMirroredQuery`
+> (`db.settings.put(live)` / `db.settings.toCollection().first()`), so `useBsRate` — and
+> every screen through it — is Dexie-backed automatically.
 
 **Tests (offline):** Settings renders config offline; edits disabled; `useBsRate()`
 returns the cached rate offline (verify the Payment Bs total and Sale IVA compute offline).

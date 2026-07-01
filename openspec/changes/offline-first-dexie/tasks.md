@@ -29,12 +29,12 @@
 - [x] 3.2 (write-blocking §18) Disabled `create`/`update`/`remove` offline in `Clients.tsx` (the "Nuevo cliente" button, the detail sheet's Editar/Eliminar, the client-form submit, the picker's "Crear nuevo cliente") AND `Sale.tsx`'s ClientGate "Crear cliente" — via an `online` prop + a "Sin conexión" banner. The list/search and selecting an EXISTING client stay offline-capable. Offline `create` as a queued `CUSTOMER_CREATE` draft is SPECCED here but ACTIVATED in Phase 6 (the queue is born in Venta); until then `create` is BLOCKED, not queued.
 - [x] 3.3 Tests: `tests/state/clients-mirror.test.tsx` (Convex-primary mirror + Dexie offline fallback with the tax identity intact + `'skip'` ⇒ `[]`); `tests/components/clients-offline-blocking.test.tsx` (every client write trigger disabled offline with the "Sin conexión" banner; search/select stay enabled; same controls enabled online).
 
-## Phase 4 — Settings (`/ajustes`, `manage_settings`)
+## Phase 4 — Settings (`/ajustes`, `manage_settings`) — DONE
 
-- [ ] 4.1 (read-mirror) Rewrite `useSettingsDoc` (`src/state/hooks.ts:14-21`) to the Dexie singleton pattern (`db.settings.put(live)` / `toCollection().first()`). `useBsRate` needs no change — it reads `useSettingsDoc`, so it becomes Dexie-backed for free everywhere. **DELETE the old `useCachedQuery` body of `useSettingsDoc`.**
-- [ ] 4.2 (write-blocking §18) Disable all Settings edits (`Settings.tsx`, tax/rate/config) offline; `storeName`/`bsRate`/`ivaPct`/`scannerMode`/`taxName`/`currency` read from the mirror so Scan/Sale/Payment math works offline.
-- [ ] 4.3 After Phase 4 all four `useCachedQuery` consumers are gone (`useCachedQuery.ts` has zero importers; deleted in Phase 14).
-- [ ] 4.4 Tests: Settings renders config offline; edits disabled; `useBsRate()` returns the cached rate (Payment Bs total + Sale IVA compute offline).
+- [x] 4.1 (read-mirror) Rewrote `useSettingsDoc` (`src/state/hooks.ts`) to the Dexie singleton adaptation of the `useMirroredQuery` pattern (live `useQuery` → background `db.settings.clear()` + `db.settings.put(live)`; offline fallback `db.settings.toCollection().first()`; `'skip'` ⇒ `null`). `useBsRate` needed no change — it reads `useSettingsDoc`, so it is Dexie-backed for free everywhere. **DELETED the old `useCachedQuery` body of `useSettingsDoc`.**
+- [x] 4.2 (write-blocking §18) Disabled every `settings.update` write offline in `Settings.tsx` (the four preference toggles + each editor sheet's Guardar) via an `online` prop + a screen-level and per-sheet "Sin conexión" `Banner`; `save` also no-ops offline. `storeName`/`bsRate`/`ivaPct`/`scannerMode`/`taxName`/`currency` read from the mirror so Scan/Sale/Payment math works offline; editor sheets still open to VIEW values offline.
+- [x] 4.3 After Phase 4 all four `useCachedQuery` consumers are gone — `useSettingsDoc` was the last. `useCachedQuery.ts` now has zero importers (`rg -n "useCachedQuery" src` → only its own definition + orphan notice); left in place, deleted in Phase 14.
+- [x] 4.4 Tests: `tests/state/settings-mirror.test.tsx` (Convex-primary singleton mirror + Dexie offline fallback + `'skip'` ⇒ `null`; `useBsRate` online/offline/skip); `tests/components/settings-offline-blocking.test.tsx` (toggles + editor Guardar disabled offline with the "Sin conexión" banner; enabled online; editor still opens offline to read).
 
 ## Phase 5 — Scan (`/escanear`, any role) — offline search proof
 

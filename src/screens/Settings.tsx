@@ -5,7 +5,7 @@ import { useState } from 'react';
 import type { ChangeEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { AppBar, Button, Chip, Icon, Input, Sheet } from '@/components';
+import { AppBar, Banner, Button, Chip, Icon, Input, Sheet } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { useSettingsDoc } from '@/state/hooks';
@@ -79,6 +79,8 @@ interface SettingToggleRowProps {
   value: boolean;
   onChange: (v: boolean) => void;
   last?: boolean;
+  /** Offline blocks the write (FEATURES §18) — the toggle calls settings.update. */
+  disabled?: boolean;
 }
 
 function SettingToggleRow({
@@ -88,6 +90,7 @@ function SettingToggleRow({
   value,
   onChange,
   last,
+  disabled,
 }: SettingToggleRowProps) {
   return (
     <div className={`set-row toggle ${last ? 'last' : ''}`}>
@@ -106,6 +109,7 @@ function SettingToggleRow({
         aria-checked={value}
         aria-label={label}
         onClick={() => onChange(!value)}
+        disabled={disabled}
       >
         <span className="set-switch-knob" />
       </button>
@@ -151,6 +155,8 @@ interface SettingsEditSheetProps {
   values: Record<string, string>;
   onSave: (form: Record<string, string>) => void;
   onClose: () => void;
+  /** Offline blocks the write (FEATURES §18) — Guardar calls settings.update. */
+  online: boolean;
 }
 
 function SettingsEditSheet({
@@ -159,6 +165,7 @@ function SettingsEditSheet({
   values,
   onSave,
   onClose,
+  online,
 }: SettingsEditSheetProps) {
   const [form, setForm] = useState(values);
   const set =
@@ -173,6 +180,14 @@ function SettingsEditSheet({
   return (
     <Sheet onClose={onClose} title={title}>
       <div className="set-form">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="No disponible sin conexión. Guardar los ajustes requiere conexión."
+          />
+        )}
         {fields.map((f) => (
           <label className="client-field" key={f.key}>
             <span>{f.label}</span>
@@ -220,7 +235,7 @@ function SettingsEditSheet({
           <Button variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button disabled={!dirty} onClick={() => onSave(form)}>
+          <Button disabled={!dirty || !online} onClick={() => onSave(form)}>
             Guardar
           </Button>
         </div>
@@ -255,6 +270,7 @@ export default function SettingsScreen() {
   const [editor, setEditor] = useState<{ kind: string } | null>(null); // {kind}
 
   const save = async (patch: SettingsPatch) => {
+    if (!online) return; // FEATURES §18 — settings edits are blocked offline
     try {
       await update({ token: token!, patch });
     } catch (e: any) {
@@ -279,6 +295,14 @@ export default function SettingsScreen() {
       <AppBar title="Ajustes" online={online} />
 
       <div className="content set-content">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="Solo lectura. Los ajustes requieren conexión para editarse."
+          />
+        )}
         {/* Account header card */}
         <div className="set-account">
           <div className="set-account-avatar">
@@ -365,6 +389,7 @@ export default function SettingsScreen() {
             sub="Imprime el recibo al cobrar"
             value={printAuto}
             onChange={(v) => void save({ printAuto: v })}
+            disabled={!online}
           />
           <SettingToggleRow
             icon="mail"
@@ -372,6 +397,7 @@ export default function SettingsScreen() {
             sub="Si el cliente tiene email registrado"
             value={emailReceipt}
             onChange={(v) => void save({ emailReceipt: v })}
+            disabled={!online}
             last
           />
         </SettingsSection>
@@ -384,6 +410,7 @@ export default function SettingsScreen() {
             sub="Avisar cuando un producto baje del mínimo"
             value={lowStockAlerts}
             onChange={(v) => void save({ lowStockAlerts: v })}
+            disabled={!online}
           />
           <SettingToggleRow
             icon="volume-2"
@@ -391,6 +418,7 @@ export default function SettingsScreen() {
             sub="Bip de confirmación de lectura"
             value={soundScan}
             onChange={(v) => void save({ soundScan: v })}
+            disabled={!online}
           />
           <SettingRow
             icon="scan-line"
@@ -470,6 +498,7 @@ export default function SettingsScreen() {
           ]}
           onSave={() => setEditor(null)}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
 
@@ -498,6 +527,7 @@ export default function SettingsScreen() {
             setEditor(null);
           }}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
 
@@ -528,6 +558,7 @@ export default function SettingsScreen() {
             setEditor(null);
           }}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
 
@@ -551,6 +582,7 @@ export default function SettingsScreen() {
             setEditor(null);
           }}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
 
@@ -571,6 +603,7 @@ export default function SettingsScreen() {
             setEditor(null);
           }}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
 
@@ -594,6 +627,7 @@ export default function SettingsScreen() {
             setEditor(null);
           }}
           onClose={() => setEditor(null)}
+          online={online}
         />
       )}
     </>

@@ -1,3 +1,6 @@
+// ORPHANED (Phase 4): useSettingsDoc — the last importer — migrated to the Dexie
+// singleton mirror, so this hook now has ZERO importers. Kept intentionally until
+// Phase 14 removes it (see guides/OFFLINE_FIRST_PLAN.md); do NOT add new importers.
 import { useEffect, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 
