@@ -202,12 +202,15 @@ export default function ScanScreen() {
       <AppBar title="Escanear" sub="Consulta de producto" online={online} />
 
       <div className="content scan-screen">
+        {/* Offline affordance (FEATURES §4): the catalog renders from the Dexie
+            mirror, so barcode/SKU/name search keeps working — but the cached
+            price/stock are a snapshot and may be stale. Warn about BOTH. */}
         {!online && (
           <Banner
             tone="warn"
             icon="wifi-off"
             title="Sin conexión"
-            message="Los precios mostrados pueden no estar actualizados."
+            message="Los precios y el stock pueden estar desactualizados."
           />
         )}
 

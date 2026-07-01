@@ -36,11 +36,11 @@
 - [x] 4.3 After Phase 4 all four `useCachedQuery` consumers are gone — `useSettingsDoc` was the last. `useCachedQuery.ts` now has zero importers (`rg -n "useCachedQuery" src` → only its own definition + orphan notice); left in place, deleted in Phase 14.
 - [x] 4.4 Tests: `tests/state/settings-mirror.test.tsx` (Convex-primary singleton mirror + Dexie offline fallback + `'skip'` ⇒ `null`; `useBsRate` online/offline/skip); `tests/components/settings-offline-blocking.test.tsx` (toggles + editor Guardar disabled offline with the "Sin conexión" banner; enabled online; editor still opens offline to read).
 
-## Phase 5 — Scan (`/escanear`, any role) — offline search proof
+## Phase 5 — Scan (`/escanear`, any role) — offline search proof — DONE
 
-- [ ] 5.1 (read-mirror) No hook migration — products/categories/settings already Dexie-backed. Confirm in-memory barcode/SKU/name/category search resolves from the mirror (`Scan.tsx` filters `useProducts()`'s array; no `byBarcode` query).
-- [ ] 5.2 (write-blocking) None — Scan is read-only. Add a `useOnline`-driven "sin conexión — precios y stock pueden estar desactualizados" banner (§4).
-- [ ] 5.3 Tests: offline → HID + camera scan a known barcode resolves from the mirror; name/SKU search returns cached matches; the stale-data banner shows offline, hides online.
+- [x] 5.1 (read-mirror) No hook migration — products/categories/settings already Dexie-backed. Confirmed in-memory barcode/SKU/name/category search resolves from the mirror (`Scan.tsx` filters `useProducts()`'s array; no `byBarcode` query) — offline search works with ZERO Scan changes.
+- [x] 5.2 (affordance, §4) None to write-block — Scan is read-only. The `useOnline`-driven screen-level `Banner` (`Scan.tsx`, `tone="warn" icon="wifi-off"`) now warns that BOTH prices and stock may be stale: `message="Los precios y el stock pueden estar desactualizados."` (prior copy mentioned only prices).
+- [x] 5.3 Tests: `tests/components/scan-offline.test.tsx` — offline HID barcode scan of a cached product resolves against the catalog and opens its info sheet; name/SKU/barcode search returns cached matches; the stale-data banner shows offline and hides online (camera path shares the same `catalog.find` lookup, covered by `camera-scanner.test.tsx`).
 
 ## Phase 6 — Venta / Sale (`/venta`, any role) — offline WRITES start here
 
