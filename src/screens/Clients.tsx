@@ -1,14 +1,18 @@
 // Clients screen — ported from prototype clients.jsx: list + add/edit + per-row details.
 // Also exports a ClientPickerSheet used by SaleScreen to attach a client to a sale.
-// Data wiring: useClients() (cached-while-offline list) + Convex mutations
-// (clients.create / clients.update / clients.remove) — no local setClients plumbing,
-// reactivity refreshes the list. createdAt is epoch ms.
+// Data wiring: useClients() (Phase 3 — Dexie-mirrored, offline-capable list) +
+// Convex mutations (clients.create / clients.update / clients.remove) — no local
+// setClients plumbing, reactivity refreshes the list. createdAt is epoch ms.
+// Offline (FEATURES §18): the list/search stay available from the mirror, but the
+// admin writes (create/edit/delete) are blocked via an `online` prop + a "Sin
+// conexión" Banner — offline customer drafts (CUSTOMER_CREATE) arrive in Phase 6.
 import { useEffect, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import {
   AppBar,
+  Banner,
   Button,
   Chip,
   ConfirmDialog,
@@ -126,11 +130,14 @@ function ClientDetailSheet({
   onClose,
   onEdit,
   onDelete,
+  online,
 }: {
   client: Client | null;
   onClose: () => void;
   onEdit: (c: Client) => void;
   onDelete: (c: Client) => void;
+  /** Offline blocks the writes (FEATURES §18): edit / delete. */
+  online: boolean;
 }) {
   if (!client) return null;
   const taxDisplay = client.taxId
@@ -160,6 +167,14 @@ function ClientDetailSheet({
   return (
     <Sheet onClose={onClose} title="Detalle del cliente">
       <div className="prod-detail">
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="No disponible sin conexión. Editar y eliminar requieren conexión."
+          />
+        )}
         <div className="prod-detail-head">
           <div className="prod-detail-glyph">{clientGlyph(client)}</div>
           <div style={{ minWidth: 0, flex: 1 }}>
@@ -201,7 +216,12 @@ function ClientDetailSheet({
       </div>
 
       <div className="prod-detail-actions">
-        <Button icon="edit-3" onClick={() => onEdit(client)} block>
+        <Button
+          icon="edit-3"
+          onClick={() => onEdit(client)}
+          block
+          disabled={!online}
+        >
           Editar
         </Button>
         <div className="row" style={{ gap: 10 }}>
@@ -209,6 +229,7 @@ function ClientDetailSheet({
             variant="danger"
             icon="trash-2"
             onClick={() => onDelete(client)}
+            disabled={!online}
           >
             Eliminar
           </Button>
@@ -237,9 +258,16 @@ export interface ClientFormProps {
   initial?: Partial<Client> | null;
   onSave: (form: ClientFormValues) => void;
   onCancel: () => void;
+  /** Offline blocks the write (FEATURES §18) — create/edit require connection. */
+  online: boolean;
 }
 
-export function ClientForm({ initial, onSave, onCancel }: ClientFormProps) {
+export function ClientForm({
+  initial,
+  onSave,
+  onCancel,
+  online,
+}: ClientFormProps) {
   const kindFromPrefix = (p: string): Client['kind'] =>
     p === 'J' ? 'business' : p === 'E' ? 'foreign' : 'person';
   const [form, setForm] = useState(() => ({
@@ -284,6 +312,14 @@ export function ClientForm({ initial, onSave, onCancel }: ClientFormProps) {
 
   return (
     <div className="client-form">
+      {!online && (
+        <Banner
+          tone="warn"
+          icon="wifi-off"
+          title="Sin conexión"
+          message="No disponible sin conexión. Guardar el cliente requiere conexión."
+        />
+      )}
       <label className="client-field">
         <span>
           {kind === 'business' ? 'Nombre comercial' : 'Nombre y Apellido'}
@@ -363,7 +399,7 @@ export function ClientForm({ initial, onSave, onCancel }: ClientFormProps) {
           Cancelar
         </Button>
         <Button
-          disabled={!canSave || !dirty}
+          disabled={!canSave || !dirty || !online}
           onClick={() => onSave({ ...form, kind })}
         >
           {initial ? 'Guardar cambios' : 'Crear cliente'}
@@ -381,6 +417,8 @@ export interface ClientPickerSheetProps {
   onPick: (c: Client) => void;
   onClose: () => void;
   onCreate?: () => void;
+  /** Offline blocks creating a client (FEATURES §18); search/pick stay available. */
+  online: boolean;
 }
 
 export function ClientPickerSheet({
@@ -389,6 +427,7 @@ export function ClientPickerSheet({
   onPick,
   onClose,
   onCreate,
+  online,
 }: ClientPickerSheetProps) {
   const [q, setQ] = useState('');
   const norm = (s?: string) => (s || '').toLowerCase();
@@ -407,6 +446,14 @@ export function ClientPickerSheet({
 
   return (
     <Sheet onClose={onClose} title="Asociar cliente">
+      {!online && (
+        <Banner
+          tone="warn"
+          icon="wifi-off"
+          title="Sin conexión"
+          message="Puedes buscar y seleccionar un cliente existente. Crear un cliente requiere conexión."
+        />
+      )}
       <Input
         autoFocus
         placeholder="Nombre, identificación, teléfono o email"
@@ -420,6 +467,7 @@ export function ClientPickerSheet({
           icon="user-plus"
           onClick={() => onCreate && onCreate()}
           block
+          disabled={!online}
         >
           Crear nuevo cliente
         </Button>
@@ -600,13 +648,26 @@ export default function ClientsScreen() {
         online={online}
         /* left={onBack && <IconButton icon="chevron-left" onClick={onBack} ariaLabel="Volver" />} */
         right={
-          <Button size="sm" icon="user-plus" onClick={openNew}>
+          <Button
+            size="sm"
+            icon="user-plus"
+            onClick={openNew}
+            disabled={!online}
+          >
             Nuevo cliente
           </Button>
         }
       />
 
       <div className="content stored-content" style={{ padding: '5px' }}>
+        {!online && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="Solo lectura. No puedes crear, editar o eliminar clientes hasta reconectar."
+          />
+        )}
         <div className="catalog-head" style={{ margin: '0 0 14px' }}>
           <Input
             placeholder="Buscar cliente por nombre, identificación, teléfono o email"
@@ -780,6 +841,7 @@ export default function ClientsScreen() {
       {detail && (
         <ClientDetailSheet
           client={detail}
+          online={online}
           onClose={() => setDetail(null)}
           onEdit={openEdit}
           onDelete={(c) => setConfirmDel(c)}
@@ -793,6 +855,7 @@ export default function ClientsScreen() {
         >
           <ClientForm
             initial={editing}
+            online={online}
             onSave={(...args: Parameters<typeof save>) => {
               void save(...args);
             }}

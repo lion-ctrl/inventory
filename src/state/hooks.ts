@@ -34,8 +34,8 @@ export function useBsRate(): number {
 // signature is unchanged (returns Product[]), so every consumer (Products,
 // Dashboard, Scan, Sale, Stored, CartContext) becomes product-offline in one
 // move: online it reads Convex live and mirrors into the `products` table;
-// offline it serves that mirror. (useClients/useSettingsDoc stay on
-// useCachedQuery until their own phases.)
+// offline it serves that mirror. (useSettingsDoc stays on useCachedQuery until
+// Phase 4.)
 export function useProducts(): Product[] {
   const { token } = useSession();
   return (
@@ -52,8 +52,8 @@ export function useProducts(): Product[] {
 // per category is part of the mirrored doc, so it survives offline as a
 // snapshot), so every consumer (Products, Dashboard, Scan, Sale) becomes
 // category-offline in one move: online it reads Convex live and mirrors into the
-// `categories` table; offline it serves that mirror. (useClients/useSettingsDoc
-// stay on useCachedQuery until their own phases.)
+// `categories` table; offline it serves that mirror. (useSettingsDoc stays on
+// useCachedQuery until Phase 4.)
 export function useCategories(): CategoryWithCount[] {
   const { token } = useSession();
   return (
@@ -65,13 +65,19 @@ export function useCategories(): CategoryWithCount[] {
   );
 }
 
+// Phase 3 — Clients: this read is now Dexie-backed via useMirroredQuery. The
+// signature is unchanged (returns Client[]), so every consumer (Clients,
+// Dashboard, Sale, CartContext) becomes client-offline in one move: online it
+// reads Convex live and mirrors into the `clients` table; offline it serves that
+// mirror (the Sale picker's tax-id match filters this array, so client selection
+// works offline). (useSettingsDoc stays on useCachedQuery until Phase 4.)
 export function useClients(): Client[] {
   const { token } = useSession();
   return (
-    (useCachedQuery(
+    useMirroredQuery<Client>(
       api.clients.list,
       token ? { token } : 'skip',
       'clients'
-    ) as Client[] | undefined) ?? EMPTY
+    ) ?? EMPTY
   );
 }

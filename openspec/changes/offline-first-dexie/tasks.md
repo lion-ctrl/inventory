@@ -23,11 +23,11 @@
 - [x] 2.2 (write-blocking §18) Disable category `create`/`update`/`removeWithReassign` (`Products.tsx`) offline; chips/filters render from the mirror.
 - [x] 2.3 Tests: category chips render offline in Products/Scan/Sale; CRUD modals disabled offline.
 
-## Phase 3 — Clients (`/clientes`, `manage_clients`)
+## Phase 3 — Clients (`/clientes`, `manage_clients`) — DONE
 
-- [ ] 3.1 (read-mirror) Rewrite `useClients` (`src/state/hooks.ts:68-77`) to `useMirroredQuery(api.clients.list, …, 'clients')`; lights up client reads in Sale/Dashboard/CartContext (compound index `[taxPrefix+taxId]`). **DELETE the old `useCachedQuery` body of `useClients`.**
-- [ ] 3.2 (write-blocking §18) Disable `update`/`remove` (`Clients.tsx`) offline. Offline `create` (`CUSTOMER_CREATE` draft) is SPECCED here but ACTIVATED in Phase 6 (the queue is born in Venta); until then `create` stays online-only.
-- [ ] 3.3 Tests: client list renders offline in Clients and the Sale picker; the tax-id filter still matches against the mirror; update/remove disabled offline.
+- [x] 3.1 (read-mirror) Rewrote `useClients` (`src/state/hooks.ts`) to `useMirroredQuery(api.clients.list, token ? { token } : 'skip', 'clients')`; signature unchanged (still `Client[]`) → Sale/Dashboard/CartContext become client-offline in one move (mirror keyed by `_id`, compound index `[taxPrefix+taxId]`). **DELETED the old `useCachedQuery` body of `useClients`** (`useSettingsDoc` stays on `useCachedQuery` until Phase 4).
+- [x] 3.2 (write-blocking §18) Disabled `create`/`update`/`remove` offline in `Clients.tsx` (the "Nuevo cliente" button, the detail sheet's Editar/Eliminar, the client-form submit, the picker's "Crear nuevo cliente") AND `Sale.tsx`'s ClientGate "Crear cliente" — via an `online` prop + a "Sin conexión" banner. The list/search and selecting an EXISTING client stay offline-capable. Offline `create` as a queued `CUSTOMER_CREATE` draft is SPECCED here but ACTIVATED in Phase 6 (the queue is born in Venta); until then `create` is BLOCKED, not queued.
+- [x] 3.3 Tests: `tests/state/clients-mirror.test.tsx` (Convex-primary mirror + Dexie offline fallback with the tax identity intact + `'skip'` ⇒ `[]`); `tests/components/clients-offline-blocking.test.tsx` (every client write trigger disabled offline with the "Sin conexión" banner; search/select stay enabled; same controls enabled online).
 
 ## Phase 4 — Settings (`/ajustes`, `manage_settings`)
 

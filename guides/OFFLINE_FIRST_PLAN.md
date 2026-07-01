@@ -382,18 +382,33 @@ disabled + the "Sin conexión" banner shows, and that they are enabled online.
 **Offline (works):** view the cached client list; the Sale client picker filters this
 array (including the tax-id match at `Sale.tsx:1180`), so client selection works offline.
 
-**Offline (blocked / deferred):** `update` / `remove` (`Clients.tsx:480-481`) are admin →
-blocked offline (§18). **Offline create (`CUSTOMER_CREATE` draft)** is *specced here* but
+**Offline (blocked, §18) — DONE in this phase:** `create` / `update` / `remove`
+(`Clients.tsx`) AND the in-sale create flow (`Sale.tsx`'s `ClientGate` + client picker)
+are admin/risky-admin writes, so **every trigger is disabled offline** with a visible
+"Sin conexión" banner (the app's standard offline-banner affordance, `tone="warn"
+icon="wifi-off"`). Threaded via an `online` prop (from `useOnline`) into each control:
+the **"Nuevo cliente"** button, the detail sheet's **Editar / Eliminar**, the client
+form's **submit** (defense-in-depth if the editor is open at disconnect), the
+ClientGate's **"Crear cliente"**, and the picker's **"Crear nuevo cliente"**. A
+screen-level banner states the list is read-only offline; each sheet repeats the notice
+in context. Reads (the client list, search, and the Sale picker's tax-id match at
+`Sale.tsx`) stay fully available — selecting an EXISTING client offline still works.
+**Offline create as a queued draft (`CUSTOMER_CREATE`)** is *specced here* but
 **activated in Phase 6**, because the durable queue (`pendingOps`) is born in Venta and
-create-client is primarily reached from Venta's ClientGate (`Sale.tsx:1322`
-`api.clients.create`). Until then, create stays online-only.
+create-client is primarily reached from Venta's ClientGate (`Sale.tsx`
+`api.clients.create`). Until then create is **BLOCKED, not queued** (blocking ≠ queueing).
 
 **New hook / old hook deleted:** rewrite `useClients` (`hooks.ts:53-62`) to
 `useMirroredQuery(api.clients.list, …, 'clients')`. **DELETE the old `useCachedQuery`-based
 body of `useClients`.** Lights up client reads in Sale, Dashboard, CartContext.
 
 **Tests (offline):** client list renders offline in Clients and the Sale picker;
-update/remove disabled; tax-id filter still matches against the mirror.
+update/remove disabled; tax-id filter still matches against the mirror. Automated:
+`tests/state/clients-mirror.test.tsx` (Convex-primary mirror, Dexie offline fallback with
+the tax identity intact, `'skip'` ⇒ `[]`) + `tests/components/clients-offline-blocking.test.tsx`
+(every client write trigger — Nuevo cliente, detail Editar/Eliminar, the ClientGate's
+"Crear cliente" — disabled offline with the "Sin conexión" banner, while search/select
+stay enabled; the same controls enabled online with no banner).
 
 ---
 

@@ -1278,6 +1278,7 @@ export function ClientGate({
                   type="button"
                   icon="user-plus"
                   onClick={() => onCreateClient({ prefix, taxId })}
+                  disabled={!online}
                 >
                   Crear cliente
                 </Button>
@@ -1566,6 +1567,7 @@ export default function SaleScreen({
               title="Nuevo cliente"
             >
               <ClientForm
+                online={online}
                 initial={
                   prefillCreate
                     ? {
@@ -2006,6 +2008,7 @@ export default function SaleScreen({
         {clientPickerOpen && (
           <ClientPickerSheet
             clients={clients}
+            online={online}
             currentId={selectedClient?._id}
             onPick={(c: Client) => {
               onSelectClient(c._id);
@@ -2037,6 +2040,7 @@ export default function SaleScreen({
             title="Nuevo cliente"
           >
             <ClientForm
+              online={online}
               initial={
                 prefillCreate
                   ? {
@@ -2089,6 +2093,7 @@ export default function SaleScreen({
             title="Nuevo cliente"
           >
             <ClientForm
+              online={online}
               initial={
                 prefillCreate
                   ? {
@@ -2291,6 +2296,7 @@ export default function SaleScreen({
       {clientPickerOpen && (
         <ClientPickerSheet
           clients={clients}
+          online={online}
           currentId={selectedClient?._id}
           onPick={(c: Client) => {
             onSelectClient(c._id);
@@ -2316,6 +2322,7 @@ export default function SaleScreen({
       {clientFormOpen && (
         <Sheet onClose={() => setClientFormOpen(false)} title="Nuevo cliente">
           <ClientForm
+            online={online}
             onSave={(form: any) => {
               void onCreateClient(form);
               setClientFormOpen(false);
