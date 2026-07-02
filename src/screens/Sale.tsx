@@ -287,7 +287,6 @@ function CartItemRow({
   onRemove,
   onSetQty,
   bsRate,
-  reservedUnits = 0,
 }: {
   item: CartItem;
   onInc: () => void;
@@ -295,17 +294,13 @@ function CartItemRow({
   onRemove: () => void;
   onSetQty?: ((n: number) => void) | null;
   bsRate: number;
-  /** Units of this product reserved by held ("en espera") carts — soft-locked. */
-  reservedUnits?: number;
 }) {
   const MAX_QTY = 1000000;
-  // Cap at AVAILABLE stock: physical − en-espera. Display still shows physical
-  // elsewhere; here the stepper must never let the qty climb past availability.
-  // Physical stock <= 0 keeps the legacy "uncapped" behavior (e.g. services).
+  // Cap at PHYSICAL stock: the stepper must never let the qty climb past what
+  // exists. Physical stock <= 0 keeps the legacy "uncapped" behavior (e.g.
+  // services).
   const stockCap =
-    typeof item.stock === 'number' && item.stock > 0
-      ? Math.max(1, item.stock - reservedUnits)
-      : MAX_QTY;
+    typeof item.stock === 'number' && item.stock > 0 ? item.stock : MAX_QTY;
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(item.qty));
   useEffect(() => {
@@ -491,7 +486,6 @@ export function ProductFoundSheet({
   onCancel,
   onBack,
   currentCartQty = 0,
-  reservedUnits = 0,
   bsRate,
 }: {
   product: Product;
@@ -499,20 +493,14 @@ export function ProductFoundSheet({
   onCancel: () => void;
   onBack?: (() => void) | null;
   currentCartQty?: number;
-  /** Units of this product reserved by held ("en espera") carts — soft-locked. */
-  reservedUnits?: number;
   bsRate: number;
 }) {
-  // Display stays PHYSICAL (product.stock); availability nets out en-espera plus
-  // what's already in this cart. You can add while this stays > 0.
-  const maxAddable = Math.max(
-    0,
-    product.stock - reservedUnits - currentCartQty
-  );
-  // REAL availability for THIS sale = physical − en-espera (held carts soft-lock
-  // those units). The info banner reports THIS as "disponibles", NEVER physical
-  // product.stock: with units en espera, fewer are actually sellable. Clamp ≥ 0.
-  const available = Math.max(0, product.stock - reservedUnits);
+  // How many MORE units can be added: physical stock minus what's already in
+  // this cart. You can add while this stays > 0.
+  const maxAddable = Math.max(0, product.stock - currentCartQty);
+  // Availability for THIS sale is the physical stock. The info banner reports
+  // this as "disponibles".
+  const available = product.stock;
   const [qty, setQty] = useState(Math.min(1, maxAddable) || 1);
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(Math.min(1, maxAddable) || 1));
@@ -526,22 +514,18 @@ export function ProductFoundSheet({
 
   // Banner policy — reaching the cap (qty === maxAddable) is NOT "unavailable".
   // The DANGER banner shows ONLY when nothing can be added (maxAddable < 1), and
-  // its reason is disambiguated: en-espera blocks it / the cart already holds the
-  // max / the product is physically out of stock. When there IS room to add, at
-  // most a soft INFO note shows — never an "agotado / no disponible" warning.
+  // its reason is disambiguated: the cart already holds the max / the product is
+  // physically out of stock. When there IS room to add, at most a soft INFO note
+  // shows — never an "agotado / no disponible" warning.
   const nothingAddable = maxAddable < 1;
-  const reservedBlocks = nothingAddable && reservedUnits > 0;
-  const cartHoldsMax = nothingAddable && !reservedBlocks && currentCartQty > 0;
-  // Info "Stock limitado" note: show when there's room to add AND availability is
-  // actually constrained — either the cart already holds some (currentCartQty>0)
-  // OR units are en espera (reservedUnits>0). With BOTH zero (e.g. 30 stock, no
-  // reserved, empty cart) there is no real limit → NO banner (keeps the valid-max
-  // false-"agotado" fix intact). The message uses `available`, never physical.
-  const showLimitedInfo =
-    !nothingAddable && (currentCartQty > 0 || reservedUnits > 0);
-  // Reason clause: explain WHY availability is limited. Parts joined by " y ".
+  const cartHoldsMax = nothingAddable && currentCartQty > 0;
+  // Info "Stock limitado" note: show when there's room to add AND the cart
+  // already holds some of this product (currentCartQty>0). With an empty cart
+  // (e.g. 30 stock, empty cart) there is no real limit → NO banner (keeps the
+  // valid-max false-"agotado" fix intact). The message uses `available`.
+  const showLimitedInfo = !nothingAddable && currentCartQty > 0;
+  // Reason clause: explain WHY availability is limited.
   const reasonParts: string[] = [];
-  if (reservedUnits > 0) reasonParts.push(`hay ${reservedUnits} en espera`);
   if (currentCartQty > 0)
     reasonParts.push(`ya tienes ${currentCartQty} en el carrito`);
   const reasonClause =
@@ -603,11 +587,6 @@ export function ProductFoundSheet({
           >
             {product.stock} en stock
           </Chip>
-          {reservedUnits > 0 && (
-            <Chip tone="warn" style={{ flex: 'none' }}>
-              {reservedUnits} en espera
-            </Chip>
-          )}
           {product.exempt === true && (
             <Chip tone="info" style={{ flex: 'none' }}>
               Exento IVA
@@ -718,14 +697,7 @@ export function ProductFoundSheet({
       </div>
 
       {nothingAddable &&
-        (reservedBlocks ? (
-          <Banner
-            tone="warn"
-            icon="alert-triangle"
-            title="Unidades en espera"
-            message={`${reservedUnits} unidad(es) en espera — no disponibles para esta venta.`}
-          />
-        ) : cartHoldsMax ? (
+        (cartHoldsMax ? (
           <Banner
             tone="danger"
             icon="alert-triangle"
@@ -824,13 +796,10 @@ export function ManualSearchSheet({
   onPick,
   onClose,
   catalog,
-  reserved = {},
 }: {
   onPick: (p: Product) => void;
   onClose: () => void;
   catalog: Product[];
-  /** productId → units reserved by held ("en espera") carts. */
-  reserved?: Record<string, number>;
 }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
@@ -932,9 +901,6 @@ export function ManualSearchSheet({
               </div>
               <div className="pright">
                 <div>${p.price.toFixed(2)}</div>
-                {(reserved[p._id] || 0) > 0 && (
-                  <Chip tone="warn">{reserved[p._id]} en espera</Chip>
-                )}
                 {p.stock > 0 && p.stock <= (p.minStock ?? 5) && (
                   <div className="search-stock-max">
                     Máx. {p.stock} en stock
@@ -969,7 +935,6 @@ function CartContent({
   onPause,
   bsRate,
   ivaPct,
-  reserved,
 }: {
   cart: CartItem[];
   inc: (id: Id<'products'>) => void;
@@ -987,8 +952,6 @@ function CartContent({
   onPause?: (() => void) | null;
   bsRate: number;
   ivaPct: number;
-  /** productId → units reserved by held ("en espera") carts. */
-  reserved: Record<string, number>;
 }) {
   // Money math mirrors convex/sales.ts `checkout`: round2 every component so
   // the USD total equals what's charged and the Bs lines (× bsRate) line up
@@ -1058,7 +1021,6 @@ function CartContent({
           onRemove={() => remove(i._id)}
           onSetQty={setQty ? (n) => setQty(i._id, n) : null}
           bsRate={bsRate}
-          reservedUnits={reserved[i._id] || 0}
         />
       ))}
       <div className="totals">
@@ -1314,7 +1276,6 @@ export default function SaleScreen({
     splits: pendingSplits,
     resetPayment,
     discardSale,
-    reserved,
     pauseSale,
     pausedRemovals,
     dismissPausedRemovals,
@@ -1390,8 +1351,8 @@ export default function SaleScreen({
     }
   };
 
-  // Catalog shows PHYSICAL stock. Availability (en-espera + already-in-cart) is
-  // enforced only at add-to-cart time — never by subtracting from what's shown.
+  // Catalog shows PHYSICAL stock. The already-in-cart limit is enforced only at
+  // add-to-cart time — never by subtracting from what's shown.
   const catalog = useMemo(
     () => products.filter((p) => p.sellable !== false),
     [products]
@@ -1471,8 +1432,8 @@ export default function SaleScreen({
   const handleScanResult = ({ found, product, code }: ScanResult) => {
     if (found && product) {
       const inCart = cart.find((i) => i._id === product._id)?.qty || 0;
-      // Block only when no sellable unit remains: physical − en-espera − in-cart.
-      if (product.stock - (reserved[product._id] || 0) - inCart <= 0) {
+      // Block only when no physical unit remains for this cart: physical − in-cart.
+      if (product.stock - inCart <= 0) {
         setInsufficientStockProduct(product);
       } else {
         setFoundProduct(product);
@@ -1495,13 +1456,11 @@ export default function SaleScreen({
     setSearchOpen(false);
   };
 
-  // Cap a programmatic qty at AVAILABLE stock (physical − en-espera). Physical
-  // stock <= 0 keeps the legacy uncapped behavior (e.g. services). Mirrors the
-  // CartItemRow stepper cap so increments can never exceed availability.
+  // Cap a programmatic qty at PHYSICAL stock. Physical stock <= 0 keeps the
+  // legacy uncapped behavior (e.g. services). Mirrors the CartItemRow stepper
+  // cap so increments can never exceed physical stock.
   const availableCap = (item: CartItem) =>
-    typeof item.stock === 'number' && item.stock > 0
-      ? Math.max(1, item.stock - (reserved[item._id] || 0))
-      : 1000000;
+    typeof item.stock === 'number' && item.stock > 0 ? item.stock : 1000000;
   const inc = (id: Id<'products'>) =>
     setCart((c) =>
       c.map((i) =>
@@ -1714,9 +1673,6 @@ export default function SaleScreen({
                         Bs {(p.price * bsRate).toFixed(2)}
                       </div>
                     )}
-                    {(reserved[p._id] || 0) > 0 && (
-                      <Chip tone="warn">{reserved[p._id]} en espera</Chip>
-                    )}
                     {p.stock > 0 && p.stock <= (p.minStock ?? 5) && (
                       <div className="quick-stock-max">
                         Máx. {p.stock} en stock
@@ -1783,7 +1739,6 @@ export default function SaleScreen({
                         onRemove={() => remove(i._id)}
                         onSetQty={(n) => setQty(i._id, n)}
                         bsRate={bsRate}
-                        reservedUnits={reserved[i._id] || 0}
                       />
                     ))}
                     {(() => {
@@ -1924,7 +1879,6 @@ export default function SaleScreen({
             currentCartQty={
               cart.find((i) => i._id === foundProduct._id)?.qty || 0
             }
-            reservedUnits={reserved[foundProduct._id] || 0}
             onAdd={(prod, qty) => {
               addToCart(prod, qty);
               setFoundFromSearch(false);
@@ -1958,7 +1912,6 @@ export default function SaleScreen({
         {searchOpen && (
           <ManualSearchSheet
             catalog={catalog}
-            reserved={reserved}
             onPick={(p) => {
               setSearchOpen(false);
               setFoundFromSearch(true);
@@ -2005,22 +1958,10 @@ export default function SaleScreen({
         {insufficientStockProduct &&
           (() => {
             const isp = insufficientStockProduct;
-            const inCart = cart.find((i) => i._id === isp._id)?.qty || 0;
-            const n = reserved[isp._id] || 0;
-            // Held units block the sale even though stock is physically present.
-            const blockedByReserved = n > 0 && isp.stock - inCart > 0;
             return (
               <ConfirmDialog
-                title={
-                  blockedByReserved
-                    ? 'Unidades en espera'
-                    : 'Stock insuficiente'
-                }
-                message={
-                  blockedByReserved
-                    ? `${n} unidad(es) en espera — no disponibles para esta venta.`
-                    : `Ya tienes ${isp.stock} ${isp.name} en el carrito. No hay más unidades disponibles.`
-                }
+                title="Stock insuficiente"
+                message={`Ya tienes ${isp.stock} ${isp.name} en el carrito. No hay más unidades disponibles.`}
                 confirmLabel="Entendido"
                 cancelLabel="Cerrar"
                 onConfirm={() => setInsufficientStockProduct(null)}
@@ -2200,7 +2141,6 @@ export default function SaleScreen({
             density={density}
             ivaPct={ivaPct}
             bsRate={bsRate}
-            reserved={reserved}
             pendingSplits={pendingSplits}
             selectedClient={selectedClient}
             onPickClient={() => setClientPickerOpen(true)}
@@ -2220,7 +2160,6 @@ export default function SaleScreen({
           currentCartQty={
             cart.find((i) => i._id === foundProduct._id)?.qty || 0
           }
-          reservedUnits={reserved[foundProduct._id] || 0}
           onAdd={(prod, qty) => {
             addToCart(prod, qty);
             setFoundFromSearch(false);
@@ -2254,7 +2193,6 @@ export default function SaleScreen({
       {searchOpen && (
         <ManualSearchSheet
           catalog={catalog}
-          reserved={reserved}
           onPick={(p) => {
             setSearchOpen(false);
             setFoundFromSearch(true);
@@ -2299,19 +2237,10 @@ export default function SaleScreen({
       {insufficientStockProduct &&
         (() => {
           const isp = insufficientStockProduct;
-          const inCart = cart.find((i) => i._id === isp._id)?.qty || 0;
-          const n = reserved[isp._id] || 0;
-          const blockedByReserved = n > 0 && isp.stock - inCart > 0;
           return (
             <ConfirmDialog
-              title={
-                blockedByReserved ? 'Unidades en espera' : 'Stock insuficiente'
-              }
-              message={
-                blockedByReserved
-                  ? `${n} unidad(es) en espera — no disponibles para esta venta.`
-                  : `Ya tienes el máximo de ${isp.name} disponibles en el carrito.`
-              }
+              title="Stock insuficiente"
+              message={`Ya tienes el máximo de ${isp.name} disponibles en el carrito.`}
               confirmLabel="Entendido"
               cancelLabel="Cerrar"
               onConfirm={() => setInsufficientStockProduct(null)}

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// In-cart quantity stepper (CartItemRow) must cap at physical − reserved, not
-// at the physical stock. Bug: with physical 5 and 1 unit held "en espera"
-// (reserved 1), the +/qty-input let the cashier climb back to 5. The displayed
-// stock number stays PHYSICAL; only the CAP nets out en-espera units.
+// In-cart quantity stepper (CartItemRow) caps at PHYSICAL stock. A product
+// reserved by held ("en espera") carts NO LONGER lowers the cap — stock is live
+// for everyone. The stepper only stops the cashier from exceeding what
+// physically exists in one cart.
 import { cleanup, render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -108,49 +108,48 @@ const cartRow = () => document.querySelector('.cartrow') as HTMLElement;
 const plusInRow = () =>
   within(cartRow()).getByRole('button', { name: 'agregar uno' });
 
-describe('Venta — in-cart stepper caps at physical − reserved', () => {
+describe('Venta — in-cart stepper caps at physical stock', () => {
   beforeEach(() => {
     window.innerWidth = 1280; // desktop two-pane renders CartItemRow directly
     cartMock.selectedClient = maria; // past the ClientGate
   });
 
-  test('physical=5, reserved=1, 4 in cart → "+" disabled (cap 4, cannot reach 5)', () => {
+  test('physical=5, 5 in cart → "+" disabled (cap = physical 5)', () => {
     productsMock.current = [makeProduct({ stock: 5 })];
-    cartMock.reserved = { p_cola: 1 };
-    cartMock.cart = [cartLine(4, { stock: 5 })];
+    cartMock.cart = [cartLine(5, { stock: 5 })];
     render(<SaleScreen onConfirm={vi.fn()} />);
     expect(plusInRow()).toHaveProperty('disabled', true);
-    // Cashier-facing cap hint reflects the net availability, not physical.
-    expect(within(cartRow()).getByText('Máx. 4 en stock')).toBeDefined();
+    // Cashier-facing cap hint reflects the physical stock.
+    expect(within(cartRow()).getByText('Máx. 5 en stock')).toBeDefined();
   });
 
-  test('physical=5, reserved=1, 3 in cart → "+" still enabled (can reach the cap of 4)', () => {
+  test('physical=5, 4 in cart → "+" enabled (can reach the physical cap of 5)', () => {
     productsMock.current = [makeProduct({ stock: 5 })];
-    cartMock.reserved = { p_cola: 1 };
-    cartMock.cart = [cartLine(3, { stock: 5 })];
+    cartMock.cart = [cartLine(4, { stock: 5 })];
     render(<SaleScreen onConfirm={vi.fn()} />);
     expect(plusInRow()).toHaveProperty('disabled', false);
   });
 
-  test('typing 5 into the qty input clamps to 4 when reserved=1', async () => {
+  test('typing 9 into the qty input clamps to the physical 5', async () => {
     const user = userEvent.setup();
     productsMock.current = [makeProduct({ stock: 5 })];
-    cartMock.reserved = { p_cola: 1 };
     cartMock.cart = [cartLine(2, { stock: 5 })];
     render(<SaleScreen onConfirm={vi.fn()} />);
 
     const input = cartRow().querySelector<HTMLInputElement>('.qty-input')!;
     await user.clear(input);
-    await user.type(input, '5');
-    // The input clamps the display to the cap (4), never the physical 5.
-    expect(input.value).toBe('4');
+    await user.type(input, '9');
+    // The input clamps the display to the physical cap (5), never above stock.
+    expect(input.value).toBe('5');
   });
 
-  test('physical=5, reserved=0, 4 in cart → "+" still enabled up to physical 5', () => {
+  test('reserved no longer lowers the cap: physical=5, reserved=1, 4 in cart → "+" still enabled up to physical 5', () => {
     productsMock.current = [makeProduct({ stock: 5 })];
-    cartMock.reserved = {};
+    cartMock.reserved = { p_cola: 1 }; // ignored now — stock is live for everyone
     cartMock.cart = [cartLine(4, { stock: 5 })];
     render(<SaleScreen onConfirm={vi.fn()} />);
-    expect(plusInRow()).toHaveProperty('disabled', false); // unchanged
+    // Before Phase 2 the cap was 4 (5 − 1 reserved) and "+" was disabled; now
+    // the reserved term is gone, so the cap is the physical 5 and "+" is enabled.
+    expect(plusInRow()).toHaveProperty('disabled', false);
   });
 });
