@@ -135,6 +135,15 @@ export const saleFields = {
   exchangeRate: v.number(), // Bs per $ snapshot at sale time
   soldAt: v.number(),
   refund: v.optional(v.object({ date: v.number(), reason: v.string() })),
+  // Offline-first (Phase 6.3): set ONLY by `sales.syncOffline` for sales created
+  // offline and later drained by the sync engine. Both are `v.optional`
+  // (widen-migrate-narrow) so every pre-existing online sale row stays valid —
+  // ADDITIVE, no backfill needed. `idempotencyKey` (minted at ENQUEUE on the
+  // client, FEATURES §8-9) lets a replayed sync return the existing sale via the
+  // `by_idempotencyKey` index instead of double-charging; `deviceId` is the §19
+  // audit trail of which device originated the sale.
+  idempotencyKey: v.optional(v.string()),
+  deviceId: v.optional(v.string()),
 };
 
 export const heldCartFields = {
@@ -315,7 +324,9 @@ export default defineSchema({
 
   sales: defineTable(saleFields)
     .index('by_invoice', ['invoiceNumber'])
-    .index('by_soldAt', ['soldAt']),
+    .index('by_soldAt', ['soldAt'])
+    // Offline-first (Phase 6.3): idempotent replay lookup for `sales.syncOffline`.
+    .index('by_idempotencyKey', ['idempotencyKey']),
 
   heldCarts: defineTable(heldCartFields),
 
