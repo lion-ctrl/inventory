@@ -247,14 +247,15 @@ describe('sales.checkout', () => {
   });
 });
 
-describe('sales.checkout — reserved ("en espera") availability', () => {
-  // A product with physical stock 5 and 1 unit held in another "venta en
-  // espera" (reserved = 1) is sellable only up to 4 in a NEW sale. The cap is a
-  // server backstop: physical − reserved.
-  async function setupReserved() {
+describe('sales.checkout — physical-stock backstop (parked carts reserve nothing)', () => {
+  // Parking a sale reserves NO stock: availability is LIVE physical stock for
+  // every cashier. A held cart holding units of a product does NOT lower how
+  // much another cashier can sell — the only server backstop is physical stock.
+  // A hold that loses its stock is reconciled when RESUMED, not blocked here.
+  async function setupWithHeldCart() {
     const t = convexTest(schema, modules);
     const fx = await t.run(seedBase);
-    // Reset cola to exactly stock 5, then hold 1 of it in a parked cart.
+    // Reset cola to exactly stock 5, then park a cart holding 1 of it.
     await t.run((ctx) => ctx.db.patch('products', fx.cola, { stock: 5 }));
     await t.mutation(api.heldCarts.park, {
       token: fx.ownerToken,
@@ -263,42 +264,47 @@ describe('sales.checkout — reserved ("en espera") availability', () => {
     return { t, fx };
   }
 
-  test('rejects qty 5 when 1 unit is held (physical 5 − reserved 1 = 4 available)', async () => {
-    const { t, fx } = await setupReserved();
+  test('sells the FULL physical stock even while another cart holds units', async () => {
+    const { t, fx } = await setupWithHeldCart(); // physical 5, 1 held elsewhere
+    // The hold reserves nothing: all 5 physical units are sellable right now.
+    const sale = await t.mutation(api.sales.checkout, {
+      token: fx.ownerToken,
+      clientId: fx.clientId,
+      items: [{ productId: fx.cola, qty: 5 }],
+      method: 'cash',
+      splits: cash(8.48), // 5×1.50 = 7.50 + 13% IVA
+    });
+    expect(sale.subtotal).toBe(7.5);
+
+    const after = await t.run(async (ctx) => ({
+      cola: await ctx.db.get('products', fx.cola),
+      carts: await ctx.db.query('heldCarts').collect(),
+    }));
+    // Physical stock is fully consumed, and the parked cart is UNTOUCHED —
+    // holds neither block the sale nor are drained by it.
+    expect(after.cola!.stock).toBe(0);
+    expect(after.carts).toHaveLength(1);
+  });
+
+  test('still rejects a sale that exceeds PHYSICAL stock (the guard that stays)', async () => {
+    const { t, fx } = await setupWithHeldCart(); // physical stock 5
     await expect(
       t.mutation(api.sales.checkout, {
         token: fx.ownerToken,
         clientId: fx.clientId,
-        items: [{ productId: fx.cola, qty: 5 }],
+        items: [{ productId: fx.cola, qty: 6 }], // 6 > 5 physical
         method: 'cash',
-        splits: cash(8.48), // 5×1.50 = 7.50 + 13% IVA
+        splits: cash(10.17),
       })
-    ).rejects.toThrow(
-      'No hay suficiente stock disponible para "Coca-Cola 600ml": hay 1 en espera.'
-    );
+    ).rejects.toThrow('Stock insuficiente: Coca-Cola 600ml. Quedan 5 unidades.');
 
     // The rejected sale consumed nothing.
     const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
     expect(cola!.stock).toBe(5);
   });
 
-  test('allows qty 4 when 1 unit is held, decrementing physical stock to 1', async () => {
-    const { t, fx } = await setupReserved();
-    const sale = await t.mutation(api.sales.checkout, {
-      token: fx.ownerToken,
-      clientId: fx.clientId,
-      items: [{ productId: fx.cola, qty: 4 }],
-      method: 'cash',
-      splits: cash(6.78), // 4×1.50 = 6.00 + 13% IVA = 6.78
-    });
-    expect(sale.subtotal).toBe(6);
-
-    const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
-    expect(cola!.stock).toBe(1); // 5 − 4; the 1 held unit stays physically present
-  });
-
-  test('park is NOT blocked by reserved units from other held carts', async () => {
-    const { t, fx } = await setupReserved(); // already holds 1 of cola (stock 5)
+  test('park is NOT blocked by units held in other parked carts', async () => {
+    const { t, fx } = await setupWithHeldCart(); // already holds 1 of cola (stock 5)
     // Parking a second cart holding all 5 must succeed — holds do not block holds.
     await t.mutation(api.heldCarts.park, {
       token: fx.ownerToken,

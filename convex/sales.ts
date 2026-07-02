@@ -176,39 +176,21 @@ export async function snapshotLines(
 // differs: the stock-error shape, `soldAt`, and the offline metadata.
 // ---------------------------------------------------------------------------
 
-/** Sum units reserved ("en espera") across parked carts, keyed by productId. */
-async function reservedByProductMap(
-  ctx: MutationCtx
-): Promise<Map<string, number>> {
-  const heldCarts = await ctx.db.query('heldCarts').collect();
-  const reserved = new Map<string, number>();
-  for (const held of heldCarts) {
-    for (const it of held.items) {
-      reserved.set(it.productId, (reserved.get(it.productId) ?? 0) + it.qty);
-    }
-  }
-  return reserved;
-}
-
 /**
- * Reserved-backstop stock check: a line is sellable only up to
- * physical stock − units held in OTHER parked carts. `onInsufficient` shapes the
- * error (plain message for checkout, structured code for syncOffline) and must
- * throw (its return type is `never`).
+ * Physical-stock backstop: a line is sellable only up to LIVE physical stock.
+ * Parked ("en espera") carts reserve NOTHING — a hold that loses its stock is
+ * reconciled when the sale is RESUMED, not blocked here. `onInsufficient` shapes
+ * the error (plain message for checkout, structured §15 code for syncOffline) and
+ * must throw (its return type is `never`). SHARED by checkout + syncOffline so the
+ * online and offline paths validate stock identically.
  */
 function assertStockAvailable(
   lines: SaleLine[],
-  reservedMap: Map<string, number>,
-  onInsufficient: (info: {
-    product: Doc<'products'>;
-    qty: number;
-    reserved: number;
-  }) => never
+  onInsufficient: (info: { product: Doc<'products'>; qty: number }) => never
 ): void {
   for (const { product, qty } of lines) {
-    const reserved = reservedMap.get(product._id) ?? 0;
-    if (qty + reserved > product.stock) {
-      onInsufficient({ product, qty, reserved });
+    if (qty > product.stock) {
+      onInsufficient({ product, qty });
     }
   }
 }
@@ -329,17 +311,11 @@ export const checkout = mutation({
     const lines = await snapshotLines(ctx, args.items, {
       enforceSellable: true,
     });
-    // 3b. Reserved ("en espera") backstop: units held in OTHER parked carts are
-    // not sellable here. Available = physical − reserved. Checkout only — park
-    // must not be blocked by holds (a cart being parked can't reserve against
-    // itself, and a sale RESUMED from a held cart already deleted its row).
-    const reservedMap = await reservedByProductMap(ctx);
-    assertStockAvailable(lines, reservedMap, ({ product, qty, reserved }) => {
-      if (reserved > 0 && qty <= product.stock) {
-        throw new ConvexError(
-          `No hay suficiente stock disponible para "${product.name}": hay ${reserved} en espera.`
-        );
-      }
+    // 3b. Physical-stock backstop. Availability is LIVE physical stock for every
+    //     cashier — parked ("en espera") carts reserve NOTHING, so a hold never
+    //     lowers what another cashier can sell. A hold that loses its stock is
+    //     reconciled when the sale is RESUMED. syncOffline shares this exact check.
+    assertStockAvailable(lines, ({ product }) => {
       throw new ConvexError(
         `Stock insuficiente: ${product.name}. Quedan ${product.stock} unidades.`
       );
@@ -379,7 +355,7 @@ export const checkout = mutation({
  * snapshot offline, §10) and throws structured §15 codes on conflict so the 6.4
  * sync engine can mark the op `conflict` instead of retrying forever.
  *
- * Shares `snapshotLines` + the reserved backstop + the money math + the insert
+ * Shares `snapshotLines` + the physical-stock backstop + the money math + the insert
  * with `checkout` (via the helpers above) so the two paths cannot drift.
  */
 export const syncOffline = mutation({
@@ -431,13 +407,10 @@ export const syncOffline = mutation({
       syncLinePolicy
     );
 
-    // 4b. Physical-stock re-validation (§10). A CONSUMMATED offline sale outranks
-    //     pending reservations: validate against physical stock ONLY (empty
-    //     reserved map), so a real, already-charged sale is never rejected by a
-    //     not-yet-confirmed parked cart. A hold that loses its stock is
-    //     reconciled when it is RESUMED, not here. (checkout keeps the backstop —
-    //     there both sides are live and neither has been charged yet.)
-    assertStockAvailable(lines, new Map(), ({ product }) =>
+    // 4b. Physical-stock re-validation (§10). Availability is LIVE physical stock;
+    //     parked carts reserve nothing (a hold that loses its stock is reconciled
+    //     when RESUMED, not here). Shares the exact backstop with checkout.
+    assertStockAvailable(lines, ({ product }) =>
       saleConflict('STOCK_INSUFFICIENT', {
         productId: product._id,
         available: product.stock,
