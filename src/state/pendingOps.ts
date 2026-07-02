@@ -7,6 +7,7 @@
 // after the backend confirms receipt.
 import { db } from './db';
 import type { PendingOp, PendingOpType } from './db';
+import { requestSync } from './sync';
 
 // The stable device id is seeded once into `meta` on first run (db.on('populate'),
 // FEATURES §19). Read it for every op; self-heal by minting one if it is somehow
@@ -43,5 +44,10 @@ export async function enqueuePendingOp(
   };
   // add() resolves the auto-incremented ++localId (typed number | undefined by the
   // optional PK; the counter always yields a number).
-  return (await db.pendingOps.add(op)) as number;
+  const localId = (await db.pendingOps.add(op)) as number;
+  // Trigger a drain (Phase 6.4). Fire-and-forget + no-ops until the engine is wired;
+  // when online it syncs the new op immediately, when offline it fails fast and the
+  // `online`/app-start triggers retry it later. The op is durable either way.
+  requestSync();
+  return localId;
 }

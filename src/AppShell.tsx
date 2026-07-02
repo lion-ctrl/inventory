@@ -16,6 +16,7 @@ import { ConfirmDialog, NavLayout } from './components';
 import { useSession } from '@/state/SessionContext';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
+import { useSyncEngine } from '@/state/useSyncEngine';
 import { useBsRate } from '@/state/hooks';
 import { db } from '@/state/db';
 import type { PermissionId } from '@/lib/rbac';
@@ -108,6 +109,11 @@ export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const checkout = useMutation(api.sales.checkout);
+
+  // Phase 6.4 — start the offline sync engine: drains the pendingOps queue against
+  // Convex on app start + every `online` reconnect (a new op enqueued triggers it
+  // from pendingOps.ts). No-op while logged out or with an empty queue.
+  useSyncEngine();
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [pendingCart, setPendingCart] = useState<CartItem[]>([]);
