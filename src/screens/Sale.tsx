@@ -531,12 +531,12 @@ export function ProductFoundSheet({
   const reasonClause =
     reasonParts.length > 0 ? ` (${reasonParts.join(' y ')})` : '';
   // Singular/plural: "1 disponible" vs "2 disponibles".
-  const disponiblesLabel = `${available} ${
+  const availableLabel = `${available} ${
     available === 1 ? 'disponible' : 'disponibles'
   }`;
   // " más" only when the cart already holds some of this product.
-  const masClause = currentCartQty > 0 ? ' más' : '';
-  const limitedMessage = `Solo puedes agregar ${maxAddable}${masClause} de ${disponiblesLabel}.${reasonClause}`;
+  const moreClause = currentCartQty > 0 ? ' más' : '';
+  const limitedMessage = `Solo puedes agregar ${maxAddable}${moreClause} de ${availableLabel}.${reasonClause}`;
 
   return (
     <Sheet onClose={onCancel}>
@@ -1279,6 +1279,8 @@ export default function SaleScreen({
     pauseSale,
     pausedRemovals,
     dismissPausedRemovals,
+    stockAdjustments,
+    dismissStockAdjustments,
   } = useCart();
   const { token } = useSession();
   const createClient = useMutation(api.clients.create);
@@ -1429,6 +1431,119 @@ export default function SaleScreen({
       </Sheet>
     ) : null;
 
+  // Phase 5 — sibling of pausedModal: lines reconciled against LIVE stock when a
+  // held sale was resumed (holds reserve nothing now, so parked units may be gone).
+  // Each line is color-coded by severity so the cashier sees at a glance what
+  // changed: 'gone' → danger red (removed), 'reduced' → warn terracotta (clamped).
+  const stockModal =
+    stockAdjustments.length > 0 ? (
+      <Sheet onClose={dismissStockAdjustments} dialog>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 4,
+          }}
+        >
+          <span
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: 'var(--r-pill)',
+              background: 'var(--warn-soft)',
+              display: 'grid',
+              placeItems: 'center',
+            }}
+          >
+            <Icon name="package" size={24} color="var(--warn)" />
+          </span>
+          <div
+            style={{ font: '700 18px var(--font-sans)', color: 'var(--ink)' }}
+          >
+            Stock actualizado
+          </div>
+        </div>
+        <div
+          style={{
+            font: '400 13px var(--font-sans)',
+            color: 'var(--ink-3)',
+            marginBottom: 16,
+            lineHeight: 1.5,
+          }}
+        >
+          El stock cambió mientras la venta estaba en espera.
+        </div>
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            marginBottom: 18,
+            textAlign: 'left',
+          }}
+        >
+          {stockAdjustments.map((a) => {
+            const gone = a.kind === 'gone';
+            const accent = gone ? 'var(--danger)' : 'var(--warn)';
+            const detailColor = gone ? 'var(--danger)' : 'var(--warn-2)';
+            const left =
+              a.left === 1 ? 'Solo queda 1' : `Solo quedan ${a.left}`;
+            return (
+              <li
+                key={a.name}
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'flex-start',
+                  background: gone ? 'var(--danger-soft)' : 'var(--warn-soft)',
+                  borderRadius: 'var(--r-lg)',
+                  padding: '10px 12px',
+                }}
+              >
+                <Icon
+                  name={gone ? 'trash-2' : 'trending-down'}
+                  size={18}
+                  color={accent}
+                  style={{ marginTop: 1 }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      font: '600 14px var(--font-sans)',
+                      color: 'var(--ink)',
+                    }}
+                  >
+                    {a.name}
+                  </div>
+                  <div
+                    style={{
+                      font: '400 13px var(--font-sans)',
+                      color: detailColor,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {gone
+                      ? 'Ya no hay stock — se quitó de la venta'
+                      : `${left} — se ajustó la cantidad`}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <Button block size="sm" onClick={dismissStockAdjustments}>
+            Entendido
+          </Button>
+        </div>
+      </Sheet>
+    ) : null;
+
   const handleScanResult = ({ found, product, code }: ScanResult) => {
     if (found && product) {
       const inCart = cart.find((i) => i._id === product._id)?.qty || 0;
@@ -1570,7 +1685,7 @@ export default function SaleScreen({
               />
             </Sheet>
           )}
-          {pausedModal}
+          {pausedModal ?? stockModal}
         </>
       );
     }
@@ -2027,7 +2142,7 @@ export default function SaleScreen({
             />
           </Sheet>
         )}
-        {pausedModal}
+        {pausedModal ?? stockModal}
       </>
     );
   }
@@ -2081,7 +2196,7 @@ export default function SaleScreen({
             />
           </Sheet>
         )}
-        {pausedModal}
+        {pausedModal ?? stockModal}
       </>
     );
   }
@@ -2288,7 +2403,7 @@ export default function SaleScreen({
           />
         </Sheet>
       )}
-      {pausedModal}
+      {pausedModal ?? stockModal}
     </>
   );
 }

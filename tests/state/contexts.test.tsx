@@ -255,6 +255,44 @@ describe('CartContext', () => {
     return renderHook(() => useCart(), { wrapper: cartWrapper });
   }
 
+  test('resume reconciles against LIVE stock: drops sold-out lines, clamps reduced ones', async () => {
+    // A parked cart reserves nothing (reserved removal), so its units may have
+    // been sold while it sat. On resume we reconcile against live stock: cola now
+    // has only 3 (held 5 → clamp to 3), agua is sold out (held 2 → drop).
+    const colaLow = { ...cola, stock: 3 };
+    const agua = {
+      ...cola,
+      _id: 'p_agua',
+      sku: 'AGUA',
+      name: 'Agua 1L',
+      stock: 0,
+    } as unknown as Product;
+    const { result } = renderCart({ products: [colaLow, agua] });
+
+    mutationFor('heldCarts:resume').mockResolvedValue({
+      items: [
+        { productId: 'p_cola', qty: 5 },
+        { productId: 'p_agua', qty: 2 },
+      ],
+      client: null,
+      splits: [],
+    });
+
+    await act(async () => {
+      await result.current.resumeSale('h1' as never);
+    });
+
+    // cola clamped to the 3 physically left; agua dropped (sold out).
+    expect(result.current.cart).toEqual([
+      expect.objectContaining({ _id: 'p_cola', qty: 3 }),
+    ]);
+    // Both surface as structured notices for the Venta acknowledge modal.
+    expect(result.current.stockAdjustments).toEqual([
+      { name: 'Coca-Cola 600ml', kind: 'reduced', left: 3 },
+      { name: 'Agua 1L', kind: 'gone', left: 0 },
+    ]);
+  });
+
   test('a products update prunes paused lines and refreshes snapshots (products-driven sync)', async () => {
     const { result, rerender } = renderCart({
       products: [cola, pausedProduct],

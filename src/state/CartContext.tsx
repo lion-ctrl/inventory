@@ -27,6 +27,17 @@ import { useSession } from './SessionContext';
 import { useClients, useProducts } from './hooks';
 import { db } from './db';
 
+/**
+ * A resumed cart line reconciled against LIVE stock (parked carts reserve
+ * nothing): 'gone' — sold out since parking, so the line was dropped; 'reduced'
+ * — only `left` units remain, so the line was clamped to `left`.
+ */
+interface StockAdjustment {
+  name: string;
+  kind: 'gone' | 'reduced';
+  left: number;
+}
+
 interface CartValue {
   cart: CartItem[];
   setCart: Dispatch<SetStateAction<CartItem[]>>;
@@ -48,6 +59,10 @@ interface CartValue {
   pausedRemovals: string[];
   /** Clear the paused-removal notice once the cashier has acknowledged it. */
   dismissPausedRemovals: () => void;
+  /** Lines reconciled against live stock on resume: dropped (sold out) or clamped. */
+  stockAdjustments: StockAdjustment[];
+  /** Clear the stock-adjustment notice once the cashier has acknowledged it. */
+  dismissStockAdjustments: () => void;
 }
 
 const CartContext = createContext<CartValue | null>(null);
@@ -80,6 +95,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // single Venta acknowledge MODAL; an external event, so it is recorded — never
   // confirmed.
   const [pausedRemovals, setPausedRemovals] = useState<string[]>([]);
+  // Phase 5 (reserved removal) — lines reconciled against LIVE stock when a held
+  // cart is RESUMED. Holds no longer reserve stock, so the parked units may have
+  // been sold meanwhile; surfaced as a Venta acknowledge MODAL, sibling of
+  // pausedRemovals (recorded, never confirmed).
+  const [stockAdjustments, setStockAdjustments] = useState<StockAdjustment[]>(
+    []
+  );
 
   const park = useMutation(api.heldCarts.park);
   const resume = useMutation(api.heldCarts.resume);
@@ -193,6 +215,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setCompletedSale,
       pausedRemovals,
       dismissPausedRemovals: () => setPausedRemovals([]),
+      stockAdjustments,
+      dismissStockAdjustments: () => setStockAdjustments([]),
       pauseSale: async (note?: string) => {
         if (cart.length === 0 || !token) return;
         const cleanSplits = splits
@@ -221,6 +245,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         // by name (drives the Venta notice modal). Lines whose product was
         // DELETED (no live) are dropped SILENTLY — no cashier-facing notice.
         const pausedNames: string[] = [];
+        // Phase 5 — reconcile against LIVE stock. A parked cart reserves nothing,
+        // so another cashier may have sold its units while it sat: drop the line
+        // when nothing is left ('gone'), clamp it when only some remains ('reduced').
+        const adjustments: StockAdjustment[] = [];
         for (const it of res.items ?? []) {
           const live = byId.get(it.productId);
           if (!live) continue; // deleted — drop silently
@@ -228,11 +256,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
             pausedNames.push(live.name);
             continue;
           }
+          if (live.stock <= 0) {
+            adjustments.push({ name: live.name, kind: 'gone', left: 0 });
+            continue; // sold out now — drop the line
+          }
+          if (live.stock < it.qty) {
+            adjustments.push({
+              name: live.name,
+              kind: 'reduced',
+              left: live.stock,
+            });
+            items.push({ ...live, qty: live.stock }); // clamp to what's left
+            continue;
+          }
           items.push({ ...live, qty: it.qty });
         }
         setCart(items);
         if (pausedNames.length > 0)
           setPausedRemovals((prev) => [...prev, ...pausedNames]);
+        if (adjustments.length > 0)
+          setStockAdjustments((prev) => [...prev, ...adjustments]);
         setSelectedClientId(res.client?._id ?? null);
         const restored = (res.splits ?? []) as {
           method: string;
@@ -264,6 +307,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     heldCarts,
     completedSale,
     pausedRemovals,
+    stockAdjustments,
     token,
     products,
     park,

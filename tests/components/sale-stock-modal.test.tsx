@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-// Venta MODAL for products auto-removed because their product was paused
-// (sellable === false). The removal itself happens in CartContext (either live
-// on the active cart, or while resuming a held cart). Here we only assert the
-// acknowledge MODAL renders the neutral-Spanish copy in BOTH layouts and that
-// "Entendido" dismisses it. Replaces the old dismissible banner (which failed
-// to render because it sat inside a branch that didn't always mount).
+// Venta MODAL for cart lines reconciled against LIVE stock when a held sale is
+// RESUMED (reserved removal, Phase 5). Parked carts reserve nothing, so units may
+// have been sold while the sale sat: the line is dropped ('gone', danger red) or
+// clamped to what's left ('reduced', warn terracotta). The reconciliation itself
+// lives in CartContext.resumeSale (covered in contexts.test.tsx). Here we assert
+// the acknowledge MODAL renders the color-coded rows (product name + severity copy)
+// in BOTH layouts and that "Entendido" dismisses it. Sibling of sale-paused-modal.
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -19,11 +20,10 @@ const { cartMock, productsMock } = vi.hoisted(() => {
     splits: unknown[];
     resetPayment: ReturnType<typeof vi.fn>;
     discardSale: ReturnType<typeof vi.fn>;
-    reserved: Record<string, number>;
     pauseSale: ReturnType<typeof vi.fn>;
     pausedRemovals: string[];
     dismissPausedRemovals: ReturnType<typeof vi.fn>;
-    stockAdjustments: unknown[];
+    stockAdjustments: { name: string; kind: 'gone' | 'reduced'; left: number }[];
     dismissStockAdjustments: ReturnType<typeof vi.fn>;
   } = {
     cart: [],
@@ -33,7 +33,6 @@ const { cartMock, productsMock } = vi.hoisted(() => {
     splits: [],
     resetPayment: vi.fn(),
     discardSale: vi.fn(),
-    reserved: {},
     pauseSale: vi.fn(async () => {}),
     pausedRemovals: [],
     dismissPausedRemovals: vi.fn(),
@@ -77,10 +76,11 @@ const maria = {
 
 beforeEach(() => {
   cartMock.cart = [];
-  cartMock.reserved = {};
   cartMock.selectedClient = maria; // past the ClientGate
   cartMock.pausedRemovals = [];
   cartMock.dismissPausedRemovals = vi.fn();
+  cartMock.stockAdjustments = [];
+  cartMock.dismissStockAdjustments = vi.fn();
   productsMock.current = [];
 });
 afterEach(() => {
@@ -90,73 +90,70 @@ afterEach(() => {
 
 const entendido = () => screen.getByRole('button', { name: 'Entendido' });
 
-describe('Venta — paused-removal modal (desktop layout)', () => {
+describe('Venta — stock-adjustment modal (desktop layout)', () => {
   beforeEach(() => {
     window.innerWidth = 1280;
   });
 
-  test('single removed → neutral-Spanish modal; Entendido dismisses it', async () => {
+  test('a clamped line shows the product name + "solo quedan N" copy; Entendido dismisses', async () => {
     const user = userEvent.setup();
-    cartMock.pausedRemovals = ['Pintura blanca 1gal'];
+    cartMock.stockAdjustments = [
+      { name: 'Coca-Cola 600ml', kind: 'reduced', left: 3 },
+    ];
     render(<SaleScreen onConfirm={vi.fn()} />);
 
-    expect(screen.getByText('Productos pausados')).toBeDefined();
-    // Singular intro line + the name on its own list item.
+    expect(screen.getByText('Stock actualizado')).toBeDefined();
+    // Name and severity copy are separate elements now (color-coded row).
+    expect(screen.getByText('Coca-Cola 600ml')).toBeDefined();
     expect(
-      screen.getByText(
-        'Este producto fue quitado de la venta porque está pausado:'
-      )
+      screen.getByText('Solo quedan 3 — se ajustó la cantidad')
     ).toBeDefined();
-    const items = screen.getAllByRole('listitem').map((li) => li.textContent);
-    expect(items).toContain('Pintura blanca 1gal');
 
     await user.click(entendido());
-    expect(cartMock.dismissPausedRemovals).toHaveBeenCalledTimes(1);
+    expect(cartMock.dismissStockAdjustments).toHaveBeenCalledTimes(1);
   });
 
-  test('no removals → no modal', () => {
-    cartMock.pausedRemovals = [];
+  test('a sold-out line shows the product name + "ya no hay stock" copy', () => {
+    cartMock.stockAdjustments = [{ name: 'Agua 1L', kind: 'gone', left: 0 }];
     render(<SaleScreen onConfirm={vi.fn()} />);
-    expect(screen.queryByText('Productos pausados')).toBeNull();
+
+    expect(screen.getByText('Stock actualizado')).toBeDefined();
+    expect(screen.getByText('Agua 1L')).toBeDefined();
     expect(
-      screen.queryByText(/fue quitado de la venta|fueron quitados de la venta/)
-    ).toBeNull();
+      screen.getByText('Ya no hay stock — se quitó de la venta')
+    ).toBeDefined();
+  });
+
+  test('no adjustments → no modal', () => {
+    cartMock.stockAdjustments = [];
+    render(<SaleScreen onConfirm={vi.fn()} />);
+    expect(screen.queryByText('Stock actualizado')).toBeNull();
   });
 });
 
-describe('Venta — paused-removal modal (mobile layout)', () => {
+describe('Venta — stock-adjustment modal (mobile layout)', () => {
   beforeEach(() => {
     window.innerWidth = 375;
   });
 
-  test('multiple removed → modal lists the names (plural copy)', () => {
-    cartMock.pausedRemovals = ['Pintura blanca 1gal', 'Cemento gris'];
-    render(<SaleScreen onConfirm={vi.fn()} />);
-
-    expect(screen.getByText('Productos pausados')).toBeDefined();
-    // Plural intro line + each name on its own list item.
-    expect(
-      screen.getByText(
-        'Estos productos fueron quitados de la venta porque están pausados:'
-      )
-    ).toBeDefined();
-    const items = screen.getAllByRole('listitem').map((li) => li.textContent);
-    expect(items).toContain('Pintura blanca 1gal');
-    expect(items).toContain('Cemento gris');
-  });
-
-  test('empty cart on mobile → modal still renders (covers the all-paused resume case)', () => {
+  test('empty cart on mobile → both rows render (all-sold-out + clamped resume case)', () => {
     cartMock.cart = [];
-    cartMock.pausedRemovals = ['Pintura blanca 1gal'];
+    cartMock.stockAdjustments = [
+      { name: 'Cemento gris', kind: 'gone', left: 0 },
+      { name: 'Coca-Cola 600ml', kind: 'reduced', left: 2 },
+    ];
     render(<SaleScreen onConfirm={vi.fn()} />);
 
-    expect(screen.getByText('Productos pausados')).toBeDefined();
+    expect(screen.getByText('Stock actualizado')).toBeDefined();
+    // One list item per adjustment, each with its own name + severity copy.
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+    expect(screen.getByText('Cemento gris')).toBeDefined();
     expect(
-      screen.getByText(
-        'Este producto fue quitado de la venta porque está pausado:'
-      )
+      screen.getByText('Ya no hay stock — se quitó de la venta')
     ).toBeDefined();
-    const items = screen.getAllByRole('listitem').map((li) => li.textContent);
-    expect(items).toContain('Pintura blanca 1gal');
+    expect(screen.getByText('Coca-Cola 600ml')).toBeDefined();
+    expect(
+      screen.getByText('Solo quedan 2 — se ajustó la cantidad')
+    ).toBeDefined();
   });
 });
