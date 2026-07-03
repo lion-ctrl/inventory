@@ -38,8 +38,6 @@ interface CartValue {
   resetPayment: () => void;
   /** Discard the whole in-progress sale: cart + payment splits + selected client. */
   discardSale: () => void;
-  /** productId → qty reserved by held ("en espera") carts; reduces availability in Venta */
-  reserved: Record<string, number>;
   heldCarts: HeldCart[];
   pauseSale: (note?: string) => Promise<void>;
   resumeSale: (heldCartId: Id<'heldCarts'>) => Promise<void>;
@@ -161,16 +159,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setPausedRemovals((prev) => [...prev, ...pausedNames]);
   }, [products]);
 
-  const reserved = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const held of heldCarts) {
-      for (const it of held.items ?? []) {
-        m[it.productId] = (m[it.productId] || 0) + it.qty;
-      }
-    }
-    return m;
-  }, [heldCarts]);
-
   const selectedClient = useMemo(
     () => clients.find((c) => c._id === selectedClientId) ?? null,
     [clients, selectedClientId]
@@ -200,7 +188,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       splitsIdRef,
       resetPayment,
       discardSale,
-      reserved,
       heldCarts,
       completedSale,
       setCompletedSale,
@@ -274,7 +261,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     selectedClient,
     selectedClientId,
     splits,
-    reserved,
     heldCarts,
     completedSale,
     pausedRemovals,

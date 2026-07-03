@@ -255,17 +255,6 @@ describe('CartContext', () => {
     return renderHook(() => useCart(), { wrapper: cartWrapper });
   }
 
-  test('reserved stock aggregates held-cart quantities per product', () => {
-    const { result } = renderCart({
-      products: [cola],
-      heldCarts: [
-        { _id: 'h1', items: [{ productId: 'p_cola', qty: 2 }] },
-        { _id: 'h2', items: [{ productId: 'p_cola', qty: 3 }] },
-      ],
-    });
-    expect(result.current.reserved).toEqual({ p_cola: 5 });
-  });
-
   test('a products update prunes paused lines and refreshes snapshots (products-driven sync)', async () => {
     const { result, rerender } = renderCart({
       products: [cola, pausedProduct],
