@@ -20,6 +20,7 @@ import {
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { useBsRate } from '@/state/hooks';
+import { usePendingSales } from '@/state/usePendingSales';
 import { DateField } from './Stored';
 import type { Sale } from '@/types';
 
@@ -343,7 +344,7 @@ function SaleDetailSheet({
   onReprint,
   onRefund,
   canRefund,
-  online: _online,
+  online,
   bsRate,
 }: SaleDetailSheetProps) {
   if (!sale) return null;
@@ -514,10 +515,14 @@ function SaleDetailSheet({
             variant="danger"
             icon="rotate-ccw"
             block
+            disabled={!online}
             onClick={() => onRefund(sale)}
           >
             Reembolsar
           </Button>
+        )}
+        {canRefund && !isRefunded && !online && (
+          <div className="t-body-sm">Reembolsar requiere conexión.</div>
         )}
         <div className="row" style={{ gap: 10 }}>
           <Button variant="secondary" onClick={onClose}>
@@ -635,8 +640,14 @@ export default function HistoryScreen() {
   const toast = useToast();
   // useSession() first so the token is in scope for the gated history query.
   const { token, can } = useSession();
-  const sales = useQuery(api.sales.history, token ? { token } : 'skip') ?? [];
+  const salesRaw = useQuery(api.sales.history, token ? { token } : 'skip');
+  const sales = salesRaw ?? [];
   const online = useOnline();
+  // Phase 10 — official history is NOT mirrored (server-only). Offline with no
+  // cached result it is unavailable; the locally-queued offline sales are shown
+  // separately as PENDING_SYNC (usePendingSales), enriched from the mirror.
+  const salesUnavailable = !online && salesRaw === undefined;
+  const pendingSales = usePendingSales();
   const bsRate = useBsRate();
   const _navigate = useNavigate();
   const refund = useMutation(api.sales.refund);
@@ -654,6 +665,10 @@ export default function HistoryScreen() {
   const canRefund = can('void_sales');
 
   const doRefund = async (sale: Sale, reason: string) => {
+    if (!online) {
+      toast.error('Reembolsar requiere conexión.');
+      return;
+    }
     // The server returns the sold units back to inventory and flags the sale;
     // useQuery reactivity refreshes the list.
     try {
@@ -749,6 +764,47 @@ export default function HistoryScreen() {
       />
 
       <div className="content hist-content">
+        {salesUnavailable && (
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Sin conexión"
+            message="El historial oficial requiere conexión. Abajo están tus ventas pendientes de sincronizar."
+          />
+        )}
+        {pendingSales.length > 0 && (
+          <div className="card">
+            <div className="sec-head">
+              <h2>Pendientes de sincronización</h2>
+              <Chip tone="warn">{pendingSales.length}</Chip>
+            </div>
+            {pendingSales.map((ps) => (
+              <div className="lrow" key={ps.localId}>
+                <div className="thumb">
+                  <Icon name="wifi-off" size={18} />
+                </div>
+                <div>
+                  <p className="pname">
+                    Venta offline · {ps.itemCount}{' '}
+                    {ps.itemCount === 1 ? 'producto' : 'productos'}
+                  </p>
+                  <div className="pmeta">
+                    {ps.clientName} · {METHOD_LABELS[ps.method] ?? ps.method} ·{' '}
+                    {new Date(ps.soldAt).toLocaleTimeString('es', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                </div>
+                <div className="pright">
+                  <Chip tone="warn">Pendiente</Chip>
+                  <div className="tabular">${ps.total.toFixed(2)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Stats */}
         <div className="prod-stats hist-stats">
           <div className="prod-stat">
