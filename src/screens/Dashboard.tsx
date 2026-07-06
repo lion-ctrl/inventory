@@ -47,7 +47,14 @@ export default function Dashboard() {
   const online = useOnline();
   const bsRate = useBsRate();
   const navigate = useNavigate();
-  const salesHistory = useQuery(api.sales.history, token ? { token } : 'skip') ?? [];
+  // Phase 9 — `sales.history` is NOT mirrored (official history is server-only,
+  // §Phase 10). Convex keeps the last-fetched result while offline WITHIN a session
+  // (that shows the cached figure), but a FRESH offline load has none — show
+  // "No disponible sin conexión" instead of a misleading $0. `salesUnavailable` is
+  // true ONLY offline with no data (never during an online first-load).
+  const salesHistoryRaw = useQuery(api.sales.history, token ? { token } : 'skip');
+  const salesHistory = salesHistoryRaw ?? [];
+  const salesUnavailable = !online && salesHistoryRaw === undefined;
   const products = useProducts();
   const clients = useClients();
   const categories = useCategories();
@@ -132,7 +139,7 @@ export default function Dashboard() {
       cls: '',
       icon: 'receipt',
       title: 'Historial',
-      sub: `${todaySales.length} ventas hoy`,
+      sub: salesUnavailable ? 'Ver historial' : `${todaySales.length} ventas hoy`,
       onClick: () => void navigate('/historial'),
     },
     {
@@ -188,10 +195,19 @@ export default function Dashboard() {
           <div className="dash-hero-main">
             <div className="label">Vendido hoy</div>
             <div className="num">
-              ${money(dollars).replace(/,00$/, '')}
-              <span>{cents}</span>
+              {salesUnavailable ? (
+                '—'
+              ) : (
+                <>
+                  ${money(dollars).replace(/,00$/, '')}
+                  <span>{cents}</span>
+                </>
+              )}
             </div>
-            {bsRate > 0 && (
+            {salesUnavailable && (
+              <div className="t-body-sm">No disponible sin conexión</div>
+            )}
+            {!salesUnavailable && bsRate > 0 && (
               <div className="dash-hero-bs">Bs {money(revenue * bsRate)}</div>
             )}
             {trend !== null && (
@@ -208,11 +224,11 @@ export default function Dashboard() {
           <div className="dash-hero-stats">
             <div>
               <div className="k">Ventas</div>
-              <div className="v">{todaySales.length}</div>
+              <div className="v">{salesUnavailable ? '—' : todaySales.length}</div>
             </div>
             <div>
               <div className="k">Productos</div>
-              <div className="v">{units}</div>
+              <div className="v">{salesUnavailable ? '—' : units}</div>
             </div>
           </div>
         </div>
@@ -298,7 +314,11 @@ export default function Dashboard() {
               )}
             </div>
             <div className="card">
-              {recent.length === 0 ? (
+              {salesUnavailable ? (
+                <div className="dash-empty">
+                  <Icon name="wifi-off" size={20} /> No disponible sin conexión
+                </div>
+              ) : recent.length === 0 ? (
                 <div className="dash-empty">
                   <Icon name="receipt" size={20} /> Aún no hay ventas
                 </div>
