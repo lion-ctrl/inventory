@@ -21,6 +21,7 @@ import type {
   Client,
   CompletedSale,
   HeldCart,
+  Product,
   SplitRow,
 } from '@/types';
 import { useSession } from './SessionContext';
@@ -28,9 +29,10 @@ import { useClients, useProducts } from './hooks';
 import { db } from './db';
 
 /**
- * A resumed cart line reconciled against LIVE stock (parked carts reserve
- * nothing): 'gone' — sold out since parking, so the line was dropped; 'reduced'
- * — only `left` units remain, so the line was clamped to `left`.
+ * A cart line reconciled against LIVE stock: 'gone' — sold out, so the line was
+ * dropped; 'reduced' — only `left` units remain, so the line was clamped to
+ * `left`. Surfaced whenever stock drops under a cart — on RESUME (a parked cart
+ * reserves nothing) OR live, while a cashier holds a line another cashier sells.
  */
 interface StockAdjustment {
   name: string;
@@ -66,6 +68,45 @@ interface CartValue {
 }
 
 const CartContext = createContext<CartValue | null>(null);
+
+/**
+ * Reconcile cart lines against LIVE products. Drops deleted lines silently and
+ * paused lines by name (→ pausedNames); against live stock DROPS sold-out lines
+ * ('gone') and CLAMPS reduced ones ('reduced', to what's left) — both surfaced as
+ * StockAdjustments. Surviving lines get a fresh product snapshot. SHARED by the
+ * products-sync effect (active cart) and resumeSale (held cart) so both self-heal
+ * identically: a cashier can never hold more units than physically exist.
+ */
+function reconcileLinesAgainstLive(
+  lines: { id: string; qty: number }[],
+  products: Product[]
+): { items: CartItem[]; pausedNames: string[]; adjustments: StockAdjustment[] } {
+  const byId = new Map<string, Product>(
+    products.map((p): [string, Product] => [p._id, p])
+  );
+  const items: CartItem[] = [];
+  const pausedNames: string[] = [];
+  const adjustments: StockAdjustment[] = [];
+  for (const line of lines) {
+    const live = byId.get(line.id);
+    if (!live) continue; // deleted — drop silently
+    if (live.sellable === false) {
+      pausedNames.push(live.name); // paused — drop AND notify by name
+      continue;
+    }
+    if (live.stock <= 0) {
+      adjustments.push({ name: live.name, kind: 'gone', left: 0 });
+      continue; // sold out now — drop the line
+    }
+    if (live.stock < line.qty) {
+      adjustments.push({ name: live.name, kind: 'reduced', left: live.stock });
+      items.push({ ...live, qty: live.stock }); // clamp to what's left
+      continue;
+    }
+    items.push({ ...live, qty: line.qty }); // fine — refresh snapshot, keep qty
+  }
+  return { items, pausedNames, adjustments };
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { token, user } = useSession();
@@ -153,35 +194,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   }, [cart, selectedClientId, splits]);
 
-  // Port of the prototype's setProductsAndSyncCart: when products change, refresh
-  // the cart snapshots and drop lines that became unsellable (paused) or were
-  // removed. Paused lines are also recorded so the cashier gets a notice.
+  // Port of the prototype's setProductsAndSyncCart, extended to reconcile against
+  // LIVE stock: when products change, refresh each cart snapshot and drop
+  // deleted/paused/sold-out lines + clamp reduced ones — the active-cart sibling
+  // of resumeSale. Paused removals and stock changes are surfaced so the last
+  // cashier holding a just-sold product is told "ya no hay" (via the acknowledge
+  // modal) instead of being allowed to oversell it.
   useEffect(() => {
     if (products.length === 0) return;
-    const byId = new Map(products.map((p) => [p._id, p]));
     const current = cartRef.current;
-    const next: CartItem[] = [];
-    const pausedNames: string[] = [];
-    let changed = false;
-    for (const item of current) {
-      const live = byId.get(item._id);
-      if (!live) {
-        // Product was deleted — drop silently (no cashier-facing notice).
-        changed = true;
-        continue;
-      }
-      if (live.sellable === false) {
-        // Product was paused live — drop AND notify the cashier by name.
-        changed = true;
-        pausedNames.push(live.name);
-        continue;
-      }
-      next.push({ ...live, qty: item.qty });
-      if (live !== (item as unknown)) changed = true;
-    }
-    if (changed || next.length !== current.length) setCart(next);
+    if (current.length === 0) return;
+    const { items, pausedNames, adjustments } = reconcileLinesAgainstLive(
+      current.map((it) => ({ id: it._id, qty: it.qty })),
+      products
+    );
+    setCart(items);
     if (pausedNames.length > 0)
       setPausedRemovals((prev) => [...prev, ...pausedNames]);
+    if (adjustments.length > 0)
+      setStockAdjustments((prev) => [...prev, ...adjustments]);
   }, [products]);
 
   const selectedClient = useMemo(
@@ -242,38 +273,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       resumeSale: async (heldCartId: Id<'heldCarts'>) => {
         if (!token) return;
         const res = await resume({ token, heldCartId });
-        const byId = new Map(products.map((p) => [p._id, p]));
-        const items: CartItem[] = [];
-        // Lines whose product was PAUSED since parking are dropped AND recorded
-        // by name (drives the Venta notice modal). Lines whose product was
-        // DELETED (no live) are dropped SILENTLY — no cashier-facing notice.
-        const pausedNames: string[] = [];
-        // Phase 5 — reconcile against LIVE stock. A parked cart reserves nothing,
-        // so another cashier may have sold its units while it sat: drop the line
-        // when nothing is left ('gone'), clamp it when only some remains ('reduced').
-        const adjustments: StockAdjustment[] = [];
-        for (const it of res.items ?? []) {
-          const live = byId.get(it.productId);
-          if (!live) continue; // deleted — drop silently
-          if (live.sellable === false) {
-            pausedNames.push(live.name);
-            continue;
-          }
-          if (live.stock <= 0) {
-            adjustments.push({ name: live.name, kind: 'gone', left: 0 });
-            continue; // sold out now — drop the line
-          }
-          if (live.stock < it.qty) {
-            adjustments.push({
-              name: live.name,
-              kind: 'reduced',
-              left: live.stock,
-            });
-            items.push({ ...live, qty: live.stock }); // clamp to what's left
-            continue;
-          }
-          items.push({ ...live, qty: it.qty });
-        }
+        // Reconcile the resumed lines against LIVE data — same self-healing as the
+        // active-cart products-sync effect: drop deleted/paused/sold-out, clamp
+        // reduced. A parked cart reserves nothing, so its units may already be gone.
+        const { items, pausedNames, adjustments } = reconcileLinesAgainstLive(
+          (res.items ?? []).map((it) => ({ id: it.productId, qty: it.qty })),
+          products
+        );
         setCart(items);
         if (pausedNames.length > 0)
           setPausedRemovals((prev) => [...prev, ...pausedNames]);

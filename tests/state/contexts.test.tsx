@@ -500,4 +500,48 @@ describe('CartContext', () => {
     });
     expect(result.current.pausedRemovals).toEqual([]);
   });
+
+  test('a live cart item that SELLS OUT is dropped and surfaced as a stock adjustment', async () => {
+    const { result, rerender } = renderCart({ products: [cola] });
+
+    act(() => {
+      result.current.setCart([{ ...cola, qty: 3 }]);
+    });
+    expect(result.current.cart).toHaveLength(1);
+
+    // Another cashier sells the last units: live stock drops to 0 (new array id).
+    wiring.products = [{ ...cola, stock: 0 }] as Product[];
+    rerender();
+
+    // The sold-out line is dropped from the ACTIVE cart and the cashier is told —
+    // no overselling a product that is now gone.
+    await waitFor(() => expect(result.current.cart).toHaveLength(0));
+    expect(result.current.stockAdjustments).toEqual([
+      { name: 'Coca-Cola 600ml', kind: 'gone', left: 0 },
+    ]);
+
+    act(() => {
+      result.current.dismissStockAdjustments();
+    });
+    expect(result.current.stockAdjustments).toEqual([]);
+  });
+
+  test('a live cart item whose stock drops BELOW its qty is clamped and surfaced', async () => {
+    const { result, rerender } = renderCart({ products: [cola] });
+
+    act(() => {
+      result.current.setCart([{ ...cola, qty: 5 }]);
+    });
+    expect(result.current.cart[0].qty).toBe(5);
+
+    // Live stock drops to 2 (another cashier sold most of it).
+    wiring.products = [{ ...cola, stock: 2 }] as Product[];
+    rerender();
+
+    // The line is clamped to what physically remains (2), with a notice.
+    await waitFor(() => expect(result.current.cart[0]?.qty).toBe(2));
+    expect(result.current.stockAdjustments).toEqual([
+      { name: 'Coca-Cola 600ml', kind: 'reduced', left: 2 },
+    ]);
+  });
 });
