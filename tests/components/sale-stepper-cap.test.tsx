@@ -156,4 +156,16 @@ describe('Venta — in-cart stepper caps at physical stock', () => {
     // the reserved term is gone, so the cap is the physical 5 and "+" is enabled.
     expect(plusInRow()).toHaveProperty('disabled', false);
   });
+
+  test('physical=0 (sold out) → "+" disabled: the cap is 0, NOT a million', () => {
+    // A line frozen at qty 2 from before the product sold out; its live stock is
+    // now 0. THE BUG: stock 0 fell through the `stock > 0` guard to MAX_QTY
+    // (1,000,000), so "+" stayed enabled and the cashier could add a phantom
+    // million. Sold out must cap at 0 — only a NON-numeric stock (service) is
+    // uncapped.
+    productsMock.current = [makeProduct({ stock: 0 })];
+    cartMock.cart = [cartLine(2, { stock: 0 })];
+    render(<SaleScreen onConfirm={vi.fn()} />);
+    expect(plusInRow()).toHaveProperty('disabled', true);
+  });
 });

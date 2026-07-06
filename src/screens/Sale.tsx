@@ -297,10 +297,11 @@ function CartItemRow({
 }) {
   const MAX_QTY = 1000000;
   // Cap at PHYSICAL stock: the stepper must never let the qty climb past what
-  // exists. Physical stock <= 0 keeps the legacy "uncapped" behavior (e.g.
-  // services).
+  // exists — INCLUDING 0 (sold out → cap 0, no phantom units). Only a NON-numeric
+  // stock (an untracked service) keeps the legacy "uncapped" behavior. NOTE: the
+  // old `stock > 0` guard treated a sold-out 0 as "uncapped" → the million bug.
   const stockCap =
-    typeof item.stock === 'number' && item.stock > 0 ? item.stock : MAX_QTY;
+    typeof item.stock === 'number' ? item.stock : MAX_QTY;
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(item.qty));
   useEffect(() => {
@@ -1571,11 +1572,11 @@ export default function SaleScreen({
     setSearchOpen(false);
   };
 
-  // Cap a programmatic qty at PHYSICAL stock. Physical stock <= 0 keeps the
-  // legacy uncapped behavior (e.g. services). Mirrors the CartItemRow stepper
-  // cap so increments can never exceed physical stock.
+  // Cap a programmatic qty at PHYSICAL stock — INCLUDING 0 (sold out → cap 0).
+  // Only a NON-numeric stock (an untracked service) stays uncapped. Mirrors the
+  // CartItemRow stepper cap so increments can never exceed physical stock.
   const availableCap = (item: CartItem) =>
-    typeof item.stock === 'number' && item.stock > 0 ? item.stock : 1000000;
+    typeof item.stock === 'number' ? item.stock : 1000000;
   const inc = (id: Id<'products'>) =>
     setCart((c) =>
       c.map((i) =>
