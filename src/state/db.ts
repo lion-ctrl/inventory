@@ -12,6 +12,7 @@ import type {
   Client,
   Settings,
   CartItem,
+  HeldCart,
   SplitRow,
 } from '@/types';
 import type { Id } from '@convex/_generated/dataModel';
@@ -59,6 +60,7 @@ const db = new Dexie('intentory-pos') as Dexie & {
   categories: EntityTable<Category, '_id'>;
   clients: EntityTable<Client, '_id'>;
   settings: EntityTable<Settings, '_id'>;
+  heldCarts: EntityTable<HeldCart, '_id'>;
   cartDraft: EntityTable<CartDraft, 'id'>;
   pendingOps: EntityTable<PendingOp, 'localId'>;
   meta: EntityTable<MetaRow, 'key'>;
@@ -78,6 +80,14 @@ db.version(1).stores({
   cartDraft: 'id', // one row, id='active'
   pendingOps: '++localId, &idempotencyKey, type, status, createdAt, updatedAt',
   meta: 'key', // deviceId, lastSyncAt.<table>, optional currentUser snapshot
+});
+
+// Phase 8 — mirror the held-carts list so "Ventas en espera" renders offline. An
+// ADDITIVE table: Dexie keeps the v1 tables and needs no upgrade function to add a
+// new store with no data migration (context7: dexie.org — Database Versioning).
+// park/resume/discard stay online-only (blocked in Stored while offline).
+db.version(2).stores({
+  heldCarts: '_id, code, createdAt',
 });
 
 // First-run seed: a stable device id (FEATURES §19).

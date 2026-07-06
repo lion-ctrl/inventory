@@ -65,6 +65,7 @@ const store = vi.hoisted(() => {
     categories: mirror(),
     clients: mirror(),
     settings: mirror(),
+    heldCarts: mirror(),
     transaction: vi.fn(async (_mode: unknown, ...rest: unknown[]) => {
       const scope = rest[rest.length - 1] as () => unknown;
       return scope();
@@ -78,6 +79,7 @@ vi.mock('@/state/db', () => ({
     categories: store.categories,
     clients: store.clients,
     settings: store.settings,
+    heldCarts: store.heldCarts,
     cartDraft: store.cartDraft,
     transaction: store.transaction,
   },

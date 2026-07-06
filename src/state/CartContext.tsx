@@ -12,7 +12,7 @@ import type {
   ReactNode,
   SetStateAction,
 } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
 import { NEW_SPLIT_ROW } from '@/types';
@@ -26,6 +26,7 @@ import type {
 } from '@/types';
 import { useSession } from './SessionContext';
 import { useClients, useProducts } from './hooks';
+import { useMirroredQuery } from './useMirroredQuery';
 import { db } from './db';
 
 /**
@@ -112,17 +113,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { token, user } = useSession();
   const products = useProducts();
   const clients = useClients();
-  // Server read only with a CONFIRMED session — an unconfirmed/stale token throws
-  // in requireSession (no error boundary → white screen). heldCarts has no offline
-  // mirror yet, so it simply stays empty until the session is confirmed.
-  const heldCartsQuery = useQuery(
+  // Phase 8 — the held-carts list is Dexie-mirrored (like the master data): the
+  // server read fires only with a CONFIRMED session (an unconfirmed/stale token
+  // would throw in requireSession — there is no error boundary), and the mirror
+  // renders the list offline. park/resume/discard stay online-only (blocked in
+  // Stored while offline).
+  const heldCartsResult = useMirroredQuery<HeldCart>(
     api.heldCarts.list,
-    user && token ? { token } : 'skip'
+    token ? { token } : 'skip',
+    'heldCarts',
+    !!user
   );
   // Memoized so the `?? []` fallback doesn't invalidate downstream memo deps every render.
   const heldCarts = useMemo<HeldCart[]>(
-    () => heldCartsQuery ?? [],
-    [heldCartsQuery]
+    () => heldCartsResult ?? [],
+    [heldCartsResult]
   );
 
   const [cart, setCart] = useState<CartItem[]>([]);

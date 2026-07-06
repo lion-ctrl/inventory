@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
   AppBar,
+  Banner,
   Button,
   ConfirmDialog,
   Icon,
@@ -344,6 +345,17 @@ export default function StoredCartsScreen() {
         /* left={<IconButton icon="chevron-left" onClick={() => void navigate('/venta')} ariaLabel="Volver" />} */
       />
 
+      {/* Phase 8 — offline: the held list is read-only. park/resume/discard are
+          server mutations, so they are disabled with a "Sin conexión" affordance. */}
+      {!online && (
+        <Banner
+          tone="warn"
+          icon="wifi-off"
+          title="Sin conexión"
+          message="Las ventas en espera son de solo lectura. Reanudar y descartar requieren conexión."
+        />
+      )}
+
       <div
         className="content stored-content"
         style={{ padding: '5px', textAlign: 'left' }}
@@ -514,6 +526,7 @@ export default function StoredCartsScreen() {
                         <Button
                           size="sm"
                           icon="play"
+                          disabled={!online}
                           onClick={() => requestResume(s._id)}
                         >
                           Reanudar
@@ -522,6 +535,7 @@ export default function StoredCartsScreen() {
                           variant="danger"
                           size="sm"
                           icon="trash-2"
+                          disabled={!online}
                           onClick={() => setConfirmDiscard(s)}
                         >
                           Descartar
@@ -730,6 +744,7 @@ export default function StoredCartsScreen() {
             </Button>
             <Button
               icon="play"
+              disabled={!online}
               onClick={() => {
                 const id = detailCart._id;
                 setDetailCart(null);

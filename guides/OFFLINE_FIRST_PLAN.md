@@ -296,7 +296,7 @@ const clearLocalSession = useCallback(async () => {
 ## Phase 1 — Products (`/productos`, `manage_products`)
 
 **Consumes today:** `useProducts()` (`Products.tsx:738`), `useCategories()` (`741`),
-`useBsRate()` (`744`), `useCart().reserved` (`740`). Writes via mutations
+`useBsRate()` (`744`). Writes via mutations
 `api.products.create/update/setSellable/adjustStock/remove` (`751-755`).
 
 **Dexie table / fill:** `products` mirror, filled by `useMirroredQuery(api.products.list,
@@ -457,7 +457,7 @@ returns the cached rate offline (verify the Payment Bs total and Sale IVA comput
 ## Phase 5 — Scan (`/escanear`, any role) — offline search proof — DONE
 
 **Consumes today:** `useBsRate()` (`Scan.tsx:145`), `useProducts()` (`147`),
-`useCart().reserved` (`149`), `useCategories()` (`150`), `useSettingsDoc()` (`151`). Plus
+`useCategories()` (`150`), `useSettingsDoc()` (`151`). Plus
 `src/screens/CameraScanner.tsx` when `settings.scannerMode === 'camera'`.
 
 **No hook migration** — products/categories/settings are already Dexie-backed (Phases 1,
@@ -637,7 +637,7 @@ export const syncOffline = mutation({
 `ConvexError({ code })` for the §15 conflict codes (`STOCK_INSUFFICIENT`, `PRODUCT_DELETED`,
 `PRODUCT_DISABLED`, `PRICE_CHANGED`, `TAX_CHANGED`, `CUSTOMER_NOT_FOUND`,
 `DUPLICATE_OPERATION`, `AUTH_EXPIRED`, `PERMISSION_DENIED`) so the client maps codes →
-`conflict` status. Share `snapshotLines` + the reserved backstop with `checkout` to avoid drift.
+`conflict` status. Share `snapshotLines` + the physical-stock validation with `checkout` to avoid drift.
 
 ### 6.4 Sync engine (FEATURES §12) — born here, owns op deletion
 
@@ -700,15 +700,14 @@ totals; after reconnect-sync the official invoice number replaces/links the loca
 is uncached today (`CartContext.tsx:60`) — mirror it with the same `useMirroredQuery`
 pattern so the held list renders offline.
 
-**Offline (works after mirroring):** view the held-carts list and the reserved-stock
-overlay (`CartContext.tsx:128-136`).
+**Offline (works after mirroring):** view the held-carts list from the mirror.
 
 **Offline (blocked / queued):** `park` / `resume` / `discard` are server mutations
 (`CartContext.tsx:180-233`) — online-only initially; optionally queue `park` as a pending op
 later. Resume of a held cart while offline reads from the mirror but cannot mutate server state.
 
 **Tests (offline):** held list renders offline from the `heldCarts` mirror; park/resume/discard
-disabled (or queued) offline; reserved-stock math still reduces Venta availability offline.
+disabled (or queued) offline.
 
 ---
 
