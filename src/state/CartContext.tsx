@@ -68,12 +68,15 @@ interface CartValue {
 const CartContext = createContext<CartValue | null>(null);
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { token } = useSession();
+  const { token, user } = useSession();
   const products = useProducts();
   const clients = useClients();
+  // Server read only with a CONFIRMED session — an unconfirmed/stale token throws
+  // in requireSession (no error boundary → white screen). heldCarts has no offline
+  // mirror yet, so it simply stays empty until the session is confirmed.
   const heldCartsQuery = useQuery(
     api.heldCarts.list,
-    token ? { token } : 'skip'
+    user && token ? { token } : 'skip'
   );
   // Memoized so the `?? []` fallback doesn't invalidate downstream memo deps every render.
   const heldCarts = useMemo<HeldCart[]>(

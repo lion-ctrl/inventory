@@ -55,6 +55,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { getFunctionName } from 'convex/server';
 import { SessionProvider, useSession } from '@/state/SessionContext';
 import { CartProvider, useCart } from '@/state/CartContext';
+import { useProducts } from '@/state/hooks';
 import type { Client, Product } from '@/types';
 
 const useQueryMock = vi.mocked(useQuery);
@@ -244,6 +245,37 @@ describe('SessionContext', () => {
     });
     expect(localStorage.getItem('pos.sessionToken')).toBeNull();
     expect(result.current.user).toBeNull();
+  });
+});
+
+describe('session-gated data reads', () => {
+  // The AUTH reform made requireSession THROW on an invalid token, while auth.me
+  // resolves to null gracefully. Data reads must therefore gate on a CONFIRMED
+  // session (a resolved user), NOT mere token presence — otherwise a stale token
+  // (present on boot before auth.me resolves) fires products.list, which throws an
+  // uncaught ConvexError and white-screens the app (there is no error boundary).
+  test('an unconfirmed token never surfaces the catalog (no boot white-screen)', () => {
+    localStorage.setItem('pos.sessionToken', OWNER_TOKEN);
+    localStorage.setItem('pos.sessionExpiresAt', String(futureExpiry()));
+    // Token present, but auth.me has NOT resolved to a user (loading, or stale).
+    wireQueries({ me: undefined, products: [cola] });
+    const { result } = renderHook(() => useProducts(), {
+      wrapper: sessionWrapper,
+    });
+    // Gated: no live catalog under an unconfirmed session (the server call that
+    // would have thrown is never made). No data, no crash.
+    expect(result.current).toEqual([]);
+  });
+
+  test('a CONFIRMED session surfaces the live catalog', () => {
+    localStorage.setItem('pos.sessionToken', OWNER_TOKEN);
+    localStorage.setItem('pos.sessionExpiresAt', String(futureExpiry()));
+    // auth.me resolves to the employee → session confirmed → the read fires.
+    wireQueries({ me: owner, products: [cola] });
+    const { result } = renderHook(() => useProducts(), {
+      wrapper: sessionWrapper,
+    });
+    expect(result.current).toEqual([cola]);
   });
 });
 

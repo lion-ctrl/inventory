@@ -17,9 +17,16 @@ type MirrorTable = 'products' | 'categories' | 'clients';
 export function useMirroredQuery<T extends { _id: string }>(
   query: any,
   args: any,
-  table: MirrorTable
+  table: MirrorTable,
+  confirmed: boolean = true
 ): T[] | undefined {
-  const live = useQuery(query, args) as T[] | undefined;
+  // Hit the SERVER only with a CONFIRMED session (`confirmed`). A present-but-
+  // unconfirmed token (stale on boot, or auth.me still loading) would make
+  // requireSession THROW an uncaught ConvexError — and there is NO error boundary,
+  // so it white-screens the app. Offline, auth.me never resolves, so we lean on the
+  // mirror below (served on TOKEN presence, `args`). Net: the server is never
+  // called with an unconfirmed token, yet offline reloads still show mirrored data.
+  const live = useQuery(query, confirmed ? args : 'skip') as T[] | undefined;
 
   // Background mirror: every successful server result refreshes Dexie.
   useEffect(() => {

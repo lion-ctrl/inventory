@@ -22,9 +22,12 @@ const EMPTY: never[] = [];
 // and reads NO local mirror, so a logged-out device sees no settings (closing the
 // read half of the old logout leak). This was the LAST useCachedQuery consumer.
 export function useSettingsDoc(): Settings | null | undefined {
-  const { token } = useSession();
+  const { token, user } = useSession();
   const args = token ? { token } : 'skip';
-  const live = useQuery(api.settings.get, args);
+  // Server read only with a CONFIRMED session (see useMirroredQuery): an
+  // unconfirmed/stale token throws in requireSession and white-screens the app.
+  // The Dexie singleton below still serves on token presence, so offline works.
+  const live = useQuery(api.settings.get, user ? args : 'skip');
 
   // Background mirror: every successful server result refreshes the singleton row.
   useEffect(() => {
@@ -67,12 +70,13 @@ export function useBsRate(): number {
 // move: online it reads Convex live and mirrors into the `products` table;
 // offline it serves that mirror.
 export function useProducts(): Product[] {
-  const { token } = useSession();
+  const { token, user } = useSession();
   return (
     useMirroredQuery<Product>(
       api.products.list,
       token ? { token } : 'skip',
-      'products'
+      'products',
+      !!user
     ) ?? EMPTY
   );
 }
@@ -84,12 +88,13 @@ export function useProducts(): Product[] {
 // category-offline in one move: online it reads Convex live and mirrors into the
 // `categories` table; offline it serves that mirror.
 export function useCategories(): CategoryWithCount[] {
-  const { token } = useSession();
+  const { token, user } = useSession();
   return (
     useMirroredQuery<CategoryWithCount>(
       api.categories.list,
       token ? { token } : 'skip',
-      'categories'
+      'categories',
+      !!user
     ) ?? EMPTY
   );
 }
@@ -101,12 +106,13 @@ export function useCategories(): CategoryWithCount[] {
 // mirror (the Sale picker's tax-id match filters this array, so client selection
 // works offline).
 export function useClients(): Client[] {
-  const { token } = useSession();
+  const { token, user } = useSession();
   return (
     useMirroredQuery<Client>(
       api.clients.list,
       token ? { token } : 'skip',
-      'clients'
+      'clients',
+      !!user
     ) ?? EMPTY
   );
 }

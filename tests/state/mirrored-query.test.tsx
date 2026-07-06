@@ -119,4 +119,25 @@ describe('useMirroredQuery', () => {
     // A logged-out device must not read the local catalog.
     expect(store.products.toArray).not.toHaveBeenCalled();
   });
+
+  test('an UNCONFIRMED session never hits the server: passes skip, serves the mirror', async () => {
+    // useQuery yields live data for a real args object, undefined for 'skip'.
+    useQueryMock.mockImplementation(
+      ((_q: unknown, args: unknown) =>
+        args === 'skip' ? undefined : LIVE) as never
+    );
+
+    // confirmed=false models a present-but-unconfirmed token (stale on boot, or
+    // auth.me still loading). requireSession would THROW server-side otherwise,
+    // white-screening the app (there is no error boundary). So the token is NEVER
+    // sent; the server query is skipped and the mirror is served instead.
+    const { result } = renderHook(() =>
+      useMirroredQuery(PRODUCTS_REF, { token: 't' }, 'products', false)
+    );
+
+    expect(useQueryMock).toHaveBeenCalledWith(PRODUCTS_REF, 'skip');
+    await waitFor(() => {
+      expect(result.current).toEqual(store.CACHED);
+    });
+  });
 });

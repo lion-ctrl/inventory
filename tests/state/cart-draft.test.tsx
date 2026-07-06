@@ -28,7 +28,10 @@ vi.mock('convex/react', () => ({
 vi.mock('dexie-react-hooks', () => ({ useLiveQuery: () => undefined }));
 // CartProvider (and the hooks it uses) only read `token` from the session.
 vi.mock('@/state/SessionContext', () => ({
-  useSession: () => ({ token: 't' }),
+  // token + a CONFIRMED user: data reads (useProducts/useClients/heldCarts) gate
+  // on a resolved session now, not mere token presence — so a truthy user is
+  // required for the catalog/clients to flow (and selectedClient to resolve).
+  useSession: () => ({ token: 't', user: { _id: 'e_owner' } }),
 }));
 
 // In-memory Dexie double. `draft` lives in module scope so it OUTLIVES a provider
