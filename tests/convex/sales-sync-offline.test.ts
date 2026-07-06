@@ -35,6 +35,8 @@ function syncArgs(
     deviceId?: string;
     tendered?: number;
     soldAt?: number;
+    ivaPct?: number;
+    exchangeRate?: number;
   }
 ) {
   return {
@@ -46,6 +48,10 @@ function syncArgs(
     method: 'cash',
     splits: over.splits,
     ...(over.tendered !== undefined ? { tendered: over.tendered } : {}),
+    // Captured at sale time (§6.5). Defaults match the seeded settings (ivaPct 13)
+    // so the existing money-math assertions are unchanged.
+    ivaPct: over.ivaPct ?? 13,
+    exchangeRate: over.exchangeRate ?? 36,
     soldAt: over.soldAt ?? SOLD_AT,
   };
 }
@@ -78,6 +84,29 @@ describe('sales.syncOffline', () => {
     expect(sale.cashierName).toBe('Carlos Méndez');
     expect(sale.idempotencyKey).toBe('idem-first');
     expect(sale.deviceId).toBe('device-1');
+  });
+
+  test('stamps the IVA % and Bs rate CAPTURED at sale time, NOT live settings (Bs volatility, §6.5)', async () => {
+    const { t, fx } = await setup();
+    // The sale was made OFFLINE when IVA was 10% and the Bs rate was 50; the
+    // server's live settings differ (seeded ivaPct 13). The synced sale must keep
+    // the captured values — total computed with 10%, exchangeRate stamped 50 —
+    // never re-priced with today's rate.
+    const sale = await t.mutation(
+      api.sales.syncOffline,
+      syncArgs(fx, {
+        idempotencyKey: 'idem-rate',
+        items: [{ productId: fx.cola, qty: 2 }], // 2 × 1.50 = 3.00, fully taxable
+        splits: cash(3.3),
+        ivaPct: 10,
+        exchangeRate: 50,
+      })
+    );
+    expect(sale.subtotal).toBe(3.0);
+    expect(sale.tax).toBe(0.3); // 10% of 3.00, NOT the live 13%
+    expect(sale.total).toBe(3.3);
+    expect(sale.ivaPct).toBe(10); // captured at sale time, not live 13
+    expect(sale.exchangeRate).toBe(50); // captured at sale time, not live rate
   });
 
   test('replaying the SAME idempotencyKey returns the SAME sale — no duplicate, counter + stock advance once', async () => {

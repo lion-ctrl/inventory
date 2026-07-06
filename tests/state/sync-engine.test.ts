@@ -175,6 +175,8 @@ const SALE_PAYLOAD = (clientId: string) => ({
   items: [{ productId: 'p1', qty: 1 }],
   method: 'cash',
   splits: [{ method: 'cash', amount: 1.5 }],
+  ivaPct: 13, // captured at sale time (§6.5) — the engine forwards it verbatim
+  exchangeRate: 36,
   soldAt: 123,
 });
 
@@ -244,6 +246,8 @@ describe('sync engine — CUSTOMER_CREATE end-to-end (§6.2.1)', () => {
       clientId: 'k_real',
       idempotencyKey: 'idem-sale',
       deviceId: 'dev-1',
+      ivaPct: 13, // the captured rate/IVA rides through to syncOffline
+      exchangeRate: 36,
       soldAt: 123,
     });
 

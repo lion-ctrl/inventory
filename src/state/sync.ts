@@ -52,6 +52,10 @@ export interface SaleCreatePayload {
   method: string;
   splits: CleanSplit[];
   tendered?: number;
+  /** IVA % and Bs rate CAPTURED at sale time (offline). A later sync stamps the
+   *  sale with the rate in effect WHEN it happened, not today's (Bs volatility). */
+  ivaPct: number;
+  exchangeRate: number;
   soldAt: number;
 }
 
@@ -77,6 +81,8 @@ export interface SyncSaleArgs {
   method: string;
   splits: CleanSplit[];
   tendered?: number;
+  ivaPct: number;
+  exchangeRate: number;
   soldAt: number;
 }
 
@@ -300,6 +306,8 @@ async function processSaleCreate(
     method: payload.method,
     splits: payload.splits,
     ...(payload.tendered !== undefined ? { tendered: payload.tendered } : {}),
+    ivaPct: payload.ivaPct,
+    exchangeRate: payload.exchangeRate,
     soldAt: payload.soldAt,
   });
 

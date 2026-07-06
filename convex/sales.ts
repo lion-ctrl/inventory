@@ -230,6 +230,10 @@ async function persistSale(
     actor: Doc<'employees'>;
     lines: SaleLine[];
     totals: { subtotal: number; tax: number; total: number };
+    // Stamped on the sale: LIVE settings for online checkout; the values CAPTURED
+    // at sale time for a synced offline sale (Bs rate volatility, §10).
+    ivaPct: number;
+    exchangeRate: number;
     method: string;
     splits: SplitItem[];
     tendered?: number;
@@ -267,8 +271,8 @@ async function persistSale(
     method: params.method,
     splits: params.splits,
     ...(params.tendered !== undefined ? { tendered: params.tendered } : {}),
-    ivaPct: params.settings.ivaPct,
-    exchangeRate: params.settings.bsRate,
+    ivaPct: params.ivaPct,
+    exchangeRate: params.exchangeRate,
     soldAt: params.soldAt,
     ...(params.offline !== undefined
       ? {
@@ -341,6 +345,8 @@ export const checkout = mutation({
       method: args.method,
       splits: args.splits,
       tendered: args.tendered,
+      ivaPct: settings.ivaPct,
+      exchangeRate: settings.bsRate,
       soldAt: Date.now(),
     });
   },
@@ -368,6 +374,8 @@ export const syncOffline = mutation({
     method: v.string(),
     splits: v.array(splitItemValidator),
     tendered: v.optional(v.number()),
+    ivaPct: v.number(),
+    exchangeRate: v.number(),
     soldAt: v.number(),
   },
   returns: saleDocValidator,
@@ -417,8 +425,10 @@ export const syncOffline = mutation({
       })
     );
 
-    // 5. Money math from LIVE server prices (SHARED with checkout).
-    const totals = computeSaleTotals(lines, settings.ivaPct);
+    // 5. Money math. Prices are LIVE (server, re-validated); the IVA % is the one
+    //    CAPTURED at sale time (args), not today's — a sale made offline keeps the
+    //    IVA in effect WHEN it happened, even if synced days later (Bs volatility).
+    const totals = computeSaleTotals(lines, args.ivaPct);
 
     // 6. Consume invoice #, decrement stock, insert — stamping the offline
     //    metadata (idempotencyKey + deviceId, §19-20) that makes replays safe.
@@ -432,6 +442,8 @@ export const syncOffline = mutation({
       method: args.method,
       splits: args.splits,
       tendered: args.tendered,
+      ivaPct: args.ivaPct,
+      exchangeRate: args.exchangeRate,
       soldAt: args.soldAt,
       offline: { idempotencyKey: args.idempotencyKey, deviceId: args.deviceId },
     });
