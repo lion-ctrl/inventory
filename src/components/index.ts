@@ -30,3 +30,5 @@ export { Segmented } from './Segmented';
 export type { SegmentedOption, SegmentedProps } from './Segmented';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
+export { ToastProvider, useToast } from './Toast';
+export type { ToastApi, ToastTone } from './Toast';

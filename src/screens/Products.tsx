@@ -18,6 +18,7 @@ import {
   IconButton,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
@@ -32,10 +33,15 @@ const STOCK_LEVELS = [
   { id: 'paused', label: 'Pausados' },
 ];
 
-const alertError = (e: any) =>
-  alert(
-    typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.'
-  );
+// Shared error toast, as a hook so each component can pull the toast API. Replaces
+// the old native alert() (owner directive: no browser dialogs).
+function useAlertError() {
+  const toast = useToast();
+  return (e: any) =>
+    toast.error(
+      typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.'
+    );
+}
 
 function stockTone(stock: number, minStock = 5) {
   if (stock <= 0) return 'danger';
@@ -518,6 +524,7 @@ function CategoriesSheet({
   // Convex categories.list returns only real categories ('all' is a UI-only
   // sentinel in the parent filter row); `count` is the live product count.
   const { token } = useSession();
+  const alertError = useAlertError();
   const createCat = useMutation(api.categories.create);
   const updateCat = useMutation(api.categories.update);
   const removeCat = useMutation(api.categories.removeWithReassign);
@@ -790,6 +797,7 @@ export default function ProductsScreen() {
   const setSellableMut = useMutation(api.products.setSellable);
   const adjustStockMut = useMutation(api.products.adjustStock);
   const removeProduct = useMutation(api.products.remove);
+  const alertError = useAlertError();
 
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');

@@ -15,6 +15,7 @@ import {
   Icon,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useCart } from '@/state/CartContext';
 import { useSession } from '@/state/SessionContext';
@@ -1283,6 +1284,7 @@ export default function SaleScreen({
     stockAdjustments,
     dismissStockAdjustments,
   } = useCart();
+  const toast = useToast();
   const { token } = useSession();
   const createClient = useMutation(api.clients.create);
   const w = useViewport();
@@ -1318,7 +1320,7 @@ export default function SaleScreen({
         });
         setSelectedClientId(localId);
       } catch {
-        alert('No se pudo guardar el cliente sin conexión. Intenta de nuevo.');
+        toast.error('No se pudo guardar el cliente sin conexión. Intenta de nuevo.');
       }
       return;
     }
@@ -1335,7 +1337,7 @@ export default function SaleScreen({
       });
       setSelectedClientId(created._id);
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -1346,7 +1348,7 @@ export default function SaleScreen({
     try {
       await pauseSale();
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'

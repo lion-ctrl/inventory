@@ -6,6 +6,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Client, HeldCart } from '@/types';
+import { ToastProvider } from '@/components';
 
 // Hoisted so the vi.mock factories can reference them (vitest hoists vi.mock).
 const { navigateMock, cartMock } = vi.hoisted(() => {
@@ -86,7 +87,6 @@ beforeEach(() => {
   cartMock.pauseSale = vi.fn(async () => {});
   cartMock.discardSale = vi.fn(() => {});
   cartMock.discardStored = vi.fn(async () => {});
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
 });
 afterEach(() => {
   cleanup();
@@ -181,7 +181,11 @@ describe('StoredCartsScreen — resume guard', () => {
     cartMock.pauseSale = vi
       .fn()
       .mockRejectedValue({ data: 'No hay productos en el carrito.' });
-    render(<StoredCartsScreen />);
+    render(
+      <ToastProvider>
+        <StoredCartsScreen />
+      </ToastProvider>
+    );
 
     await user.click(reanudar());
     await user.click(pauseBtn());
@@ -189,7 +193,10 @@ describe('StoredCartsScreen — resume guard', () => {
     await waitFor(() => expect(cartMock.pauseSale).toHaveBeenCalledTimes(1));
     expect(cartMock.resumeSale).toHaveBeenCalledTimes(0);
     expect(navigateMock).not.toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalled();
+    // The rejection surfaces as an error TOAST (replaces the old native alert).
+    await waitFor(() =>
+      expect(screen.getByText('No hay productos en el carrito.')).toBeDefined()
+    );
     // Dialog stays open so the cashier can retry or cancel — nothing lost.
     expect(dialogTitle()).not.toBeNull();
   });

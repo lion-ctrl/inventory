@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { AppBar, Button, Chip, Icon, Input, Sheet } from '@/components';
+import { AppBar, Button, Chip, Icon, Input, Sheet, useToast } from '@/components';
 import { useOnline } from '@/state/useOnline';
 import { useSession } from '@/state/SessionContext';
 import { PERMISSIONS, ROLE_LABELS } from '@/lib/rbac';
@@ -130,6 +130,7 @@ function ProfileEditSheet({
 }
 
 export default function ProfileScreen() {
+  const toast = useToast();
   const online = useOnline();
   const { user: me, token } = useSession();
   const updateSelf = useMutation(api.employees.updateSelf);
@@ -162,7 +163,7 @@ export default function ProfileScreen() {
       });
       setEditOpen(false);
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'

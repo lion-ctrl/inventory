@@ -5,7 +5,16 @@ import { useState } from 'react';
 import type { ChangeEvent, InputHTMLAttributes, ReactNode } from 'react';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { AppBar, Banner, Button, Chip, Icon, Input, Sheet } from '@/components';
+import {
+  AppBar,
+  Banner,
+  Button,
+  Chip,
+  Icon,
+  Input,
+  Sheet,
+  useToast,
+} from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { useSettingsDoc } from '@/state/hooks';
@@ -245,6 +254,7 @@ function SettingsEditSheet({
 }
 
 export default function SettingsScreen() {
+  const toast = useToast();
   const { user, token } = useSession();
   const online = useOnline();
   const settings = useSettingsDoc();
@@ -274,7 +284,7 @@ export default function SettingsScreen() {
     try {
       await update({ token: token!, patch });
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -456,7 +466,9 @@ export default function SettingsScreen() {
           <SettingRow
             icon="database"
             label="Sincronizar ahora"
-            onClick={online ? () => alert('Sincronizando… (demo)') : undefined}
+            onClick={
+              online ? () => toast.info('Sincronizando… (demo)') : undefined
+            }
             value={online ? undefined : 'Sin conexión'}
             last
           />
@@ -468,12 +480,12 @@ export default function SettingsScreen() {
           <SettingRow
             icon="file-text"
             label="Términos y condiciones"
-            onClick={() => alert('Términos (demo)')}
+            onClick={() => toast.info('Términos (demo)')}
           />
           <SettingRow
             icon="shield"
             label="Política de privacidad"
-            onClick={() => alert('Privacidad (demo)')}
+            onClick={() => toast.info('Privacidad (demo)')}
             last
           />
         </SettingsSection>

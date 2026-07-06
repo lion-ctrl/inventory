@@ -15,6 +15,7 @@ import {
   IconButton,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
@@ -631,6 +632,7 @@ function RefundSheet({ sale, onConfirm, onCancel, bsRate }: RefundSheetProps) {
 }
 
 export default function HistoryScreen() {
+  const toast = useToast();
   // useSession() first so the token is in scope for the gated history query.
   const { token, can } = useSession();
   const sales = useQuery(api.sales.history, token ? { token } : 'skip') ?? [];
@@ -657,7 +659,7 @@ export default function HistoryScreen() {
     try {
       await refund({ token: token!, saleId: sale._id, reason });
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -992,7 +994,7 @@ export default function HistoryScreen() {
           canRefund={canRefund}
           onRefund={(s) => setRefunding(s)}
           onClose={() => setDetail(null)}
-          onReprint={(s) => alert(`Reimprimir ${s.invoiceNumber} (demo)`)}
+          onReprint={(s) => toast.info(`Reimprimir ${s.invoiceNumber} (demo)`)}
         />
       )}
 

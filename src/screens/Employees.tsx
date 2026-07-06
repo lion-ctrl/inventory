@@ -18,6 +18,7 @@ import {
   IconButton,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
@@ -544,6 +545,7 @@ function EmployeeRow({
 
 // --- Main screen -------------------------------------------------------------
 export default function EmployeesScreen() {
+  const toast = useToast();
   const { token } = useSession();
   const online = useOnline();
   // Server already excludes the logged-in actor from the list (resolved from token).
@@ -643,7 +645,7 @@ export default function EmployeesScreen() {
       }
       setEditorOpen(false);
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -656,7 +658,7 @@ export default function EmployeesScreen() {
     try {
       await removeEmployee({ token, employeeId: emp._id });
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'

@@ -12,7 +12,7 @@ import {
 } from 'react-router';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { ConfirmDialog, NavLayout } from './components';
+import { ConfirmDialog, NavLayout, useToast } from './components';
 import { useSession } from '@/state/SessionContext';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
@@ -102,6 +102,7 @@ function SuccessRoute({ online }: { online: boolean }) {
 }
 
 export default function AppShell() {
+  const toast = useToast();
   const { user, token, loading, can, logout } = useSession();
   const cart = useCart();
   const online = useOnline();
@@ -259,7 +260,7 @@ export default function AppShell() {
       void db.cartDraft.delete('active'); // drop the persisted draft (Phase 6.1)
       void navigate('/venta/exito');
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'No se pudo registrar la venta. Intenta de nuevo.'

@@ -107,7 +107,6 @@ beforeEach(() => {
   cartMock.discardSale = vi.fn(() => {});
   cartMock.discardStored = vi.fn(async () => {});
   productsMock.current = [];
-  vi.spyOn(window, 'alert').mockImplementation(() => {});
 });
 afterEach(() => {
   cleanup();

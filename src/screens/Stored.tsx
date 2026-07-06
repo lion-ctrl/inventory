@@ -9,6 +9,7 @@ import {
   IconButton,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
@@ -129,6 +130,7 @@ export function DateField({
 }
 
 export default function StoredCartsScreen() {
+  const toast = useToast();
   const navigate = useNavigate();
   const online = useOnline();
   const bsRate = useBsRate();
@@ -174,7 +176,7 @@ export default function StoredCartsScreen() {
       await resumeSale(id);
       void navigate('/venta');
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -185,7 +187,7 @@ export default function StoredCartsScreen() {
     try {
       await discardStored(id);
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -244,7 +246,7 @@ export default function StoredCartsScreen() {
     try {
       await pauseSale();
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'No se pudo pausar la venta en curso. Intenta de nuevo.'
@@ -256,7 +258,7 @@ export default function StoredCartsScreen() {
       setResumeGuard(null);
       void navigate('/venta');
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -274,7 +276,7 @@ export default function StoredCartsScreen() {
       setResumeGuard(null);
       void navigate('/venta');
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'

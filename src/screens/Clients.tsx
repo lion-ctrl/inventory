@@ -20,6 +20,7 @@ import {
   IconButton,
   Input,
   Sheet,
+  useToast,
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
@@ -543,6 +544,7 @@ export function ClientPickerSheet({
 // --- Main full-screen clients list -------------------------------------------
 
 export default function ClientsScreen() {
+  const toast = useToast();
   const clients = useClients();
   const { token } = useSession();
   const online = useOnline();
@@ -638,7 +640,7 @@ export default function ClientsScreen() {
       }
       setEditorOpen(false);
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'
@@ -651,7 +653,7 @@ export default function ClientsScreen() {
     try {
       await removeClient({ token, clientId: client._id });
     } catch (e: any) {
-      alert(
+      toast.error(
         typeof e?.data === 'string'
           ? e.data
           : 'Ocurrió un error. Intenta de nuevo.'

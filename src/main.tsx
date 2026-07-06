@@ -21,6 +21,7 @@ import '@fontsource/fraunces/700.css';
 import '@/styles/tokens.css';
 import '@/styles/app.css';
 
+import { ToastProvider } from '@/components';
 import { SessionProvider } from '@/state/SessionContext';
 import { CartProvider } from '@/state/CartContext';
 import AppShell from './AppShell';
@@ -33,11 +34,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ConvexProvider client={convex}>
       <BrowserRouter>
-        <SessionProvider>
-          <CartProvider>
-            <AppShell />
-          </CartProvider>
-        </SessionProvider>
+        <ToastProvider>
+          <SessionProvider>
+            <CartProvider>
+              <AppShell />
+            </CartProvider>
+          </SessionProvider>
+        </ToastProvider>
       </BrowserRouter>
     </ConvexProvider>
   </StrictMode>
