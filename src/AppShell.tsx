@@ -17,8 +17,10 @@ import { useSession } from '@/state/SessionContext';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
 import { useSyncEngine } from '@/state/useSyncEngine';
-import { useBsRate } from '@/state/hooks';
+import { useBsRate, useSettingsDoc } from '@/state/hooks';
 import { db } from '@/state/db';
+import { enqueuePendingOp } from '@/state/pendingOps';
+import { buildOfflineSale } from '@/state/offlineSale';
 import type { PermissionId } from '@/lib/rbac';
 import type { CartItem, CleanSplit } from './types';
 
@@ -85,6 +87,7 @@ function SuccessRoute({ online }: { online: boolean }) {
       splits={completedSale.splits}
       tendered={completedSale.tendered}
       client={completedSale.client}
+      pendingSync={completedSale.pendingSync}
       ivaPct={completedSale.ivaPct}
       bsRate={completedSale.exchangeRate}
       online={online}
@@ -107,6 +110,7 @@ export default function AppShell() {
   const cart = useCart();
   const online = useOnline();
   const bsRate = useBsRate();
+  const settings = useSettingsDoc();
   const navigate = useNavigate();
   const location = useLocation();
   const checkout = useMutation(api.sales.checkout);
@@ -120,7 +124,6 @@ export default function AppShell() {
   const [pendingCart, setPendingCart] = useState<CartItem[]>([]);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [offlineError, setOfflineError] = useState(false);
 
   const currentRoute = routeIdFor(location.pathname);
 
@@ -215,10 +218,7 @@ export default function AppShell() {
 
   // Venta → "Confirmar": block offline (matches prototype), otherwise open payment.
   const handleSaleConfirm = (items: CartItem[], total: number) => {
-    if (!online) {
-      setOfflineError(true);
-      return;
-    }
+    // Offline no longer hard-blocks (§6.5) — the payment step queues the sale.
     setPendingCart(items);
     setPendingTotal(total);
     setPaymentOpen(true);
@@ -231,6 +231,32 @@ export default function AppShell() {
   ) => {
     if (!user || !token || !cart.selectedClient) {
       setPaymentOpen(false);
+      return;
+    }
+    // §6.5 — OFFLINE: queue a durable SALE_CREATE (idempotent sync on reconnect)
+    // instead of calling checkout. Capture ivaPct + exchangeRate NOW so the synced
+    // sale keeps the rate in effect at sale time (Bs volatility). Show a local
+    // PENDING_SYNC receipt; the server mints the real invoice # on sync.
+    if (!online) {
+      const { payload, completedSale } = buildOfflineSale({
+        cart: pendingCart,
+        client: cart.selectedClient,
+        total: pendingTotal,
+        method,
+        splits,
+        tendered,
+        ivaPct: settings?.ivaPct ?? 0,
+        exchangeRate: bsRate,
+        now: Date.now(),
+      });
+      await enqueuePendingOp('SALE_CREATE', payload);
+      setPaymentOpen(false);
+      cart.setCompletedSale(completedSale);
+      cart.setCart([]);
+      cart.setSelectedClientId(null);
+      cart.resetPayment();
+      void db.cartDraft.delete('active');
+      void navigate('/venta/exito');
       return;
     }
     try {
@@ -403,17 +429,6 @@ export default function AppShell() {
             void navigate('/login');
           }}
           onCancel={() => setConfirmLogout(false)}
-        />
-      )}
-
-      {offlineError && (
-        <ConfirmDialog
-          title="Sin conexión con el servidor"
-          message="No se puede registrar la venta sin conexión con el servidor. Conéctate e intenta de nuevo."
-          confirmLabel="Entendido"
-          cancelLabel="Cerrar"
-          onConfirm={() => setOfflineError(false)}
-          onCancel={() => setOfflineError(false)}
         />
       )}
     </div>

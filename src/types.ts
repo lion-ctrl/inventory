@@ -69,7 +69,10 @@ export interface ClientSnapshot {
 
 /** What the Success screen receives after checkout (mirrors prototype completedSale). */
 export interface CompletedSale {
-  invoice: string;
+  /** Server invoice # once minted; null while a synced-offline sale awaits it (§6.5). */
+  invoice: string | null;
+  /** true when the sale was queued OFFLINE and is awaiting sync (PENDING_SYNC, §6.5). */
+  pendingSync?: boolean;
   total: number;
   items: SaleItemSnapshot[];
   method: string;

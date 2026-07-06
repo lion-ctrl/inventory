@@ -346,7 +346,9 @@ export function PaymentSheet({
 }
 
 export interface SuccessScreenProps {
-  invoice: string;
+  invoice: string | null;
+  /** true when the sale was queued offline — the receipt shows PENDING_SYNC (§6.5). */
+  pendingSync?: boolean;
   total: number;
   items: SaleItemSnapshot[];
   method: string;
@@ -365,6 +367,7 @@ export interface SuccessScreenProps {
 
 export function SuccessScreen({
   invoice,
+  pendingSync,
   total,
   items,
   method,
@@ -390,6 +393,11 @@ export function SuccessScreen({
       : 0;
   // Every sale is an invoice now — IVA always applies to the taxable base.
   const docPrefix = 'Factura';
+  // An offline sale has no server invoice # yet (§6.5) — show a PENDING_SYNC label
+  // everywhere the number would go; the sync engine replaces it once confirmed.
+  const invoiceText = pendingSync
+    ? 'Pendiente de sincronización'
+    : `N° ${invoice}`;
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const exemptBase = items.reduce(
     (s, i) => s + (i.exempt === true ? i.price * i.qty : 0),
@@ -423,7 +431,7 @@ export function SuccessScreen({
 
   return (
     <>
-      <AppBar title="Venta registrada" sub={`N° ${invoice}`} online={online} />
+      <AppBar title="Venta registrada" sub={invoiceText} online={online} />
       <div className="content">
         <div className="success" style={{ padding: '0px' }}>
           <div className="check">
@@ -441,7 +449,10 @@ export function SuccessScreen({
           </div>
           <div className="total tabular">{bs(grandTotal)}</div>
           <div className="invoice">
-            {docPrefix} N° {invoice} ·{' '}
+            {pendingSync
+              ? 'Pendiente de sincronización'
+              : `${docPrefix} N° ${invoice}`}{' '}
+            ·{' '}
             {now.toLocaleString('es', {
               day: '2-digit',
               month: 'short',
@@ -478,7 +489,7 @@ export function SuccessScreen({
             <div className="rcpt-doctitle">FACTURA</div>
             <div className="rcpt-kv">
               <span>FACTURA</span>
-              <span>N° {invoice}</span>
+              <span>{invoiceText}</span>
             </div>
             <div className="rcpt-kv">
               <span>FECHA: {dateStr}</span>
