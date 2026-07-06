@@ -150,6 +150,10 @@ export default function ProfileScreen() {
         );
 
   const save = async (form: ProfileForm) => {
+    if (!online) {
+      toast.error('Editar el perfil requiere conexión.');
+      return;
+    }
     try {
       await updateSelf({
         token: token!,
@@ -177,7 +181,12 @@ export default function ProfileScreen() {
         title="Mi perfil"
         online={online}
         right={
-          <Button size="sm" icon="edit-3" onClick={() => setEditOpen(true)}>
+          <Button
+            size="sm"
+            icon="edit-3"
+            disabled={!online}
+            onClick={() => setEditOpen(true)}
+          >
             Editar perfil
           </Button>
         }

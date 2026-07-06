@@ -669,6 +669,25 @@ export default function EmployeesScreen() {
     setEditorOpen(false);
   };
 
+  // Phase 11 — Employees is ONLINE-ONLY: PIN material never touches the device
+  // (§24), so nothing is mirrored and no write is queued. Offline, block the whole
+  // screen with a clear "requiere conexión" state instead of an empty list.
+  if (!online) {
+    return (
+      <>
+        <AppBar title="Empleados" online={online} />
+        <div className="content stored-content">
+          <Banner
+            tone="warn"
+            icon="wifi-off"
+            title="Empleados requiere conexión"
+            message="La gestión de empleados no se guarda en el dispositivo por seguridad. Reconéctate para ver y editar el equipo."
+          />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <AppBar
