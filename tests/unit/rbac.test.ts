@@ -39,6 +39,9 @@ describe('catalog constants', () => {
       'void_sales',
       'manage_products',
       'manage_clients',
+      // Suppliers sits next to Clients: both are party records, and the
+      // Employees permission form reads top-to-bottom in this order.
+      'manage_suppliers',
       'manage_employees',
       'manage_settings',
     ]);

@@ -7,9 +7,22 @@ export type PermissionId =
   | 'manage_products'
   | 'manage_clients'
   | 'manage_employees'
-  | 'manage_settings';
+  | 'manage_settings'
+  | 'manage_suppliers';
 
-export type PermissionMap = Record<PermissionId, boolean>;
+// Mirrors `permissionsValidator` in convex/schema.ts EXACTLY: this map is not
+// only read, it is also sent back on save, so it must satisfy the server's
+// validator. `manage_suppliers` is optional because it was added after employees
+// already existed — absent reads as false through `can()`, fail-closed.
+export interface PermissionMap {
+  view_reports: boolean;
+  void_sales: boolean;
+  manage_products: boolean;
+  manage_clients: boolean;
+  manage_employees: boolean;
+  manage_settings: boolean;
+  manage_suppliers?: boolean;
+}
 export type Permissions = 'all' | PermissionMap;
 
 export interface PermissionInfo {
@@ -45,6 +58,12 @@ export const PERMISSIONS: PermissionInfo[] = [
     icon: 'users',
   },
   {
+    id: 'manage_suppliers',
+    label: 'Proveedores',
+    desc: 'Crear y editar la base de proveedores',
+    icon: 'truck',
+  },
+  {
     id: 'manage_employees',
     label: 'Empleados',
     desc: 'Gestionar el equipo y sus permisos',
@@ -64,11 +83,22 @@ export const ROLE_LABELS: Record<string, string> = {
   cajero: 'Cajero',
 };
 
-// Helper to build a permission map from a list of granted ids
-export const perms = (...granted: PermissionId[]): PermissionMap =>
-  Object.fromEntries(
-    PERMISSIONS.map((p) => [p.id, granted.includes(p.id)])
-  ) as PermissionMap;
+// Builds a permission map from a list of granted ids. Written out key by key
+// (not Object.fromEntries) so the return type IS PermissionMap with no cast:
+// adding a permission fails to compile until it is handled here. Mirrors the
+// same helper in convex/seed.ts.
+export const perms = (...granted: PermissionId[]): PermissionMap => ({
+  view_reports: granted.includes('view_reports'),
+  void_sales: granted.includes('void_sales'),
+  manage_products: granted.includes('manage_products'),
+  manage_clients: granted.includes('manage_clients'),
+  manage_employees: granted.includes('manage_employees'),
+  manage_settings: granted.includes('manage_settings'),
+  manage_suppliers: granted.includes('manage_suppliers'),
+});
+
+/** Every permission id, in PERMISSIONS order — for "grant all" / "deny all". */
+export const ALL_PERMISSION_IDS: PermissionId[] = PERMISSIONS.map((p) => p.id);
 
 export interface RbacUser {
   permissions?: Permissions;

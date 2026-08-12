@@ -22,7 +22,12 @@ import {
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
-import { PERMISSIONS, ROLE_LABELS } from '@/lib/rbac';
+import {
+  ALL_PERMISSION_IDS,
+  PERMISSIONS,
+  perms,
+  ROLE_LABELS,
+} from '@/lib/rbac';
 import type { PermissionInfo, PermissionMap } from '@/lib/rbac';
 import type { Employee } from '@/types';
 import { DateField } from './Stored';
@@ -151,14 +156,10 @@ function EmployeeForm({
     active: initial?.active ?? true,
     permissions:
       initial?.permissions === 'all'
-        ? (Object.fromEntries(
-            PERMISSIONS.map((p) => [p.id, true])
-          ) as PermissionMap)
+        ? perms(...ALL_PERMISSION_IDS)
         : typeof initial?.permissions === 'object' && initial?.permissions
           ? { ...initial.permissions }
-          : (Object.fromEntries(
-              PERMISSIONS.map((p) => [p.id, false])
-            ) as PermissionMap),
+          : perms(),
   }));
 
   const update = (k: 'name' | 'email') => (e: ChangeEvent<HTMLInputElement>) =>
