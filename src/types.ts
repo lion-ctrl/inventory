@@ -11,7 +11,13 @@ export type Client = Doc<'clients'>;
 // employees.list, sales.history and heldCarts.list so call sites stay 1:1.
 export type Employee = Omit<Doc<'employees'>, 'pinHash' | 'pinSalt'>;
 export type Sale = Omit<Doc<'sales'>, 'cashierId'>;
-export type HeldCart = Omit<Doc<'heldCarts'>, 'cashierId'>;
+// `cashierName` is the supervisor-only attribution added by heldCarts.list: it
+// arrives for owner/admin (who see every parked sale) and is absent for a cajero
+// (who only ever receives their own). Rendering it conditionally is enough — the
+// SERVER decides who gets it.
+export type HeldCart = Omit<Doc<'heldCarts'>, 'cashierId'> & {
+  cashierName?: string;
+};
 export type Settings = Doc<'settings'>;
 
 export type CategoryWithCount = Category & { count: number };

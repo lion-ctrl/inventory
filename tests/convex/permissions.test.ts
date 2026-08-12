@@ -68,7 +68,7 @@ describe('server-side guards (requirePerm through the API)', () => {
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     const list = await t.query(api.employees.list, { token: fx.ownerToken });
-    expect(list).toHaveLength(3); // 4 seeded minus the actor
+    expect(list).toHaveLength(4); // 5 seeded minus the actor
     expect(list.some((e) => e._id === fx.owner)).toBe(false);
   });
 

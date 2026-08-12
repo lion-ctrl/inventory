@@ -305,6 +305,11 @@ export const publicHeldCartDocValidator = v.object({
   _id: v.id('heldCarts'),
   _creationTime: v.number(),
   ...publicHeldCartFields,
+  // Supervisor-only attribution: WHO parked the sale, by name. Owners/admins see
+  // every cart and need to tell them apart; a cajero only ever receives their own
+  // carts, so the field is omitted for them. The employee `_id` still never
+  // leaves the server (AUTH-2) — a name is enough to display.
+  cashierName: v.optional(v.string()),
 });
 
 // ---------------------------------------------------------------------------
@@ -328,7 +333,9 @@ export default defineSchema({
     // Offline-first (Phase 6.3): idempotent replay lookup for `sales.syncOffline`.
     .index('by_idempotencyKey', ['idempotencyKey']),
 
-  heldCarts: defineTable(heldCartFields),
+  // by_cashier: a cajero's "Ventas en espera" list is scoped to their OWN parked
+  // sales, so the query must not scan the table to throw most rows away.
+  heldCarts: defineTable(heldCartFields).index('by_cashier', ['cashierId']),
 
   // Singleton row
   settings: defineTable(settingsFields),

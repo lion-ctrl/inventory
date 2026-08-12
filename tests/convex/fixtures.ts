@@ -67,6 +67,8 @@ export interface Fixtures {
   clientId: Id<'clients'>;
   /** role owner, permissions 'all', pin 482106, email carlos@mitienda.com */
   owner: Id<'employees'>;
+  /** role admin with granular perms (NOT 'all') — proves role, not perms, grants supervision */
+  admin: Id<'employees'>;
   /** cajero with void_sales (+ view_reports) */
   cajeroVoid: Id<'employees'>;
   /** cajero with manage_clients only */
@@ -75,6 +77,8 @@ export interface Fixtures {
   inactive: Id<'employees'>;
   /** valid session token for `owner` (permissions 'all') */
   ownerToken: string;
+  /** valid session token for `admin` (granular perms) */
+  adminToken: string;
   /** valid session token for `cajeroVoid` (view_reports + void_sales) */
   cajeroVoidToken: string;
   /** valid session token for `cajeroPlain` (manage_clients only) */
@@ -172,6 +176,26 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     active: true,
     createdAt: now,
   });
+  // Deliberately NOT permissions 'all': supervision is granted by the admin ROLE,
+  // so a test asserting an admin sees every held cart cannot pass by accident.
+  const adminPin = await hashPin('331277');
+  const admin = await ctx.db.insert('employees', {
+    name: 'Lucía Herrera',
+    email: 'lucia.herrera@mitienda.com',
+    phone: '04149876543',
+    role: 'admin',
+    permissions: permsOf(
+      'view_reports',
+      'void_sales',
+      'manage_products',
+      'manage_clients',
+      'manage_settings'
+    ),
+    pinHash: adminPin.pinHash,
+    pinSalt: adminPin.pinSalt,
+    active: true,
+    createdAt: now,
+  });
   const cajeroVoidPin = await hashPin('582441');
   const cajeroVoid = await ctx.db.insert('employees', {
     name: 'Pedro Ramírez',
@@ -210,6 +234,7 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
   });
 
   const ownerToken = await mintSession(ctx, owner);
+  const adminToken = await mintSession(ctx, admin);
   const cajeroVoidToken = await mintSession(ctx, cajeroVoid);
   const cajeroPlainToken = await mintSession(ctx, cajeroPlain);
   const inactiveToken = await mintSession(ctx, inactive);
@@ -223,10 +248,12 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     cafe,
     clientId,
     owner,
+    admin,
     cajeroVoid,
     cajeroPlain,
     inactive,
     ownerToken,
+    adminToken,
     cajeroVoidToken,
     cajeroPlainToken,
     inactiveToken,

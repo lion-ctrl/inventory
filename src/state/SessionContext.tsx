@@ -128,13 +128,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           // idempotency keys) SURVIVE; the sync engine drains them after
           // re-login and deletes each on server confirmation. (Phases 0-5 never
           // reach this branch — the count is 0.)
+          // Array form: Dexie's variadic overloads stop at 5 stores.
           await db.transaction(
             'rw',
-            db.products,
-            db.categories,
-            db.clients,
-            db.settings,
-            db.cartDraft,
+            [
+              db.products,
+              db.categories,
+              db.clients,
+              db.settings,
+              db.cartDraft,
+              db.heldCarts,
+            ],
             () =>
               Promise.all([
                 db.products.clear(),
@@ -142,6 +146,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 db.clients.clear(),
                 db.settings.clear(),
                 db.cartDraft.clear(),
+                // MUST be cleared: heldCarts.list is role-scoped, so this mirror
+                // holds the PREVIOUS employee's parked sales. Leaving it behind
+                // would show one cashier's held carts to the next one who logs
+                // in on this device (offline, or during the pre-server window).
+                db.heldCarts.clear(),
               ])
           );
         } else {

@@ -18,6 +18,19 @@ import { useBsRate, useProducts } from '@/state/hooks';
 import type { HeldCart } from '@/types';
 import { splitUsd } from './Payment';
 
+const DEFAULT_MUTATION_ERROR = 'Ocurrió un error. Intenta de nuevo.';
+
+/**
+ * Message for a rejected mutation. A server `ConvexError(data)` reaches the
+ * client with its Spanish text on `.data`; anything else (network, client) gets
+ * the fallback. Narrowed from `unknown` at the boundary — a caught value is not
+ * an Error, and typing it `any` disables checking on every property read.
+ */
+function mutationError(e: unknown, fallback = DEFAULT_MUTATION_ERROR): string {
+  const data = (e as { data?: unknown } | null)?.data;
+  return typeof data === 'string' ? data : fallback;
+}
+
 function relativeTime(value?: number) {
   if (!value) return '';
   const d = new Date(value);
@@ -176,23 +189,15 @@ export default function StoredCartsScreen() {
     try {
       await resumeSale(id);
       void navigate('/venta');
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
   const handleDiscard = async (id: HeldCart['_id']) => {
     try {
       await discardStored(id);
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
 
@@ -246,11 +251,12 @@ export default function StoredCartsScreen() {
     const { id } = resumeGuard;
     try {
       await pauseSale();
-    } catch (e: any) {
+    } catch (e) {
       toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'No se pudo pausar la venta en curso. Intenta de nuevo.'
+        mutationError(
+          e,
+          'No se pudo pausar la venta en curso. Intenta de nuevo.'
+        )
       );
       return; // abort — the current sale stays intact
     }
@@ -258,12 +264,8 @@ export default function StoredCartsScreen() {
       await resumeSale(id);
       setResumeGuard(null);
       void navigate('/venta');
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
 
@@ -276,12 +278,8 @@ export default function StoredCartsScreen() {
       await resumeSale(id);
       setResumeGuard(null);
       void navigate('/venta');
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
 
@@ -468,6 +466,15 @@ export default function StoredCartsScreen() {
                               {s.client.taxPrefix
                                 ? `${s.client.taxPrefix}-${s.client.taxId}`
                                 : s.client.taxId}
+                            </div>
+                          )}
+                          {/* Present only for owner/admin — heldCarts.list omits
+                              it for a cajero, whose list is already all their own.
+                              Reuses the prototype's secondary-line class: app.css
+                              is a verbatim port and must not gain new classes. */}
+                          {s.cashierName && (
+                            <div className="stored-card-tax">
+                              Pausada por {s.cashierName}
                             </div>
                           )}
                         </div>
