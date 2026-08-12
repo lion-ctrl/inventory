@@ -44,6 +44,7 @@ export const PERMISSION_IDS = [
   'manage_clients',
   'manage_employees',
   'manage_settings',
+  'manage_suppliers',
 ] as const;
 
 export type PermissionId = (typeof PERMISSION_IDS)[number];
@@ -189,7 +190,8 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
       'void_sales',
       'manage_products',
       'manage_clients',
-      'manage_settings'
+      'manage_settings',
+      'manage_suppliers'
     ),
     pinHash: adminPin.pinHash,
     pinSalt: adminPin.pinSalt,

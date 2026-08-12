@@ -15,10 +15,12 @@ import type * as employees from "../employees.js";
 import type * as heldCarts from "../heldCarts.js";
 import type * as permissions from "../permissions.js";
 import type * as products from "../products.js";
+import type * as purchases from "../purchases.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as settings from "../settings.js";
+import type * as suppliers from "../suppliers.js";
 
 import type {
   ApiFromModules,
@@ -34,10 +36,12 @@ declare const fullApi: ApiFromModules<{
   heldCarts: typeof heldCarts;
   permissions: typeof permissions;
   products: typeof products;
+  purchases: typeof purchases;
   sales: typeof sales;
   seed: typeof seed;
   sessions: typeof sessions;
   settings: typeof settings;
+  suppliers: typeof suppliers;
 }>;
 
 /**

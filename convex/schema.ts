@@ -34,6 +34,10 @@ export const permissionsValidator = v.union(
     manage_clients: v.boolean(),
     manage_employees: v.boolean(),
     manage_settings: v.boolean(),
+    // Optional so pre-existing employee rows stay valid. Absent reads as FALSE
+    // through `can()`, so the supplier base opens only to whoever is granted it
+    // explicitly — never by silent inheritance.
+    manage_suppliers: v.optional(v.boolean()),
   })
 );
 
@@ -69,6 +73,25 @@ export const splitItemValidator = v.object({
   currency: v.optional(v.string()),
 });
 
+/**
+ * One line of a supplier purchase: WHAT came in, never at what unit cost. The
+ * money lives once, on the purchase's global `total` — the owner records a single
+ * amount for the whole order, so per-unit cost (and therefore profit per product)
+ * is deliberately out of scope.
+ */
+export const purchaseItemValidator = v.object({
+  productId: v.id('products'),
+  /** Frozen at purchase time — renaming the product later must not rewrite history. */
+  name: v.string(),
+  qty: v.number(),
+});
+
+/** Which currency the owner typed the purchase total in. */
+export const purchaseCurrencyValidator = v.union(
+  v.literal('usd'),
+  v.literal('bs')
+);
+
 // ---------------------------------------------------------------------------
 // Table field maps (exported so modules can build full-doc returns validators
 // as v.object({ _id, _creationTime, ...fields }) without duplication).
@@ -100,6 +123,52 @@ export const clientFields = {
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   address: v.optional(v.string()),
+  createdAt: v.number(),
+};
+
+// A supplier is a company the store BUYS from. Deliberately mirrors clientFields
+// (same RIF pair, same flat `address`, same optional-contact shape) — the two are
+// the same kind of party record, and reusing the shape keeps every form, search
+// and validator consistent. `paymentTerms` is the one supplier-only concept:
+// free text ("15 días neto") because Venezuelan terms are negotiated per deal,
+// not picked from a fixed list.
+export const supplierFields = {
+  name: v.string(),
+  taxPrefix: taxPrefixValidator,
+  taxId: v.string(),
+  /** The human answering the phone at that company. */
+  contactName: v.optional(v.string()),
+  email: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  /** Kept apart from `phone`: WhatsApp is the working channel here. */
+  mobile: v.optional(v.string()),
+  address: v.optional(v.string()),
+  paymentTerms: v.optional(v.string()),
+  website: v.optional(v.string()),
+  notes: v.optional(v.string()),
+  /** false = retired. Never deleted on retire: past expenses still point here. */
+  active: v.boolean(),
+  createdAt: v.number(),
+};
+
+// A purchase placed with a supplier. Registering one RAISES stock by each
+// line's qty; deleting one puts it back. Money follows the same contract as a
+// payment split: `total` in USD is canonical, while `entered` + `currency` keep
+// what the owner actually typed and `exchangeRate` freezes the Bs rate of that
+// day — reading the live rate later would silently rewrite past purchases.
+export const purchaseFields = {
+  supplierId: v.id('suppliers'),
+  /** Frozen supplier name, same reason as the line names. */
+  supplierName: v.string(),
+  items: v.array(purchaseItemValidator),
+  /** Global amount for the WHOLE order, in USD. */
+  total: v.number(),
+  entered: v.number(),
+  currency: purchaseCurrencyValidator,
+  exchangeRate: v.number(),
+  note: v.optional(v.string()),
+  createdBy: v.id('employees'),
+  createdByName: v.string(),
   createdAt: v.number(),
 };
 
@@ -271,6 +340,29 @@ export const heldCartDocValidator = v.object({
   ...heldCartFields,
 });
 
+export const supplierDocValidator = v.object({
+  _id: v.id('suppliers'),
+  _creationTime: v.number(),
+  ...supplierFields,
+});
+
+export const purchaseDocValidator = v.object({
+  _id: v.id('purchases'),
+  _creationTime: v.number(),
+  ...purchaseFields,
+});
+
+// Same AUTH-2 rule as sales and held carts: `createdBy` is an employee-identity
+// surface, so it is stripped from every returns validator while staying STORED
+// for audit. `createdByName` is the frozen snapshot meant for display.
+const { createdBy: _purchaseCreatedBy, ...publicPurchaseFields } =
+  purchaseFields;
+export const publicPurchaseDocValidator = v.object({
+  _id: v.id('purchases'),
+  _creationTime: v.number(),
+  ...publicPurchaseFields,
+});
+
 export const settingsDocValidator = v.object({
   _id: v.id('settings'),
   _creationTime: v.number(),
@@ -324,6 +416,22 @@ export default defineSchema({
     .index('by_category', ['categoryId']),
 
   clients: defineTable(clientFields).index('by_taxId', ['taxPrefix', 'taxId']),
+
+  // by_taxId: the RIF is the supplier's real identity — the index backs both the
+  // duplicate guard on create and lookup by RIF.
+  suppliers: defineTable(supplierFields).index('by_taxId', [
+    'taxPrefix',
+    'taxId',
+  ]),
+
+  // by_supplier: purchases are always read through their supplier's detail sheet.
+  // `createdAt` is part of the index so the newest-first read and its cap agree
+  // on the SAME field — ordering on the index's implicit _creationTime and then
+  // re-sorting by createdAt would cut one set and display another.
+  purchases: defineTable(purchaseFields).index('by_supplier', [
+    'supplierId',
+    'createdAt',
+  ]),
 
   employees: defineTable(employeeFields),
 

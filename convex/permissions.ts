@@ -10,7 +10,8 @@ export type PermissionId =
   | 'manage_products'
   | 'manage_clients'
   | 'manage_employees'
-  | 'manage_settings';
+  | 'manage_settings'
+  | 'manage_suppliers';
 
 type Ctx = QueryCtx | MutationCtx;
 
@@ -23,8 +24,15 @@ export function can(
   perm: PermissionId
 ): boolean {
   if (!employee) return false;
+  // DELIBERATE ORDERING: the 'all' sentinel is checked BEFORE `active`, so the
+  // owner can never lock themselves out of their own store. Both test suites
+  // pin this ("…and is checked before the active flag" — tests/unit/rbac.test.ts,
+  // tests/convex/permissions.test.ts). It is not a hole: `resolveSession` already
+  // refuses an inactive employee, so no session ever reaches here with one.
   if (employee.permissions === 'all') return true;
   if (employee.active === false) return false;
+  // Within a GRANULAR map, a key that is simply absent (manage_suppliers was
+  // added later, as optional) reads as false.
   return !!employee.permissions[perm];
 }
 
@@ -64,7 +72,11 @@ export async function resolveSession(
   // Invalid once the IDLE deadline (expiresAt, slid by activity) OR the ABSOLUTE
   // cap (absoluteExpiresAt, fixed at login) has passed — whichever comes first.
   const now = Date.now();
-  if (!session || session.expiresAt <= now || session.absoluteExpiresAt <= now) {
+  if (
+    !session ||
+    session.expiresAt <= now ||
+    session.absoluteExpiresAt <= now
+  ) {
     return null;
   }
   const employee = await ctx.db.get('employees', session.employeeId);
@@ -84,7 +96,9 @@ export async function requireSession(
 ): Promise<Doc<'employees'>> {
   const resolved = await resolveSession(ctx, token);
   if (!resolved) {
-    throw new ConvexError('Sesión inválida o expirada. Inicia sesión de nuevo.');
+    throw new ConvexError(
+      'Sesión inválida o expirada. Inicia sesión de nuevo.'
+    );
   }
   // Slide the idle window forward + bump last-seen, but ONLY when we can write.
   // `'patch' in ctx.db` narrows the union to the mutation writer, so query
@@ -93,7 +107,10 @@ export async function requireSession(
   if ('patch' in ctx.db) {
     const now = Date.now();
     await ctx.db.patch('sessions', resolved.session._id, {
-      expiresAt: Math.min(now + IDLE_TTL_MS, resolved.session.absoluteExpiresAt),
+      expiresAt: Math.min(
+        now + IDLE_TTL_MS,
+        resolved.session.absoluteExpiresAt
+      ),
       lastSeenAt: now,
     });
   }
