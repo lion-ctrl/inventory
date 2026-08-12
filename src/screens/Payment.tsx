@@ -529,14 +529,10 @@ export function SuccessScreen({
               <span>TOTAL</span>
               <span>{bs(grandTotal)}</span>
             </div>
-            {splits &&
-              splits.length > 1 &&
-              splits.map((s, idx) => (
-                <div className="rcpt-kv" key={idx}>
-                  <span>{receiptMethod(s.method)}</span>
-                  <span>{bs(s.amount)}</span>
-                </div>
-              ))}
+            {/* No per-method payment breakdown on the invoice: how the sale was
+                settled is internal bookkeeping (stored on the sale, shown in
+                Historial), not a fiscal field. The invoice ends at TOTAL — the
+                authorization method above is the only payment data it carries. */}
             <hr />
             <div className="rcpt-thanks">Gracias por su visita.</div>
           </div>
