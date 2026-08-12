@@ -42,60 +42,60 @@
 - [x] 5.2 (affordance, §4) None to write-block — Scan is read-only. The `useOnline`-driven screen-level `Banner` (`Scan.tsx`, `tone="warn" icon="wifi-off"`) now warns that BOTH prices and stock may be stale: `message="Los precios y el stock pueden estar desactualizados."` (prior copy mentioned only prices).
 - [x] 5.3 Tests: `tests/components/scan-offline.test.tsx` — offline HID barcode scan of a cached product resolves against the catalog and opens its info sheet; name/SKU/barcode search returns cached matches; the stale-data banner shows offline and hides online (camera path shares the same `catalog.find` lookup, covered by `camera-scanner.test.tsx`).
 
-## Phase 6 — Venta / Sale (`/venta`, any role) — offline WRITES start here
+## Phase 6 — Venta / Sale (`/venta`, any role) — offline WRITES start here — DONE
 
-- [ ] 6.1 (persistent cart) Hydrate `CartContext` once from `db.cartDraft.get('active')` behind a `hydratedRef`, then write-through cart/`selectedClientId`/`splits`/`splitsNextId` to the `cartDraft` row on every change (`src/state/CartContext.tsx:70-74`). `discardSale` (`151`) and the checkout reset delete the draft.
-- [ ] 6.2 (pending-ops queue, §6) Activate the Phase 3 `CUSTOMER_CREATE` draft: offline, `Sale`'s inline create enqueues a `CUSTOMER_CREATE` op and inserts a local client row so the cart proceeds.
-- [ ] 6.3 (idempotent sync mutation, §8-9) Add `sales.syncOffline` (`convex/sales.ts`): `requireSession`, `by_idempotencyKey` replay-guard returns the existing sale, else server-side stock re-validation → consume invoice # → decrement stock → insert with `{ idempotencyKey, deviceId }`. Widen `saleFields` (`convex/schema.ts`) with optional `idempotencyKey`/`deviceId` + `by_idempotencyKey` index.
-- [ ] 6.4 (conflict codes, §15) Throw structured `ConvexError({ code })` for `STOCK_INSUFFICIENT`/`PRODUCT_DELETED`/`PRODUCT_DISABLED`/`PRICE_CHANGED`/`TAX_CHANGED`/`CUSTOMER_NOT_FOUND`/`DUPLICATE_OPERATION`/`AUTH_EXPIRED`/`PERMISSION_DENIED`.
-- [ ] 6.5 (sync engine, §12) `src/state/sync.ts` module singleton: drains `pendingOps` in `createdAt` order, single-flight lock, capped backoff; triggers app-start/`online`/reconnect/"Sync now"/new-op; the ONLY deleter of a `pendingOps` row, only after backend confirm; `AUTH_EXPIRED` forces re-login.
-- [ ] 6.6 (offline checkout, write-blocking) Replace the hard block in `AppShell.handleSaleConfirm`/`handlePaymentConfirm` (`src/AppShell.tsx:209-211,219`): offline → write a local `PENDING_SYNC` sale + enqueue a `SALE_CREATE` op + route to a pending receipt. Online path unchanged.
-- [ ] 6.7 Tests: add items → reload → cart/client/splits restored; offline checkout enqueues `SALE_CREATE` + local receipt; reconnect → engine syncs, op deleted only after confirm; duplicate sync (same key) returns the same sale; stock conflict marks the op `conflict` (not deleted); logout with the op pending → op survives.
+- [x] 6.1 (persistent cart) Hydrate `CartContext` once from `db.cartDraft.get('active')` behind a `hydratedRef`, then write-through cart/`selectedClientId`/`splits`/`splitsNextId` to the `cartDraft` row on every change (`src/state/CartContext.tsx:70-74`). `discardSale` (`151`) and the checkout reset delete the draft.
+- [x] 6.2 (pending-ops queue, §6) Activate the Phase 3 `CUSTOMER_CREATE` draft: offline, `Sale`'s inline create enqueues a `CUSTOMER_CREATE` op and inserts a local client row so the cart proceeds.
+- [x] 6.3 (idempotent sync mutation, §8-9) Add `sales.syncOffline` (`convex/sales.ts`): `requireSession`, `by_idempotencyKey` replay-guard returns the existing sale, else server-side stock re-validation → consume invoice # → decrement stock → insert with `{ idempotencyKey, deviceId }`. Widen `saleFields` (`convex/schema.ts`) with optional `idempotencyKey`/`deviceId` + `by_idempotencyKey` index.
+- [x] 6.4 (conflict codes, §15) Throw structured `ConvexError({ code })` for `STOCK_INSUFFICIENT`/`PRODUCT_DELETED`/`PRODUCT_DISABLED`/`PRICE_CHANGED`/`TAX_CHANGED`/`CUSTOMER_NOT_FOUND`/`DUPLICATE_OPERATION`/`AUTH_EXPIRED`/`PERMISSION_DENIED`.
+- [x] 6.5 (sync engine, §12) `src/state/sync.ts` module singleton: drains `pendingOps` in `createdAt` order, single-flight lock, capped backoff; triggers app-start/`online`/reconnect/"Sync now"/new-op; the ONLY deleter of a `pendingOps` row, only after backend confirm; `AUTH_EXPIRED` forces re-login.
+- [x] 6.6 (offline checkout, write-blocking) Replace the hard block in `AppShell.handleSaleConfirm`/`handlePaymentConfirm` (`src/AppShell.tsx:209-211,219`): offline → write a local `PENDING_SYNC` sale + enqueue a `SALE_CREATE` op + route to a pending receipt. Online path unchanged.
+- [x] 6.7 Tests: add items → reload → cart/client/splits restored; offline checkout enqueues `SALE_CREATE` + local receipt; reconnect → engine syncs, op deleted only after confirm; duplicate sync (same key) returns the same sale; stock conflict marks the op `conflict` (not deleted); logout with the op pending → op survives.
 
-## Phase 7 — Payment (overlay of Sale, no route)
+## Phase 7 — Payment (overlay of Sale, no route) — DONE
 
-- [ ] 7.1 (read-mirror) No hook migration — settings already mirrored. Compute totals + Bs conversion from cached `bsRate`/`ivaPct`.
-- [ ] 7.2 (write-blocking §18) The official receipt/invoice number is minted only by `syncOffline` after confirm; offline render a local `PENDING_SYNC` receipt stamped "PENDIENTE DE SINCRONIZACIÓN" (`SuccessScreen` already receives `online`).
-- [ ] 7.3 Tests: offline checkout shows a `PENDING_SYNC` receipt with correct Bs/IVA totals; after reconnect-sync the official invoice number replaces/links the local one.
+- [x] 7.1 (read-mirror) No hook migration — settings already mirrored. Compute totals + Bs conversion from cached `bsRate`/`ivaPct`.
+- [x] 7.2 (write-blocking §18) The official receipt/invoice number is minted only by `syncOffline` after confirm; offline render a local `PENDING_SYNC` receipt stamped "PENDIENTE DE SINCRONIZACIÓN" (`SuccessScreen` already receives `online`). Shipped as "Pendiente de sincronización" wherever the invoice number would go (`Payment.tsx`).
+- [x] 7.3 Tests: offline checkout shows a `PENDING_SYNC` receipt with correct Bs/IVA totals; after reconnect-sync the official invoice number replaces/links the local one. (`tests/components/success-pending.test.tsx`)
 
-## Phase 8 — Stored / Ventas en espera (`/ventas-en-espera`, any role)
+## Phase 8 — Stored / Ventas en espera (`/ventas-en-espera`, any role) — DONE
 
-- [ ] 8.1 (read-mirror) Add a `heldCarts` mirror table (`db.version(2)`, mirroring `heldCartFields`); mirror `heldCarts.list` (uncached today) via `useMirroredQuery` so the held list renders offline.
-- [ ] 8.2 (write-blocking §18) `park`/`resume`/`discard` are server mutations — online-only initially (optionally queue `park` later); reserved-stock overlay still reduces Venta availability offline.
-- [ ] 8.3 Tests: held list renders offline from the mirror; park/resume/discard disabled (or queued) offline; reserved-stock math holds offline.
+- [x] 8.1 (read-mirror) Add a `heldCarts` mirror table (`db.version(2)`, mirroring `heldCartFields`); mirror `heldCarts.list` (uncached today) via `useMirroredQuery` so the held list renders offline.
+- [x] 8.2 (write-blocking §18) `park`/`resume`/`discard` are server mutations — online-only initially (optionally queue `park` later). **Superseded in part:** the reserved-stock overlay no longer exists — the `remove-reserved-stock` effort deleted it, so held carts reserve nothing and Venta availability is always LIVE physical stock.
+- [x] 8.3 Tests: held list renders offline from the mirror; park/resume/discard disabled offline. (`tests/components/stored-offline-blocking.test.tsx`) The reserved-stock assertion was dropped with the overlay itself.
 
-## Phase 9 — Dashboard (`/`, any role)
+## Phase 9 — Dashboard (`/`, any role) — DONE
 
-- [ ] 9.1 (read-mirror) No master-data migration — all four hooks already Dexie-backed. Catalog counts, low-stock tiles, client counts, Bs rate compute from the mirror (tiles already `can()`-gated).
-- [ ] 9.2 (write-blocking / degraded) Live "today's sales" needs `api.sales.history`; offline show the last cached figure plus locally-queued `SALE_CREATE` pending sales labeled "pendiente", never as official totals.
-- [ ] 9.3 Tests: counters render offline from mirrors; sales tiles show cached + pending (clearly marked) without throwing when `sales.history` is unavailable.
+- [x] 9.1 (read-mirror) No master-data migration — all four hooks already Dexie-backed. Catalog counts, low-stock tiles, client counts, Bs rate compute from the mirror (tiles already `can()`-gated).
+- [x] 9.2 (write-blocking / degraded) **Implemented differently, on purpose.** The task asked for the last cached sales figure plus queued pending sales; the tiles instead render **"No disponible sin conexión"** (`Dashboard.tsx:208,319`). A stale total presented next to live counters reads as today's takings and misleads; declaring the figure unavailable is honest. Pending sales are surfaced in History (Phase 10), where they are explicitly separated from official records.
+- [x] 9.3 Tests: counters render offline from mirrors; sales tiles show the unavailable state without throwing when `sales.history` is unavailable. (`tests/components/dashboard-offline.test.tsx`)
 
-## Phase 10 — History (`/historial`, `view_reports`)
+## Phase 10 — History (`/historial`, `view_reports`) — DONE
 
-- [ ] 10.1 (read-mirror) Add a local `pendingSales` view sourced from `pendingOps` of type `SALE_CREATE` (the local `PENDING_SYNC` sales). Official history stays server-only (admin-gated, large, authoritative — not mirrored).
-- [ ] 10.2 (write-blocking §18) Official history list (server) and `refund` (`History.tsx`, needs `void_sales` + server re-validation) blocked offline; show queued pending sales as `PENDING_SYNC`, clearly separated and never final.
-- [ ] 10.3 Tests: offline → History shows the pending section only (marked `PENDING_SYNC`); refund disabled offline; reconnect → a pending sale becomes official and leaves the pending section.
+- [x] 10.1 (read-mirror) Add a local `pendingSales` view sourced from `pendingOps` of type `SALE_CREATE` (the local `PENDING_SYNC` sales). Official history stays server-only (admin-gated, large, authoritative — not mirrored). (`src/state/usePendingSales.ts`)
+- [x] 10.2 (write-blocking §18) Official history list (server) and `refund` (`History.tsx`, needs `void_sales` + server re-validation) blocked offline; show queued pending sales as `PENDING_SYNC`, clearly separated and never final.
+- [x] 10.3 Tests: offline → History shows the pending section only (marked `PENDING_SYNC`); refund disabled offline. (`tests/components/history-pending.test.tsx`, `tests/state/pending-sales.test.tsx`)
 
-## Phase 11 — Employees (`/empleados`, `manage_employees`) — online-only
+## Phase 11 — Employees (`/empleados`, `manage_employees`) — online-only — DONE
 
-- [ ] 11.1 (no mirror — never) Never write employees to IndexedDB; rows carry `pinHash`/`pinSalt` and even the public projection is users/roles material (§18, §24).
-- [ ] 11.2 (write-blocking §18) The entire screen blocks offline with a clear "Empleados requiere conexión" state.
-- [ ] 11.3 Tests: Employees shows the online-required state; the DB has no employees table/rows offline.
+- [x] 11.1 (no mirror — never) Never write employees to IndexedDB; rows carry `pinHash`/`pinSalt` and even the public projection is users/roles material (§18, §24).
+- [x] 11.2 (write-blocking §18) The entire screen blocks offline with a clear "Empleados requiere conexión" state.
+- [x] 11.3 Tests: Employees shows the online-required state; the DB has no employees table/rows offline. (`tests/components/employees-offline.test.tsx`)
 
-## Phase 12 — Profile (`/perfil`, any role) — online-only
+## Phase 12 — Profile (`/perfil`, any role) — online-only — DONE
 
-- [ ] 12.1 (optional snapshot) Optionally cache a PUBLIC self snapshot (name/email/phone only — never PIN) in `meta` for read-only offline render.
-- [ ] 12.2 (write-blocking §18) Save (`employees.updateSelf`, PIN/email change) blocked offline.
-- [ ] 12.3 Tests: profile renders read-only offline from the snapshot if implemented; save disabled offline; no PIN material in IndexedDB.
+- [ ] 12.1 (optional snapshot) **Not implemented — declined.** No PUBLIC self snapshot is cached in `meta`; the screen is fully online-only like Employees. The task was optional and caching identity material, even a public projection, buys little for a screen nobody uses mid-sale. `db.meta` holds only `deviceId` and the sync engine's local→real id map.
+- [x] 12.2 (write-blocking §18) Save (`employees.updateSelf`, PIN/email change) blocked offline.
+- [x] 12.3 Tests: save disabled offline; no PIN material in IndexedDB. (`tests/components/profile-offline.test.tsx`) The snapshot-render case does not apply — see 12.1.
 
-## Phase 13 — Login (`/login`, public) — online-only
+## Phase 13 — Login (`/login`, public) — online-only — DONE
 
-- [ ] 13.1 (no Dexie work) PWA shell already boots offline; Login already shows a "sin conexión" notice and blocks submit offline (`Login.tsx`). Never cache PINs (§24). Listed for an exhaustive screen pass.
-- [ ] 13.2 Tests: offline → the login shell renders the "sin conexión" message and submit is blocked; online → login works and the session token is the only persisted credential.
+- [x] 13.1 (no Dexie work) PWA shell already boots offline; Login already shows a "sin conexión" notice and blocks submit offline (`Login.tsx`). Never cache PINs (§24). Listed for an exhaustive screen pass.
+- [x] 13.2 Tests: offline → the login shell renders the "sin conexión" message and submit is blocked; online → login works and the session token is the only persisted credential. (`tests/state/logout-guard.test.tsx`, `tests/state/contexts.test.tsx`)
 
-## Phase 14 — Remove `useCachedQuery` (final)
+## Phase 14 — Remove `useCachedQuery` (final) — DONE
 
-- [ ] 14.1 Confirm `rg -n "useCachedQuery" src convex` returns zero matches.
-- [ ] 14.2 Delete `src/state/useCachedQuery.ts`.
-- [ ] 14.3 Confirm no leftover `posCache.*` localStorage keys (the Phase 0.4 boot cleanup handles old installs).
-- [ ] 14.4 Tests: typecheck/build clean after deletion; a full offline pass of every migrated screen still reads from Dexie.
+- [x] 14.1 Confirm `rg -n "useCachedQuery" src convex` returns zero matches. **Four matches remain and are intentional:** all are historical COMMENTS explaining why the current code exists (`hooks.ts:29`, `SessionContext.tsx:183`, `useMirroredQuery.ts:3,9`). No import, no call site, no file.
+- [x] 14.2 Delete `src/state/useCachedQuery.ts`.
+- [x] 14.3 Confirm no leftover `posCache.*` localStorage keys (the Phase 0.4 boot cleanup handles old installs).
+- [x] 14.4 Tests: typecheck/build clean after deletion; a full offline pass of every migrated screen still reads from Dexie.

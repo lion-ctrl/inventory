@@ -58,7 +58,7 @@
 
 - [x] 2.14 **Full suite green**: 235 passed / 4 skipped / 0 failed (baseline was 219/4/0; +16 net new tests).
 
-## 3 — AUTH-5: CSP headers (LATER phase — not implemented now)
+## 3 — AUTH-5: CSP (build-side DONE; hosting headers still open)
 
-- [ ] 3.1 _(later phase)_ Add a Content-Security-Policy header to the Vite build configuration (e.g. via `vite-plugin-csp` or a custom `transformIndexHtml` hook).
-- [ ] 3.2 _(later phase)_ Review the `logout` client-side flow for XSS hardening in tandem with the CSP policy.
+- [x] 3.1 Add a Content-Security-Policy to the Vite build configuration. Implemented as `cspMetaPlugin` (`vite.config.ts`), a custom `transformIndexHtml` hook with `apply: 'build'` that injects a `<meta http-equiv="Content-Security-Policy">` into the production `index.html` only — dev is left untouched so HMR's inline scripts and `ws://` socket keep working. Every directive is justified against what the app actually loads; the only relaxations are `'wasm-unsafe-eval'` (required by `zxing-wasm`) and `style-src 'unsafe-inline'` (React style attributes cannot be hashed or nonced).
+- [ ] 3.2 Review the `logout` client-side flow for XSS hardening in tandem with the CSP policy. **Partially done, deliberately left open.** The analysis exists in writing (`vite.config.ts:7-14`: Convex authenticates over a WebSocket, so the token MUST be JS-readable — CSP, not an HttpOnly cookie, is the real mitigation), the legacy `pos.employeeId` key is wiped on boot, and logout revokes the server session. What remains is **not a code change but a hosting one**: `frame-ancestors 'none'` and `report-to`/`report-uri` cannot travel in a `<meta>` tag and must be sent as real HTTP response headers by the static host (the recommended header block is written out at `vite.config.ts:53-65`). Until that lands, CSP is partial and the AUTH-5 "Cerrado y verificado" box stays empty.

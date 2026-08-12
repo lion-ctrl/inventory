@@ -29,20 +29,20 @@
 - [x] 4.2 `sales.history` (`convex/sales.ts:217`): drop `cashierId` from the `returns` validator and the returned object; gate with `requireSession`. GREEN.
 - [x] 4.3 `heldCarts.list` (`convex/heldCarts.ts:12`): drop `cashierId` from `returns`; gate with `requireSession`. Keep the stored `cashierId` on the tables (audit).
 
-## 5. Client
+## 5. Client — DONE
 
-- [ ] 5.1 `src/state/SessionContext.tsx`: store the **token** (new key e.g. `pos.sessionToken`) + `expiresAt`; remove `pos.employeeId`; clear on expiry/logout; resolve the current employee via the token (`me`/`auth.current`).
-- [ ] 5.2 `src/screens/Login.tsx`: consume `{ token, expiresAt }` from `login` and persist it.
-- [ ] 5.3 Update every `useMutation(...)` call site to pass `token` instead of `user._id` (Sale/checkout, held carts, products, clients, categories, employees, settings, profile).
-- [ ] 5.4 Wire a real `logout`: call the `logout` mutation, then clear local session state.
-- [ ] 5.5 Update component tests / mocks that referenced `employeeId` / `actorId`.
+- [x] 5.1 `src/state/SessionContext.tsx`: store the **token** (`pos.sessionToken`) + `pos.sessionExpiresAt`; the legacy `pos.employeeId` is wiped by a one-time boot cleanup; cleared on expiry/logout; the employee is resolved from the token via `api.auth.me`.
+- [x] 5.2 `src/screens/Login.tsx`: consume `{ token, expiresAt }` from `login` and persist it. **Landed one layer up:** Login calls `useSession().login(email, pin)` and the token/expiry are persisted by `persistSession` inside `SessionContext`, so the screen never touches storage. Same outcome, single owner of the credential.
+- [x] 5.3 Update every `useMutation(...)` call site to pass `token` instead of `user._id`. Verified: `actorId` appears nowhere in `src/` or `convex/`.
+- [x] 5.4 Wire a real `logout`: `logoutMut({ token })` (`SessionContext.tsx:278`) revokes the server session, then local state is cleared.
+- [x] 5.5 Update component tests / mocks that referenced `employeeId` / `actorId`.
 
 ## 6. Wrap up
 
-- [ ] 6.1 Review `convex/seed.ts` / `tests/convex/fixtures.ts` for any auth-shaped data that changed (no `sessions` seed needed — empty is fine).
-- [ ] 6.2 `pnpm lint` (tsc -b + eslint --max-warnings 0) green; `pnpm test:run` green.
-- [ ] 6.3 Deploy (additive schema — no data wipe needed); verify the end-to-end token flow and that users re-login once.
-- [ ] 6.4 Tick **AUTH-1** and **AUTH-2** in `SECURITY_AUTH.md`.
+- [x] 6.1 Review `convex/seed.ts` / `tests/convex/fixtures.ts` for any auth-shaped data that changed (no `sessions` seed needed — empty is fine).
+- [x] 6.2 `pnpm lint` (tsc -b + eslint --max-warnings 0) green; `pnpm test:run` green — 361 passed / 4 skipped. _Caveat: `pnpm test:run` can still exit 1 on Windows when the vitest fork pool times out starting a worker; the assertions themselves pass._
+- [ ] 6.3 Deploy (additive schema — no data wipe needed); verify the end-to-end token flow and that users re-login once. **NOT DONE for production.** The dev deployment carries the schema and functions; `origin/main` is still at `5574917` and `develop` holds 27 unpushed commits, so no production deploy of this work has happened.
+- [ ] 6.4 Tick **AUTH-1** and **AUTH-2** in `SECURITY_AUTH.md`. **NOT DONE.** Every per-item checklist in `SECURITY_AUTH.md` is ticked, but the top-level "**Cerrado y verificado**" box of each AUTH item is still empty — that box means owner-verified in a browser, which has not happened.
 
 ## 7. Sliding/idle expiration + absolute cap (resolves the design's "fixed 12h" open question)
 
