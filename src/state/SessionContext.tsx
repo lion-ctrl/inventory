@@ -138,6 +138,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
               db.settings,
               db.cartDraft,
               db.heldCarts,
+              db.suppliers,
             ],
             () =>
               Promise.all([
@@ -151,6 +152,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 // would show one cashier's held carts to the next one who logs
                 // in on this device (offline, or during the pre-server window).
                 db.heldCarts.clear(),
+                db.suppliers.clear(),
               ])
           );
         } else {

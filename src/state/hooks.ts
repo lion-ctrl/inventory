@@ -5,7 +5,13 @@ import { api } from '@convex/_generated/api';
 import { db } from './db';
 import { useMirroredQuery } from './useMirroredQuery';
 import { useSession } from './SessionContext';
-import type { CategoryWithCount, Client, Product, Settings } from '@/types';
+import type {
+  CategoryWithCount,
+  Client,
+  Product,
+  Settings,
+  Supplier,
+} from '@/types';
 
 // Stable empty array so effects depending on these lists don't re-fire every render.
 const EMPTY: never[] = [];
@@ -112,6 +118,22 @@ export function useClients(): Client[] {
       api.clients.list,
       token ? { token } : 'skip',
       'clients',
+      !!user
+    ) ?? EMPTY
+  );
+}
+
+// Suppliers — Dexie-mirrored like the master data above: online it reads Convex
+// live and mirrors into the `suppliers` table, offline it serves that mirror, so
+// the list and its search keep working. suppliers.list is session-gated (not
+// permission-gated) server-side, because picking a supplier is operational.
+export function useSuppliers(): Supplier[] {
+  const { token, user } = useSession();
+  return (
+    useMirroredQuery<Supplier>(
+      api.suppliers.list,
+      token ? { token } : 'skip',
+      'suppliers',
       !!user
     ) ?? EMPTY
   );

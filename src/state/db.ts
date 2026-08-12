@@ -14,6 +14,7 @@ import type {
   CartItem,
   HeldCart,
   SplitRow,
+  Supplier,
 } from '@/types';
 import type { Id } from '@convex/_generated/dataModel';
 
@@ -61,6 +62,7 @@ const db = new Dexie('intentory-pos') as Dexie & {
   clients: EntityTable<Client, '_id'>;
   settings: EntityTable<Settings, '_id'>;
   heldCarts: EntityTable<HeldCart, '_id'>;
+  suppliers: EntityTable<Supplier, '_id'>;
   cartDraft: EntityTable<CartDraft, 'id'>;
   pendingOps: EntityTable<PendingOp, 'localId'>;
   meta: EntityTable<MetaRow, 'key'>;
@@ -88,6 +90,14 @@ db.version(1).stores({
 // park/resume/discard stay online-only (blocked in Stored while offline).
 db.version(2).stores({
   heldCarts: '_id, code, createdAt',
+});
+
+// Suppliers — same ADDITIVE pattern as v2. The list renders offline from this
+// mirror; create/edit/delete stay online-only (blocked in Suppliers while
+// offline), so the mirror is read-only local data. The compound
+// [taxPrefix+taxId] index mirrors the Convex by_taxId index.
+db.version(3).stores({
+  suppliers: '_id, name, [taxPrefix+taxId], active, createdAt',
 });
 
 // First-run seed: a stable device id (FEATURES §19).

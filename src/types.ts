@@ -19,6 +19,10 @@ export type HeldCart = Omit<Doc<'heldCarts'>, 'cashierId'> & {
   cashierName?: string;
 };
 export type Settings = Doc<'settings'>;
+export type Supplier = Doc<'suppliers'>;
+// `createdBy` is stripped by purchases.bySupplier / create (AUTH-2), exactly like
+// `cashierId` on Sale and HeldCart; `createdByName` is what the UI displays.
+export type Purchase = Omit<Doc<'purchases'>, 'createdBy'>;
 
 export type CategoryWithCount = Category & { count: number };
 

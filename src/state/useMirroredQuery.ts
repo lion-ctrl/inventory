@@ -12,7 +12,12 @@ import { useQuery } from 'convex/react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 
-type MirrorTable = 'products' | 'categories' | 'clients' | 'heldCarts';
+type MirrorTable =
+  | 'products'
+  | 'categories'
+  | 'clients'
+  | 'heldCarts'
+  | 'suppliers';
 
 export function useMirroredQuery<T extends { _id: string }>(
   query: any,
