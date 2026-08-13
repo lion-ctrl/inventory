@@ -31,7 +31,6 @@ export function buildOfflineSale(input: {
     barcode: i.barcode,
     price: i.price,
     qty: i.qty,
-    glyph: i.glyph,
     exempt: i.exempt,
   }));
 

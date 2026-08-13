@@ -27,6 +27,8 @@ import {
   useSettingsDoc,
 } from '@/state/hooks';
 import { useOnline } from '@/state/useOnline';
+import { initialOf } from '@/lib/initials';
+import { mutationError } from '@/lib/mutationError';
 import { createOfflineClient } from '@/state/offlineClient';
 import type { CartItem, Client, Product, SplitRow } from '@/types';
 import { splitUsd } from './Payment';
@@ -301,8 +303,7 @@ function CartItemRow({
   // exists — INCLUDING 0 (sold out → cap 0, no phantom units). Only a NON-numeric
   // stock (an untracked service) keeps the legacy "uncapped" behavior. NOTE: the
   // old `stock > 0` guard treated a sold-out 0 as "uncapped" → the million bug.
-  const stockCap =
-    typeof item.stock === 'number' ? item.stock : MAX_QTY;
+  const stockCap = typeof item.stock === 'number' ? item.stock : MAX_QTY;
   const fmt = (n: number) => n.toLocaleString('es');
   const [draft, setDraft] = useState(fmt(item.qty));
   useEffect(() => {
@@ -313,7 +314,7 @@ function CartItemRow({
     categories.find((c) => c._id === item.categoryId)?.label ?? '';
   return (
     <div className="cartrow">
-      <div className="thumb">{item.glyph}</div>
+      <div className="thumb">{initialOf(item.name)}</div>
       <div style={{ minWidth: 0 }}>
         <p className="pname">{item.name}</p>
         <div className="pmeta">{catLabel}</div>
@@ -569,7 +570,7 @@ export function ProductFoundSheet({
             flex: 'none',
           }}
         >
-          {product.glyph}
+          {initialOf(product.name)}
         </div>
         <div style={{ minWidth: 0, flex: 1 }} className="found-product-info">
           <div className="found-product-name" style={{ textAlign: 'left' }}>
@@ -890,7 +891,7 @@ export function ManualSearchSheet({
               onClick={() => onPick(p)}
               style={{ cursor: 'pointer' }}
             >
-              <div className="thumb">{p.glyph}</div>
+              <div className="thumb">{initialOf(p.name)}</div>
               <div>
                 <p className="pname" style={{ textAlign: 'left' }}>
                   {p.name}
@@ -1320,7 +1321,9 @@ export default function SaleScreen({
         });
         setSelectedClientId(localId);
       } catch {
-        toast.error('No se pudo guardar el cliente sin conexión. Intenta de nuevo.');
+        toast.error(
+          'No se pudo guardar el cliente sin conexión. Intenta de nuevo.'
+        );
       }
       return;
     }
@@ -1336,23 +1339,15 @@ export default function SaleScreen({
         address: form.address || undefined,
       });
       setSelectedClientId(created._id);
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
   const onPauseSale = async () => {
     try {
       await pauseSale();
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
     }
   };
 
@@ -1676,7 +1671,7 @@ export default function SaleScreen({
                       }
                     : null
                 }
-                onSave={(form: any) => {
+                onSave={(form) => {
                   void onCreateClient(form);
                   setClientFormOpen(false);
                   setPrefillCreate(null);
@@ -1782,7 +1777,7 @@ export default function SaleScreen({
                     key={p._id}
                     onClick={() => setFoundProduct(p)}
                   >
-                    <div className="glyph">{p.glyph}</div>
+                    <div className="glyph">{initialOf(p.name)}</div>
                     <div className="name">{p.name}</div>
                     <div className="meta">{p.sku}</div>
                     <div className="price">${p.price.toFixed(2)}</div>
@@ -2133,7 +2128,7 @@ export default function SaleScreen({
                     }
                   : null
               }
-              onSave={(form: any) => {
+              onSave={(form) => {
                 void onCreateClient(form);
                 setClientFormOpen(false);
                 setPrefillCreate(null);
@@ -2187,7 +2182,7 @@ export default function SaleScreen({
                     }
                   : null
               }
-              onSave={(form: any) => {
+              onSave={(form) => {
                 void onCreateClient(form);
                 setClientFormOpen(false);
                 setPrefillCreate(null);
@@ -2398,7 +2393,7 @@ export default function SaleScreen({
           <ClientForm
             online={online}
             queueOffline
-            onSave={(form: any) => {
+            onSave={(form) => {
               void onCreateClient(form);
               setClientFormOpen(false);
             }}

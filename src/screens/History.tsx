@@ -3,7 +3,6 @@
 // already sorted soldAt desc); refunds go through api.sales.refund (the server
 // restores stock and flags the sale — reactivity updates the list).
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import {
@@ -19,6 +18,8 @@ import {
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
+import { mutationError } from '@/lib/mutationError';
+import { initialOf } from '@/lib/initials';
 import { useBsRate } from '@/state/hooks';
 import { usePendingSales } from '@/state/usePendingSales';
 import { DateField } from './Stored';
@@ -48,14 +49,6 @@ const METHOD_TONES: Record<string, string> = {
   mobile: 'purple',
   zelle: 'ok',
 };
-
-const _DATE_RANGES = [
-  { id: 'today', label: 'Hoy' },
-  { id: 'yesterday', label: 'Ayer' },
-  { id: 'week', label: '7 días' },
-  { id: 'month', label: 'Este mes' },
-  { id: 'all', label: 'Todas' },
-];
 
 function isSameDay(a: Date, b: Date) {
   return (
@@ -457,7 +450,7 @@ function SaleDetailSheet({
         <div className="hist-detail-items">
           {sale.items.map((it, i) => (
             <div className="hist-item-row" key={i}>
-              <div className="hist-item-glyph">{it.glyph || '📦'}</div>
+              <div className="hist-item-glyph">{initialOf(it.name)}</div>
               <div className="hist-item-info">
                 <div className="hist-item-name">{it.name}</div>
                 <div className="hist-item-sku mono">
@@ -699,7 +692,6 @@ export default function HistoryScreen() {
   const online = useOnline();
   const pendingSales = usePendingSales();
   const bsRate = useBsRate();
-  const _navigate = useNavigate();
   const refund = useMutation(api.sales.refund);
   const [q, setQ] = useState('');
   const [range, setRange] = useState('today');
@@ -745,18 +737,13 @@ export default function HistoryScreen() {
     // useQuery reactivity refreshes the list.
     try {
       await refund({ token: token!, saleId: sale._id, reason });
-    } catch (e: any) {
-      toast.error(
-        typeof e?.data === 'string'
-          ? e.data
-          : 'Ocurrió un error. Intenta de nuevo.'
-      );
+    } catch (e) {
+      toast.error(mutationError(e));
       return;
     }
     setRefunding(null);
     setDetail(null);
   };
-  const [_customOpen, _setCustomOpen] = useState(false);
 
   // Filters
   const norm = (s?: string) => (s || '').toLowerCase();

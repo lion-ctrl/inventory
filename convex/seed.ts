@@ -4,6 +4,11 @@ import { v } from 'convex/values';
 import { internalMutation, internalQuery } from './_generated/server';
 import type { Id } from './_generated/dataModel';
 import { hashPin, verifyPin } from './sessions';
+import {
+  permissionsValidator,
+  roleValidator,
+  splitItemValidator,
+} from './schema';
 
 // `+n.toFixed(2)` — the EXACT rounding the prototype's _mkSale used.
 const fix2 = (n: number) => +n.toFixed(2);
@@ -30,7 +35,6 @@ type MockProduct = {
   stock: number;
   minStock: number;
   exempt?: boolean;
-  glyph: string;
   cat: string;
 };
 
@@ -44,7 +48,6 @@ const CATALOG: MockProduct[] = [
     price: 1.5,
     stock: 24,
     minStock: 5,
-    glyph: '🥤',
     cat: 'bebidas',
   },
   {
@@ -56,7 +59,6 @@ const CATALOG: MockProduct[] = [
     stock: 56,
     minStock: 5,
     exempt: true,
-    glyph: '💧',
     cat: 'bebidas',
   },
   {
@@ -68,7 +70,6 @@ const CATALOG: MockProduct[] = [
     stock: 8,
     minStock: 5,
     exempt: true,
-    glyph: '🍞',
     cat: 'alimentos',
   },
   {
@@ -79,7 +80,6 @@ const CATALOG: MockProduct[] = [
     price: 5.8,
     stock: 1,
     minStock: 5,
-    glyph: '☕',
     cat: 'alimentos',
   },
   {
@@ -91,7 +91,6 @@ const CATALOG: MockProduct[] = [
     stock: 4,
     minStock: 5,
     exempt: true,
-    glyph: '🥛',
     cat: 'alimentos',
   },
   {
@@ -102,7 +101,6 @@ const CATALOG: MockProduct[] = [
     price: 3.4,
     stock: 18,
     minStock: 5,
-    glyph: '🍪',
     cat: 'alimentos',
   },
   {
@@ -114,7 +112,6 @@ const CATALOG: MockProduct[] = [
     stock: 32,
     minStock: 5,
     exempt: true,
-    glyph: '🍚',
     cat: 'alimentos',
   },
   {
@@ -126,7 +123,6 @@ const CATALOG: MockProduct[] = [
     stock: 2,
     minStock: 5,
     exempt: true,
-    glyph: '🫒',
     cat: 'alimentos',
   },
   // Farmacia OTC
@@ -139,7 +135,6 @@ const CATALOG: MockProduct[] = [
     stock: 14,
     minStock: 5,
     exempt: true,
-    glyph: '💊',
     cat: 'farmacia',
   },
   {
@@ -151,7 +146,6 @@ const CATALOG: MockProduct[] = [
     stock: 9,
     minStock: 5,
     exempt: true,
-    glyph: '💊',
     cat: 'farmacia',
   },
   {
@@ -162,7 +156,6 @@ const CATALOG: MockProduct[] = [
     price: 2.3,
     stock: 22,
     minStock: 5,
-    glyph: '🧴',
     cat: 'farmacia',
   },
   // Limpieza
@@ -174,7 +167,6 @@ const CATALOG: MockProduct[] = [
     price: 6.4,
     stock: 11,
     minStock: 5,
-    glyph: '🧼',
     cat: 'limpieza',
   },
   {
@@ -185,7 +177,6 @@ const CATALOG: MockProduct[] = [
     price: 1.9,
     stock: 16,
     minStock: 5,
-    glyph: '🧴',
     cat: 'limpieza',
   },
   {
@@ -196,7 +187,6 @@ const CATALOG: MockProduct[] = [
     price: 8.9,
     stock: 7,
     minStock: 5,
-    glyph: '🧻',
     cat: 'limpieza',
   },
   // Ferretería
@@ -208,7 +198,6 @@ const CATALOG: MockProduct[] = [
     price: 4.8,
     stock: 5,
     minStock: 5,
-    glyph: '🔩',
     cat: 'ferreteria',
   },
   {
@@ -219,7 +208,6 @@ const CATALOG: MockProduct[] = [
     price: 1.1,
     stock: 28,
     minStock: 5,
-    glyph: '⚡',
     cat: 'ferreteria',
   },
   {
@@ -230,7 +218,6 @@ const CATALOG: MockProduct[] = [
     price: 22.5,
     stock: 3,
     minStock: 5,
-    glyph: '🎨',
     cat: 'ferreteria',
   },
   {
@@ -241,7 +228,6 @@ const CATALOG: MockProduct[] = [
     price: 2.8,
     stock: 41,
     minStock: 5,
-    glyph: '💡',
     cat: 'ferreteria',
   },
   // Hogar / cosméticos
@@ -253,7 +239,6 @@ const CATALOG: MockProduct[] = [
     price: 5.2,
     stock: 12,
     minStock: 5,
-    glyph: '🧴',
     cat: 'hogar',
   },
   {
@@ -264,7 +249,6 @@ const CATALOG: MockProduct[] = [
     price: 2.4,
     stock: 25,
     minStock: 5,
-    glyph: '🔋',
     cat: 'hogar',
   },
 ];
@@ -933,7 +917,6 @@ export const run = internalMutation({
         minStock: p.minStock,
         categoryId: catIdBySlug.get(p.cat)!,
         ...(p.exempt === true ? { exempt: true } : {}),
-        glyph: p.glyph,
       });
       productIdByMock.set(p.id, id);
     }
@@ -1006,7 +989,6 @@ export const run = internalMutation({
           barcode: p.barcode,
           cat: p.cat,
           price: p.price,
-          glyph: p.glyph,
           qty,
         };
       });
@@ -1048,7 +1030,44 @@ export const run = internalMutation({
 // Verification helpers (internal — not part of the app's API).
 export const verify = internalQuery({
   args: {},
-  returns: v.any(),
+  // Spelled out rather than `v.any()`. This is the function you reach for when
+  // the seed looks wrong, so it is the worst place to lose type checking: a
+  // renamed field would quietly come back `undefined` and read as a data bug.
+  returns: v.object({
+    staleIdNormalizesToNull: v.boolean(),
+    owner: v.union(
+      v.null(),
+      v.object({
+        active: v.boolean(),
+        role: roleValidator,
+        permissions: permissionsValidator,
+        pinHashValid: v.boolean(),
+      })
+    ),
+    sale42: v.union(
+      v.null(),
+      v.object({
+        subtotal: v.number(),
+        tax: v.number(),
+        total: v.number(),
+        cashierName: v.string(),
+        // `cat` is optional on a line snapshot, and an array may not carry
+        // `undefined` — a missing category becomes an explicit null.
+        itemCats: v.array(v.union(v.string(), v.null())),
+      })
+    ),
+    sale33splits: v.union(v.array(splitItemValidator), v.null()),
+    sale40tax: v.optional(v.number()),
+    settings: v.union(
+      v.null(),
+      v.object({
+        nextInvoiceNumber: v.number(),
+        nextHeldCode: v.number(),
+        ivaPct: v.number(),
+        bsRate: v.number(),
+      })
+    ),
+  }),
   handler: async (ctx) => {
     // Same code path auth.me uses for stale localStorage ids.
     const staleNormalized = ctx.db.normalizeId(
@@ -1081,7 +1100,7 @@ export const verify = internalQuery({
         tax: sale42.tax,
         total: sale42.total,
         cashierName: sale42.cashierName,
-        itemCats: sale42.items.map((i) => i.cat),
+        itemCats: sale42.items.map((i) => i.cat ?? null),
       },
       sale33splits: sale33?.splits ?? null,
       sale40tax: sale40?.tax,

@@ -7,6 +7,7 @@ import { api } from '@convex/_generated/api';
 import { AppBar, Banner, Chip, Icon } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
+import { initialOf } from '@/lib/initials';
 import {
   useBsRate,
   useCategories,
@@ -102,7 +103,6 @@ export default function Dashboard() {
     (a, s) => a + s.items.reduce((u, i) => u + i.qty, 0),
     0
   );
-  const _avg = todaySales.length ? revenue / todaySales.length : 0;
   const trend =
     yRevenue > 0 ? Math.round(((revenue - yRevenue) / yRevenue) * 100) : null;
 
@@ -312,7 +312,7 @@ export default function Dashboard() {
                 lowStock.slice(0, 5).map((p) => (
                   <div className="lrow" key={p._id}>
                     <div className="thumb dash-low-thumb">
-                      {p.glyph || '📦'}
+                      {initialOf(p.name)}
                     </div>
                     <div>
                       <p className="pname">{p.name}</p>

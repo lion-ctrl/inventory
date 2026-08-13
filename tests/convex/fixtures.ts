@@ -118,7 +118,6 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     stock: 24,
     minStock: 5,
     categoryId,
-    glyph: '🥤',
   });
   const agua = await ctx.db.insert('products', {
     barcode: '7591000000130',
@@ -129,7 +128,6 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     minStock: 5,
     categoryId,
     exempt: true,
-    glyph: '💧',
   });
   const pintura = await ctx.db.insert('products', {
     barcode: '7594000000132',
@@ -140,7 +138,6 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     minStock: 5,
     categoryId,
     sellable: false,
-    glyph: '🎨',
   });
   const cafe = await ctx.db.insert('products', {
     barcode: '7591000000154',
@@ -150,7 +147,6 @@ export async function seedBase(ctx: MutationCtx): Promise<Fixtures> {
     stock: 2,
     minStock: 5,
     categoryId,
-    glyph: '☕',
   });
 
   const clientId = await ctx.db.insert('clients', {

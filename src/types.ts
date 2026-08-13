@@ -2,7 +2,10 @@
 // Convex docs are the source of truth; these aliases keep ports 1:1 readable.
 import type { Doc, Id } from '@convex/_generated/dataModel';
 
-export type Product = Doc<'products'>;
+// `imageUrl` is resolved per read by products.list from the stored `imageId`
+// (never persisted — a storage address goes stale). Absent when the product has
+// no photo, and also absent offline, where the Dexie mirror has no binaries.
+export type Product = Doc<'products'> & { imageUrl?: string };
 export type Category = Doc<'categories'>;
 export type Client = Doc<'clients'>;
 // Employees / sales / held carts reach the client as PUBLIC projections: the PIN
@@ -62,7 +65,6 @@ export interface SaleItemSnapshot {
   cat?: string;
   price: number;
   qty: number;
-  glyph?: string;
   exempt?: boolean;
 }
 

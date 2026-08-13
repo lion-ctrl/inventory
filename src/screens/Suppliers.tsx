@@ -25,24 +25,17 @@ import {
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
+import { initialOf } from '@/lib/initials';
+import { mutationError } from '@/lib/mutationError';
 import { useBsRate, useProducts, useSuppliers } from '@/state/hooks';
 import type { Purchase, Supplier } from '@/types';
 import { fmtClientCreated, formatTaxId } from './Clients';
 import { sanitizeAmount } from './Payment';
 
-const DEFAULT_ERROR = 'Ocurrió un error. Intenta de nuevo.';
-
-/** A rejected mutation surfaces its Spanish text on a ConvexError's `.data`. */
-function mutationError(e: unknown, fallback = DEFAULT_ERROR): string {
-  const data = (e as { data?: unknown } | null)?.data;
-  return typeof data === 'string' ? data : fallback;
-}
-
 const taxDisplay = (s: Pick<Supplier, 'taxPrefix' | 'taxId'>) =>
   s.taxId ? `${s.taxPrefix}-${s.taxId}` : '';
 
-const supplierGlyph = (s: Pick<Supplier, 'name'>) =>
-  (s.name?.[0] || '?').toUpperCase();
+const supplierGlyph = (s: Pick<Supplier, 'name'>) => initialOf(s.name);
 
 const fmtPurchaseDate = (ms: number) =>
   new Date(ms).toLocaleDateString('es', {
@@ -509,7 +502,6 @@ function SupplierForm({
 interface PurchaseLine {
   productId: string;
   name: string;
-  glyph?: string;
   qty: number;
 }
 
@@ -559,13 +551,13 @@ function PurchaseForm({
         })
         .slice(0, 8);
 
-  const addLine = (productId: string, name: string, glyph?: string) => {
+  const addLine = (productId: string, name: string) => {
     setLines((prev) =>
       prev.some((l) => l.productId === productId)
         ? prev.map((l) =>
             l.productId === productId ? { ...l, qty: l.qty + 1 } : l
           )
-        : [...prev, { productId, name, glyph, qty: 1 }]
+        : [...prev, { productId, name, qty: 1 }]
     );
     setQ('');
   };
@@ -622,11 +614,11 @@ function PurchaseForm({
             <div
               className="lrow"
               key={p._id}
-              onClick={() => addLine(p._id, p.name, p.glyph)}
+              onClick={() => addLine(p._id, p.name)}
               style={{ cursor: 'pointer' }}
             >
               <div className="thumb" aria-hidden="true">
-                {p.glyph || (p.name[0] || '?').toUpperCase()}
+                {initialOf(p.name)}
               </div>
               <div>
                 <p className="pname">{p.name}</p>
@@ -647,7 +639,7 @@ function PurchaseForm({
         lines.map((l) => (
           <div className="cartrow" key={l.productId}>
             <div className="thumb" aria-hidden="true">
-              {l.glyph || (l.name[0] || '?').toUpperCase()}
+              {initialOf(l.name)}
             </div>
             <div style={{ minWidth: 0 }}>
               <p className="pname">{l.name}</p>

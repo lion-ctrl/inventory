@@ -162,7 +162,6 @@ export async function snapshotLines(
         ...(cat !== '' ? { cat } : {}),
         price: product.price,
         qty: line.qty,
-        ...(product.glyph !== undefined ? { glyph: product.glyph } : {}),
         ...(product.exempt === true ? { exempt: true } : {}),
       },
     });

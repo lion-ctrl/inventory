@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AppBar, Banner, Button, Chip, Icon, Input, Sheet } from '@/components';
 import { useOnline } from '@/state/useOnline';
+import { initialOf } from '@/lib/initials';
 import {
   useBsRate,
   useCategories,
@@ -32,7 +33,7 @@ function ProductInfoSheet({
     <Sheet onClose={onClose} title="Información del producto">
       <div className="scan-card scan-card-insheet">
         <div className="scan-card-head">
-          <div className="scan-card-glyph">{p.glyph}</div>
+          <div className="scan-card-glyph">{initialOf(p.name)}</div>
           <div className="scan-card-id">
             <div className="scan-card-name">{p.name}</div>
             <div className="scan-card-cat">{catLabel}</div>
@@ -266,7 +267,7 @@ export default function ScanScreen() {
                 key={p._id}
                 onClick={() => setSelected(p)}
               >
-                <div className="glyph">{p.glyph}</div>
+                <div className="glyph">{initialOf(p.name)}</div>
                 <div className="name">{p.name}</div>
                 <div className="meta">{p.sku}</div>
                 <div className="price">${p.price.toFixed(2)}</div>

@@ -14,22 +14,11 @@ import {
 } from '@/components';
 import { useCart } from '@/state/CartContext';
 import { useOnline } from '@/state/useOnline';
+import { mutationError } from '@/lib/mutationError';
+import { initialOf } from '@/lib/initials';
 import { useBsRate, useProducts } from '@/state/hooks';
 import type { HeldCart } from '@/types';
 import { splitUsd } from './Payment';
-
-const DEFAULT_MUTATION_ERROR = 'Ocurrió un error. Intenta de nuevo.';
-
-/**
- * Message for a rejected mutation. A server `ConvexError(data)` reaches the
- * client with its Spanish text on `.data`; anything else (network, client) gets
- * the fallback. Narrowed from `unknown` at the boundary — a caught value is not
- * an Error, and typing it `any` disables checking on every property read.
- */
-function mutationError(e: unknown, fallback = DEFAULT_MUTATION_ERROR): string {
-  const data = (e as { data?: unknown } | null)?.data;
-  return typeof data === 'string' ? data : fallback;
-}
 
 function relativeTime(value?: number) {
   if (!value) return '';
@@ -717,7 +706,7 @@ export default function StoredCartsScreen() {
             {detailCart.items.map((i) => (
               <div className="stored-product-row" key={i.productId}>
                 <div className="thumb" aria-hidden="true">
-                  {i.glyph}
+                  {initialOf(i.name)}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div className="stored-product-name">{i.name}</div>
