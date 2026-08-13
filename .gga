@@ -38,12 +38,19 @@ RULES_FILE="AGENTS.md"
 
 # Strict mode: fail if AI response is ambiguous
 # Default: true
-STRICT_MODE="true"
+# Set to false on 2026-08-12: strict mode rejects a review that PASSED whenever
+# the model writes a preamble before its verdict — the parser only scans the
+# first 30 lines for the STATUS marker. A blocked commit whose review actually
+# passed teaches nothing and costs a full review cycle to retry.
+STRICT_MODE="false"
 
 # Timeout in seconds for AI provider response
 # Default: 300 (5 minutes)
 # Increase for large changesets or slow connections
-TIMEOUT="300"
+# Raised on 2026-08-12: 300s could not review a commit touching a ~900-line
+# screen, and timed out on a changeset it had already approved minutes earlier.
+# Keep commits small anyway — this is headroom, not a licence for big batches.
+TIMEOUT="900"
 
 # Base branch for --pr-mode (auto-detects main/master/develop if empty)
 # Default: auto-detect
