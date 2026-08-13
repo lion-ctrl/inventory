@@ -32,6 +32,7 @@ import StoredCartsScreen from '@/screens/Stored';
 import HistoryScreen from '@/screens/History';
 import ProductsScreen from '@/screens/Products';
 import ClientsScreen from '@/screens/Clients';
+import SuppliersScreen from '@/screens/Suppliers';
 import EmployeesScreen from '@/screens/Employees';
 import ProfileScreen from '@/screens/Profile';
 import SettingsScreen from '@/screens/Settings';
@@ -46,6 +47,7 @@ const ROUTE_IDS: Array<[string, string]> = [
   ['/historial', 'history'],
   ['/productos', 'products'],
   ['/clientes', 'clients'],
+  ['/proveedores', 'suppliers'],
   ['/empleados', 'employees'],
   ['/perfil', 'profile'],
   ['/ajustes', 'settings'],
@@ -184,6 +186,13 @@ export default function AppShell() {
         icon: 'users',
         onClick: () => void navigate('/clientes'),
         perm: 'manage_clients',
+      },
+      {
+        id: 'suppliers',
+        label: 'Proveedores',
+        icon: 'truck',
+        onClick: () => void navigate('/proveedores'),
+        perm: 'manage_suppliers',
       },
       {
         id: 'employees',
@@ -371,6 +380,14 @@ export default function AppShell() {
             element={
               <Guard perm="manage_clients">
                 <ClientsScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/proveedores"
+            element={
+              <Guard perm="manage_suppliers">
+                <SuppliersScreen />
               </Guard>
             }
           />
