@@ -450,19 +450,78 @@ export const syncOffline = mutation({
   },
 });
 
+/**
+ * Backstop for a caller that sends no window. `sales` is the one append-only
+ * table that is NOT Dexie-mirrored, so it grows without bound — and a Convex
+ * query is a live subscription, meaning an uncapped `.collect()` re-sent the
+ * WHOLE table to every connected cashier on every sale. The screens always pass
+ * a window; this cap only exists so a forgotten one degrades instead of melting.
+ */
+const HISTORY_MAX_ROWS = 500;
+
 export const history = query({
   // Gated read: a valid session is required, and the stored cashierId is NOT
   // returned (the cashierName snapshot is enough for display). AUTH-2.
-  args: { token: v.string() },
-  returns: v.array(publicSaleDocValidator),
+  //
+  // `from`/`to` are epoch ms, inclusive, resolved through the `by_soldAt` index —
+  // the window the UI already computes for its own filter now travels to the
+  // server instead of being applied after downloading everything.
+  args: {
+    token: v.string(),
+    from: v.optional(v.number()),
+    to: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  // `truncated` is NOT optional telemetry: the History screen totals revenue
+  // over this array, so a silently capped result would report less money than
+  // came in. The caller must be able to say so.
+  returns: v.object({
+    sales: v.array(publicSaleDocValidator),
+    truncated: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     await requireSession(ctx, args.token);
-    const sales = await ctx.db
-      .query('sales')
-      .withIndex('by_soldAt')
-      .order('desc')
-      .collect();
-    return sales.map(({ cashierId: _cashierId, ...rest }) => rest);
+    const { from, to } = args;
+    const cap = Math.min(
+      Math.max(1, Math.floor(args.limit ?? HISTORY_MAX_ROWS)),
+      HISTORY_MAX_ROWS
+    );
+    // One extra row is the cheapest way to know whether more exist.
+    const probe = cap + 1;
+    // Newest first, so a capped result keeps the most recent sales.
+    const sales =
+      from !== undefined && to !== undefined
+        ? await ctx.db
+            .query('sales')
+            .withIndex('by_soldAt', (q) =>
+              q.gte('soldAt', from).lte('soldAt', to)
+            )
+            .order('desc')
+            .take(probe)
+        : from !== undefined
+          ? await ctx.db
+              .query('sales')
+              .withIndex('by_soldAt', (q) => q.gte('soldAt', from))
+              .order('desc')
+              .take(probe)
+          : to !== undefined
+            ? await ctx.db
+                .query('sales')
+                .withIndex('by_soldAt', (q) => q.lte('soldAt', to))
+                .order('desc')
+                .take(probe)
+            : await ctx.db
+                .query('sales')
+                .withIndex('by_soldAt')
+                .order('desc')
+                .take(probe);
+    const truncated = sales.length > cap;
+    return {
+      sales: sales
+        .slice(0, cap)
+        .map(({ cashierId: _cashierId, ...rest }) => rest),
+      truncated,
+    };
   },
 });
 

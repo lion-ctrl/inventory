@@ -296,7 +296,9 @@ describe('sales.checkout — physical-stock backstop (parked carts reserve nothi
         method: 'cash',
         splits: cash(10.17),
       })
-    ).rejects.toThrow('Stock insuficiente: Coca-Cola 600ml. Quedan 5 unidades.');
+    ).rejects.toThrow(
+      'Stock insuficiente: Coca-Cola 600ml. Quedan 5 unidades.'
+    );
 
     // The rejected sale consumed nothing.
     const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
@@ -395,5 +397,129 @@ describe('sales.refund', () => {
 
     const agua = await t.run((ctx) => ctx.db.get('products', fx.agua));
     expect(agua!.stock).toBe(56); // surviving product restored; deleted one skipped silently
+  });
+});
+
+// --- sales.history: server-side date window --------------------------------
+// The screen only ever shows today or a custom range, but the query used to
+// `.collect()` the WHOLE sales table on every load — and, because Convex queries
+// are live subscriptions, on every new sale, to every connected cashier. The
+// window now travels to the server and resolves through the `by_soldAt` index.
+describe('sales.history — server-side window', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  /** Insert a sale straight at `soldAt`; checkout would stamp Date.now(). */
+  async function plantSale(
+    t: Awaited<ReturnType<typeof setup>>['t'],
+    fx: Awaited<ReturnType<typeof setup>>['fx'],
+    soldAt: number,
+    invoiceNumber: string
+  ) {
+    await t.run(async (ctx) => {
+      const client = (await ctx.db.get('clients', fx.clientId))!;
+      await ctx.db.insert('sales', {
+        invoiceNumber,
+        clientId: fx.clientId,
+        client: {
+          name: client.name,
+          taxPrefix: client.taxPrefix,
+          taxId: client.taxId,
+        },
+        cashierId: fx.owner,
+        cashierName: 'Carlos Méndez',
+        items: [],
+        subtotal: 1,
+        tax: 0,
+        total: 1,
+        method: 'cash',
+        ivaPct: 13,
+        exchangeRate: 36.5,
+        soldAt,
+      });
+    });
+  }
+
+  async function seedThreeDays() {
+    const { t, fx } = await setup();
+    const now = Date.now();
+    await plantSale(t, fx, now, '00000001'); // today
+    await plantSale(t, fx, now - DAY, '00000002'); // yesterday
+    await plantSale(t, fx, now - 30 * DAY, '00000003'); // last month
+    return { t, fx, now };
+  }
+
+  test('returns only the sales inside [from, to]', async () => {
+    const { t, fx, now } = await seedThreeDays();
+
+    const today = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+      from: now - 60 * 60 * 1000,
+      to: now + 60 * 60 * 1000,
+    });
+    expect(today.sales.map((s) => s.invoiceNumber)).toEqual(['00000001']);
+
+    const lastWeek = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+      from: now - 7 * DAY,
+      to: now + 60 * 60 * 1000,
+    });
+    expect(lastWeek.sales.map((s) => s.invoiceNumber)).toEqual([
+      '00000001',
+      '00000002',
+    ]);
+  });
+
+  test('an open-ended bound still narrows the window', async () => {
+    const { t, fx, now } = await seedThreeDays();
+
+    const fromOnly = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+      from: now - 7 * DAY,
+    });
+    expect(fromOnly.sales).toHaveLength(2);
+    const toOnly = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+      to: now - 7 * DAY,
+    });
+    expect(toOnly.sales).toHaveLength(1);
+  });
+
+  test('a capped result SAYS it was capped — money must never be silently short', async () => {
+    const { t, fx, now } = await seedThreeDays();
+
+    const capped = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+      limit: 2,
+    });
+    expect(capped.sales).toHaveLength(2);
+    // Newest first: the cap keeps the most recent sales, never the oldest.
+    expect(capped.sales.map((s) => s.invoiceNumber)).toEqual([
+      '00000001',
+      '00000002',
+    ]);
+    // Revenue totals are computed from this array, so the screen has to know it
+    // is looking at a slice rather than reporting a smaller figure as the truth.
+    expect(capped.truncated).toBe(true);
+    expect(now).toBeGreaterThan(0);
+  });
+
+  test('a complete result is not flagged as capped', async () => {
+    const { t, fx } = await seedThreeDays();
+    const all = await t.query(api.sales.history, { token: fx.ownerToken });
+    expect(all.sales).toHaveLength(3);
+    expect(all.truncated).toBe(false);
+  });
+
+  test('still session-gated and still hides cashierId', async () => {
+    const { t, fx } = await seedThreeDays();
+    await expect(
+      t.query(api.sales.history, { token: 'not-a-real-token' })
+    ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
+
+    const { sales: onlySales } = await t.query(api.sales.history, {
+      token: fx.ownerToken,
+    });
+    const [sale] = onlySales;
+    expect(sale).not.toHaveProperty('cashierId');
   });
 });

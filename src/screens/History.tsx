@@ -67,6 +67,50 @@ function isSameDay(a: Date, b: Date) {
 function isSameMonth(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
+const DAY_MS = 24 * 60 * 60 * 1000;
+const startOfDay = (d: Date) =>
+  new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/**
+ * The SAME window `inRange` applies below, expressed as epoch ms so the server
+ * can resolve it through the `by_soldAt` index. The screen always knew which
+ * window it wanted; it just never told the query, so the whole sales table was
+ * downloaded and then thrown away client-side. `inRange` stays as the exact
+ * client-side filter (it also handles a half-filled custom range).
+ */
+export function rangeBounds(
+  range: string,
+  fromDate: string,
+  toDate: string
+): { from?: number; to?: number } {
+  const now = new Date();
+  const today = { from: startOfDay(now), to: startOfDay(now) + DAY_MS - 1 };
+  if (range === 'custom') {
+    if (fromDate && toDate) {
+      return {
+        from: new Date(fromDate + 'T00:00:00').getTime(),
+        to: new Date(toDate + 'T23:59:59').getTime(),
+      };
+    }
+    return today; // matches inRange: an incomplete custom range shows today
+  }
+  switch (range) {
+    case 'today':
+      return today;
+    case 'yesterday': {
+      const y = new Date(now);
+      y.setDate(now.getDate() - 1);
+      return { from: startOfDay(y), to: startOfDay(y) + DAY_MS - 1 };
+    }
+    case 'week':
+      return { from: now.getTime() - 7 * DAY_MS };
+    case 'month':
+      return { from: new Date(now.getFullYear(), now.getMonth(), 1).getTime() };
+    default:
+      return {}; // "Todas" — unbounded by intent; the server cap still applies
+  }
+}
+
 function inRange(sale: Sale, range: string, fromDate: string, toDate: string) {
   const d = new Date(sale.soldAt);
   const now = new Date();
@@ -197,7 +241,7 @@ function SaleTableRow({ sale, onClick, bsRate }: SaleRowProps) {
       ? '🏢'
       : (sale.client?.name?.[0] || '?').toUpperCase();
   const itemCount = sale.items.reduce((s, i) => s + i.qty, 0);
-  const isMixto = sale.splits && sale.splits.length > 1;
+  const isSplitPayment = sale.splits && sale.splits.length > 1;
   const isRefunded = !!sale.refund;
   return (
     <div
@@ -231,12 +275,18 @@ function SaleTableRow({ sale, onClick, bsRate }: SaleRowProps) {
       </div>
       <div className="hist-col-items">{itemCount}</div>
       <div className="hist-col-method">
-        <Chip tone={isMixto ? 'info' : METHOD_TONES[sale.method] || 'neutral'}>
+        <Chip
+          tone={
+            isSplitPayment ? 'info' : METHOD_TONES[sale.method] || 'neutral'
+          }
+        >
           <Icon
-            name={isMixto ? 'shuffle' : METHOD_ICONS[sale.method] || 'tag'}
+            name={
+              isSplitPayment ? 'shuffle' : METHOD_ICONS[sale.method] || 'tag'
+            }
             size={12}
           />
-          {isMixto ? 'Mixto' : METHOD_LABELS[sale.method]}
+          {isSplitPayment ? 'Mixto' : METHOD_LABELS[sale.method]}
         </Chip>
       </div>
       <div className="hist-col-total">
@@ -261,7 +311,7 @@ function SaleRow({ sale, onClick, bsRate }: SaleRowProps) {
       ? '🏢'
       : (sale.client?.name?.[0] || '?').toUpperCase();
   const itemCount = sale.items.reduce((s, i) => s + i.qty, 0);
-  const isMixto = sale.splits && sale.splits.length > 1;
+  const isSplitPayment = sale.splits && sale.splits.length > 1;
   const isRefunded = !!sale.refund;
   return (
     <div
@@ -313,13 +363,19 @@ function SaleRow({ sale, onClick, bsRate }: SaleRowProps) {
           <span className="k">Método</span>
           <span className="v">
             <Chip
-              tone={isMixto ? 'info' : METHOD_TONES[sale.method] || 'neutral'}
+              tone={
+                isSplitPayment ? 'info' : METHOD_TONES[sale.method] || 'neutral'
+              }
             >
               <Icon
-                name={isMixto ? 'shuffle' : METHOD_ICONS[sale.method] || 'tag'}
+                name={
+                  isSplitPayment
+                    ? 'shuffle'
+                    : METHOD_ICONS[sale.method] || 'tag'
+                }
                 size={12}
               />
-              {isMixto ? 'Mixto' : METHOD_LABELS[sale.method]}
+              {isSplitPayment ? 'Mixto' : METHOD_LABELS[sale.method]}
             </Chip>
           </span>
         </div>
@@ -640,13 +696,7 @@ export default function HistoryScreen() {
   const toast = useToast();
   // useSession() first so the token is in scope for the gated history query.
   const { token, can } = useSession();
-  const salesRaw = useQuery(api.sales.history, token ? { token } : 'skip');
-  const sales = salesRaw ?? [];
   const online = useOnline();
-  // Phase 10 — official history is NOT mirrored (server-only). Offline with no
-  // cached result it is unavailable; the locally-queued offline sales are shown
-  // separately as PENDING_SYNC (usePendingSales), enriched from the mirror.
-  const salesUnavailable = !online && salesRaw === undefined;
   const pendingSales = usePendingSales();
   const bsRate = useBsRate();
   const _navigate = useNavigate();
@@ -663,6 +713,28 @@ export default function HistoryScreen() {
   const [detail, setDetail] = useState<Sale | null>(null);
   const [refunding, setRefunding] = useState<Sale | null>(null);
   const canRefund = can('void_sales');
+
+  // The selected window travels to the server (index-resolved) instead of being
+  // applied after downloading every sale ever made. Memoized on the filter state
+  // so the query args keep their identity between renders — a fresh object with a
+  // fresh `Date.now()` on each render would resubscribe in a loop.
+  const salesWindow = useMemo(
+    () => rangeBounds(range, fromDate, toDate),
+    [range, fromDate, toDate]
+  );
+  const salesRaw = useQuery(
+    api.sales.history,
+    token ? { token, ...salesWindow } : 'skip'
+  );
+  const sales = salesRaw?.sales ?? [];
+  // The totals below are computed over `sales`. If the server capped the window,
+  // saying so is mandatory: a smaller revenue figure presented as the period's
+  // truth is a wrong financial number, not a slow screen.
+  const salesTruncated = salesRaw?.truncated === true;
+  // Phase 10 — official history is NOT mirrored (server-only). Offline with no
+  // cached result it is unavailable; the locally-queued offline sales are shown
+  // separately as PENDING_SYNC (usePendingSales), enriched from the mirror.
+  const salesUnavailable = !online && salesRaw === undefined;
 
   const doRefund = async (sale: Sale, reason: string) => {
     if (!online) {
@@ -692,7 +764,7 @@ export default function HistoryScreen() {
     .filter((s) => inRange(s, range, fromDate, toDate))
     .filter((s) => {
       if (methodFilter === 'all') return true;
-      if (methodFilter === 'mixto') return s.splits && s.splits.length > 1;
+      if (methodFilter === 'split') return s.splits && s.splits.length > 1;
       return s.method === methodFilter && !(s.splits && s.splits.length > 1);
     })
     .filter((s) => {
@@ -770,6 +842,14 @@ export default function HistoryScreen() {
             icon="wifi-off"
             title="Sin conexión"
             message="El historial oficial requiere conexión. Abajo están tus ventas pendientes de sincronizar."
+          />
+        )}
+        {salesTruncated && (
+          <Banner
+            tone="warn"
+            icon="alert-triangle"
+            title="Periodo incompleto"
+            message="Hay más ventas de las que se pueden mostrar. Los totales de abajo son parciales: acota el rango de fechas para verlos completos."
           />
         )}
         {pendingSales.length > 0 && (
@@ -886,7 +966,7 @@ export default function HistoryScreen() {
                 <option value="transfer">Transferencia</option>
                 <option value="mobile">Pago móvil</option>
                 <option value="zelle">Zelle</option>
-                <option value="mixto">Mixto</option>
+                <option value="split">Mixto</option>
               </select>
             </label>
             <label className="catalog-filter">

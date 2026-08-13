@@ -1,5 +1,6 @@
 // Dashboard — greeting, today's performance, quick actions, low stock & recent sales.
 // Pulls live data from Convex (sales history, products, clients, stored carts).
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -52,9 +53,29 @@ export default function Dashboard() {
   // (that shows the cached figure), but a FRESH offline load has none — show
   // "No disponible sin conexión" instead of a misleading $0. `salesUnavailable` is
   // true ONLY offline with no data (never during an online first-load).
-  const salesHistoryRaw = useQuery(api.sales.history, token ? { token } : 'skip');
-  const salesHistory = salesHistoryRaw ?? [];
+  // The tiles chart today and yesterday and list the 5 most recent sales, so a
+  // 7-day window covers everything this screen reads. Sending it keeps the
+  // subscription bounded: `sales` grows forever, and an unwindowed live query
+  // re-pushed the whole table to every cashier on every sale.
+  // Quantized to the start of the day and memoized — a raw `Date.now()` in the
+  // args would change identity on every render and resubscribe in a loop.
+  const salesFrom = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() - 6 * 24 * 60 * 60 * 1000;
+  }, []);
+  const salesHistoryRaw = useQuery(
+    api.sales.history,
+    token ? { token, from: salesFrom } : 'skip'
+  );
+  const salesHistory = salesHistoryRaw?.sales ?? [];
   const salesUnavailable = !online && salesHistoryRaw === undefined;
+  // Same rule the History banner enforces: revenue and the trend are totalled
+  // over this array, so a capped window must say so rather than present a
+  // smaller figure as today's takings. Today's sales are the newest and survive
+  // the cap first, but the yesterday comparison breaks as soon as the two days
+  // together exceed it.
+  const salesPartial = salesHistoryRaw?.truncated === true;
   const products = useProducts();
   const clients = useClients();
   const categories = useCategories();
@@ -139,7 +160,9 @@ export default function Dashboard() {
       cls: '',
       icon: 'receipt',
       title: 'Historial',
-      sub: salesUnavailable ? 'Ver historial' : `${todaySales.length} ventas hoy`,
+      sub: salesUnavailable
+        ? 'Ver historial'
+        : `${todaySales.length} ventas hoy`,
       onClick: () => void navigate('/historial'),
     },
     {
@@ -207,6 +230,11 @@ export default function Dashboard() {
             {salesUnavailable && (
               <div className="t-body-sm">No disponible sin conexión</div>
             )}
+            {!salesUnavailable && salesPartial && (
+              <div className="t-body-sm">
+                Cifra parcial: hay más ventas de las que se pueden mostrar
+              </div>
+            )}
             {!salesUnavailable && bsRate > 0 && (
               <div className="dash-hero-bs">Bs {money(revenue * bsRate)}</div>
             )}
@@ -224,7 +252,9 @@ export default function Dashboard() {
           <div className="dash-hero-stats">
             <div>
               <div className="k">Ventas</div>
-              <div className="v">{salesUnavailable ? '—' : todaySales.length}</div>
+              <div className="v">
+                {salesUnavailable ? '—' : todaySales.length}
+              </div>
             </div>
             <div>
               <div className="k">Productos</div>

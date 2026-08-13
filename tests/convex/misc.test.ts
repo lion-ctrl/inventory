@@ -66,7 +66,7 @@ describe('sales.history', () => {
     await buy(2, 3.39);
 
     const history = await t.query(api.sales.history, { token: fx.ownerToken });
-    expect(history.map((s) => s.invoiceNumber)).toEqual([
+    expect(history.sales.map((s) => s.invoiceNumber)).toEqual([
       '00000044',
       '00000043',
     ]);
@@ -89,8 +89,8 @@ describe('sales.history', () => {
     ).rejects.toThrow('Sesión inválida o expirada. Inicia sesión de nuevo.');
 
     const history = await t.query(api.sales.history, { token: fx.ownerToken });
-    expect(history.length).toBeGreaterThan(0);
-    for (const sale of history) {
+    expect(history.sales.length).toBeGreaterThan(0);
+    for (const sale of history.sales) {
       expect(sale.cashierName).toBeTruthy(); // human-readable snapshot stays
       expect(sale).not.toHaveProperty('cashierId'); // credential surface removed
     }
