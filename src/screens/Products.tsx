@@ -4,6 +4,7 @@
 // useCategories) and writes go through mutations — useQuery reactivity refreshes
 // the lists, so the prototype's setProducts/setCategories plumbing is gone.
 import { useEffect, useMemo, useState } from 'react';
+import type { ChangeEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -22,8 +23,13 @@ import {
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
-import { useBsRate, useCategories, useProducts } from '@/state/hooks';
-import type { CategoryWithCount, Product } from '@/types';
+import {
+  useBsRate,
+  useCategories,
+  useProducts,
+  useSuppliers,
+} from '@/state/hooks';
+import type { CategoryWithCount, Product, Supplier } from '@/types';
 
 const STOCK_LEVELS = [
   { id: 'all', label: 'Todos' },
@@ -37,10 +43,14 @@ const STOCK_LEVELS = [
 // the old native alert() (owner directive: no browser dialogs).
 function useAlertError() {
   const toast = useToast();
-  return (e: any) =>
+  // Narrowed from `unknown` at the boundary: a caught value is not an Error, and
+  // a server ConvexError carries its Spanish text on `.data`.
+  return (e: unknown) => {
+    const data = (e as { data?: unknown } | null)?.data;
     toast.error(
-      typeof e?.data === 'string' ? e.data : 'Ocurrió un error. Intenta de nuevo.'
+      typeof data === 'string' ? data : 'Ocurrió un error. Intenta de nuevo.'
     );
+  };
 }
 
 function stockTone(stock: number, minStock = 5) {
@@ -110,6 +120,8 @@ interface ProductFormState {
   glyph: string;
   categoryId: string;
   sellable: boolean;
+  /** Empty string = no preferred supplier; the picker offers that explicitly. */
+  supplierId: string;
 }
 
 type ProductFormValues = Omit<
@@ -124,12 +136,16 @@ type ProductFormValues = Omit<
 function ProductForm({
   initial,
   categories,
+  suppliers,
   onSave,
   onCancel,
   online,
 }: {
   initial: Product | null;
   categories: CategoryWithCount[];
+  /** Fed by useSuppliers(): reading the base is operational, so a user who may
+   *  manage products can pick one without holding manage_suppliers. */
+  suppliers: Supplier[];
   onSave: (values: ProductFormValues) => void;
   onCancel: () => void;
   /** Offline blocks the write (FEATURES §18) — create/edit require connection. */
@@ -146,11 +162,15 @@ function ProductForm({
     glyph: initial?.glyph || '📦',
     categoryId: initial?.categoryId || categories[0]?._id || '',
     sellable: initial?.sellable !== false,
+    supplierId: initial?.supplierId ?? '',
   }));
-  const set = (k: keyof ProductFormState) => (e: any) =>
+  type FieldEvent = ChangeEvent<
+    HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+  >;
+  const set = (k: keyof ProductFormState) => (e: FieldEvent) =>
     setForm({ ...form, [k]: e.target.value });
   const setNum =
-    (k: keyof ProductFormState, allowDecimal?: boolean) => (e: any) => {
+    (k: keyof ProductFormState, allowDecimal?: boolean) => (e: FieldEvent) => {
       let v = e.target.value.replace(/[^\d.]/g, '');
       if (!allowDecimal) v = v.replace(/\./g, '');
       if (allowDecimal) {
@@ -262,6 +282,26 @@ function ProductForm({
         </select>
       </label>
 
+      {/* Preferred supplier — who to call to reorder, not sales data. Optional,
+          so the empty option is a real choice and not a placeholder. An inactive
+          supplier still lists, marked, because the link is historically true. */}
+      <label className="client-field">
+        <span>Proveedor</span>
+        <select
+          className="input cat-select"
+          value={form.supplierId}
+          onChange={set('supplierId')}
+        >
+          <option value="">Sin proveedor</option>
+          {suppliers.map((s) => (
+            <option key={s._id} value={s._id}>
+              {s.name}
+              {s.active ? '' : ' (inactivo)'}
+            </option>
+          ))}
+        </select>
+      </label>
+
       <div className="prod-form-row">
         <label className="client-field">
           <span>
@@ -360,6 +400,7 @@ function ProductDetailSheet({
   onDelete,
   bsRate,
   catMap,
+  supplierLabel,
   online,
 }: {
   product: Product;
@@ -369,6 +410,8 @@ function ProductDetailSheet({
   onDelete: (p: Product) => void;
   bsRate: number;
   catMap: Map<string, string>;
+  /** Preferred supplier's display name, "(inactivo)"-marked, or null when unset. */
+  supplierLabel: string | null;
   /** Offline blocks the writes (FEATURES §18): edit / adjust stock / delete. */
   online: boolean;
 }) {
@@ -414,6 +457,10 @@ function ProductDetailSheet({
           <div className="prod-detail-row">
             <span className="k">Categoría</span>
             <span className="v">{catMap.get(product.categoryId) ?? ''}</span>
+          </div>
+          <div className="prod-detail-row">
+            <span className="k">Proveedor</span>
+            <span className="v">{supplierLabel ?? '—'}</span>
           </div>
           <div className="prod-detail-row">
             <span className="k">Precio</span>
@@ -544,7 +591,7 @@ function CategoriesSheet({
     try {
       await createCat({ token: token!, label: name });
       setNewName('');
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
   };
@@ -557,7 +604,7 @@ function CategoriesSheet({
     }
     try {
       await updateCat({ token: token!, categoryId: cat._id, label: name });
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
     setEditingId(null);
@@ -580,7 +627,7 @@ function CategoriesSheet({
         reassignToId: (reassignTo || cat._id) as Id<'categories'>,
       });
       setDeleting(null);
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
   };
@@ -783,6 +830,7 @@ function CategoriesSheet({
 export default function ProductsScreen() {
   const products = useProducts();
   const categories = useCategories();
+  const suppliers = useSuppliers();
   const { token } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
@@ -821,6 +869,21 @@ export default function ProductsScreen() {
   const catMap = useMemo(
     () => new Map(categories.map((c) => [c._id, c.label] as [string, string])),
     [categories]
+  );
+  // A retired supplier still labels the products that name it — the link is
+  // historically true, and hiding it would make the detail look unset.
+  const supplierMap = useMemo(
+    () =>
+      new Map(
+        suppliers.map(
+          (s) =>
+            [s._id, s.active ? s.name : `${s.name} (inactivo)`] as [
+              string,
+              string,
+            ]
+        )
+      ),
+    [suppliers]
   );
 
   // ---- Stats -------------------------------------------------------------
@@ -919,6 +982,11 @@ export default function ProductsScreen() {
             exempt: form.exempt,
             glyph: form.glyph,
             sellable: form.sellable,
+            // null CLEARS the link; an id sets it. The empty option in the
+            // picker is a real choice, so it has to reach the server as one.
+            supplierId: form.supplierId
+              ? (form.supplierId as Id<'suppliers'>)
+              : null,
           },
         });
       } else {
@@ -933,6 +1001,10 @@ export default function ProductsScreen() {
           categoryId: form.categoryId as Id<'categories'>,
           exempt: form.exempt,
           glyph: form.glyph,
+          // Omitted entirely when unset — create has no "clear" case.
+          ...(form.supplierId
+            ? { supplierId: form.supplierId as Id<'suppliers'> }
+            : {}),
         });
         // create() has no `sellable` arg — pause right after when the toggle was off
         if (form.sellable === false) {
@@ -945,7 +1017,7 @@ export default function ProductsScreen() {
       }
       setEditorOpen(false);
       setEditing(null);
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
   };
@@ -959,7 +1031,7 @@ export default function ProductsScreen() {
       });
       // keep the open detail sheet in sync (it holds a snapshot, not the live doc)
       setDetail((prev) => (prev ? { ...prev, stock: newStock } : null));
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
   };
@@ -967,7 +1039,7 @@ export default function ProductsScreen() {
   const remove = async (p: Product) => {
     try {
       await removeProduct({ token: token!, productId: p._id });
-    } catch (e: any) {
+    } catch (e) {
       alertError(e);
     }
     setConfirmDelete(null);
@@ -991,12 +1063,7 @@ export default function ProductsScreen() {
             >
               Categorías
             </Button>
-            <Button
-              size="sm"
-              icon="plus"
-              onClick={openNew}
-              disabled={!online}
-            >
+            <Button size="sm" icon="plus" onClick={openNew} disabled={!online}>
               Nuevo producto
             </Button>
           </>
@@ -1235,6 +1302,11 @@ export default function ProductsScreen() {
           onClose={() => setDetail(null)}
           bsRate={bsRate}
           catMap={catMap}
+          supplierLabel={
+            detail.supplierId
+              ? (supplierMap.get(detail.supplierId) ?? null)
+              : null
+          }
           online={online}
           onEdit={openEdit}
           onAdjustStock={(...args: Parameters<typeof adjustStock>) => {
@@ -1263,6 +1335,7 @@ export default function ProductsScreen() {
           <ProductForm
             initial={editing}
             categories={categories}
+            suppliers={suppliers}
             online={online}
             onSave={(...args: Parameters<typeof save>) => {
               void save(...args);

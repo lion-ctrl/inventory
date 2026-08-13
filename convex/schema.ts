@@ -113,6 +113,11 @@ export const productFields = {
   glyph: v.optional(v.string()),
   // undefined/true = on sale; false = paused
   sellable: v.optional(v.boolean()),
+  // The supplier this product is normally reordered from — a reordering hint,
+  // never sales data. Optional so every pre-existing product stays valid, and
+  // SINGULAR on purpose: `purchases` already records everyone this was actually
+  // bought from, with dates. This answers "who do I call", which has one answer.
+  supplierId: v.optional(v.id('suppliers')),
 };
 
 export const clientFields = {
@@ -411,7 +416,10 @@ export const publicHeldCartDocValidator = v.object({
 export default defineSchema({
   categories: defineTable(categoryFields),
 
+  // by_supplier: `suppliers.remove` must know whether any product still points
+  // at a supplier before deleting it — a `first()` probe, never a catalogue scan.
   products: defineTable(productFields)
+    .index('by_supplier', ['supplierId'])
     .index('by_barcode', ['barcode'])
     .index('by_category', ['categoryId']),
 

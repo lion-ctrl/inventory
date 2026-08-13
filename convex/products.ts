@@ -41,6 +41,7 @@ export const create = mutation({
     categoryId: v.id('categories'),
     exempt: v.optional(v.boolean()),
     glyph: v.optional(v.string()),
+    supplierId: v.optional(v.id('suppliers')),
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
@@ -66,6 +67,10 @@ export const update = mutation({
       exempt: v.optional(v.boolean()),
       glyph: v.optional(v.string()),
       sellable: v.optional(v.boolean()),
+      // `null` CLEARS the preferred supplier. An id sets it; omitting the key
+      // leaves it untouched — the three-state contract an optional REFERENCE
+      // needs (an empty string could do it for text fields, not for an id).
+      supplierId: v.optional(v.union(v.id('suppliers'), v.null())),
     }),
   },
   returns: v.null(),
@@ -74,7 +79,15 @@ export const update = mutation({
     requirePerm(employee, 'manage_products');
     const product = await ctx.db.get('products', args.productId);
     if (!product) throw new ConvexError('Producto no encontrado.');
-    await ctx.db.patch('products', args.productId, args.patch);
+    // `supplierId: null` means CLEAR; Convex removes an optional field when it is
+    // patched with `undefined`. Every other key passes through untouched.
+    const { supplierId, ...rest } = args.patch;
+    await ctx.db.patch('products', args.productId, {
+      ...rest,
+      ...(supplierId !== undefined
+        ? { supplierId: supplierId ?? undefined }
+        : {}),
+    });
     return null;
   },
 });

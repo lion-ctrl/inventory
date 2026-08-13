@@ -336,3 +336,58 @@ describe('suppliers.remove', () => {
     });
   });
 });
+
+describe('suppliers.remove — a referenced product keeps the supplier alive', () => {
+  test('refuses to delete a supplier a product points at', async () => {
+    const { t, fx } = await setup();
+    const supplier = await t.mutation(api.suppliers.create, {
+      token: fx.ownerToken,
+      name: DISTRIBUIDORA.name,
+      taxPrefix: DISTRIBUIDORA.taxPrefix,
+      taxId: DISTRIBUIDORA.taxId,
+    });
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId: fx.cola,
+      patch: { supplierId: supplier._id },
+    });
+
+    // Unlike a purchase, which freezes supplierName, a product has no snapshot:
+    // deleting would leave a dangling id and an empty picker with no explanation.
+    await expect(
+      t.mutation(api.suppliers.remove, {
+        token: fx.ownerToken,
+        supplierId: supplier._id,
+      })
+    ).rejects.toThrow(
+      'No puedes eliminar un proveedor asignado a productos. Márcalo como inactivo.'
+    );
+    await expect(
+      t.query(api.suppliers.list, { token: fx.ownerToken })
+    ).resolves.toHaveLength(1);
+  });
+
+  test('deactivating keeps the product link intact', async () => {
+    const { t, fx } = await setup();
+    const supplier = await t.mutation(api.suppliers.create, {
+      token: fx.ownerToken,
+      name: DISTRIBUIDORA.name,
+      taxPrefix: DISTRIBUIDORA.taxPrefix,
+      taxId: DISTRIBUIDORA.taxId,
+    });
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId: fx.cola,
+      patch: { supplierId: supplier._id },
+    });
+
+    await t.mutation(api.suppliers.update, {
+      token: fx.ownerToken,
+      supplierId: supplier._id,
+      patch: { active: false },
+    });
+
+    const cola = await t.run((ctx) => ctx.db.get('products', fx.cola));
+    expect(cola!.supplierId).toBe(supplier._id);
+  });
+});

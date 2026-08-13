@@ -174,3 +174,105 @@ describe('products mutations', () => {
     });
   });
 });
+
+// --- Preferred supplier -----------------------------------------------------
+// A reordering hint, never sales data: it answers "who do I call to restock",
+// which has one answer at a time. `purchases` already records everyone this was
+// actually bought from, with dates.
+describe('products — preferred supplier', () => {
+  async function withSupplier() {
+    const { t, fx } = await setup();
+    const supplier = await t.mutation(api.suppliers.create, {
+      token: fx.ownerToken,
+      name: 'Distribuidora El Sol, C.A.',
+      taxPrefix: 'J',
+      taxId: '40123456-7',
+    });
+    return { t, fx, supplier };
+  }
+
+  const newProduct = (extra: Record<string, unknown> = {}) => ({
+    barcode: '7591000009999',
+    sku: 'NEW-1',
+    name: 'Producto nuevo',
+    price: 1,
+    stock: 0,
+    minStock: 1,
+    ...extra,
+  });
+
+  test('a product can be created with a supplier, and without one', async () => {
+    const { t, fx, supplier } = await withSupplier();
+
+    const withId = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      supplierId: supplier._id,
+      ...newProduct(),
+    });
+    const without = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      ...newProduct({ barcode: '7591000008888', sku: 'NEW-2' }),
+    });
+
+    const rows = await t.run(async (ctx) => ({
+      a: await ctx.db.get('products', withId),
+      b: await ctx.db.get('products', without),
+    }));
+    expect(rows.a!.supplierId).toBe(supplier._id);
+    // Absent, not null: an unset optional is simply not stored.
+    expect(rows.b).not.toHaveProperty('supplierId');
+  });
+
+  test('the supplier can be attached and later cleared', async () => {
+    const { t, fx, supplier } = await withSupplier();
+    const productId = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      ...newProduct(),
+    });
+
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId,
+      patch: { supplierId: supplier._id },
+    });
+    expect(
+      (await t.run((ctx) => ctx.db.get('products', productId)))!.supplierId
+    ).toBe(supplier._id);
+
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId,
+      patch: { supplierId: null },
+    });
+    expect(
+      await t.run((ctx) => ctx.db.get('products', productId))
+    ).not.toHaveProperty('supplierId');
+  });
+
+  test('changing the supplier leaves past sales and purchases untouched', async () => {
+    const { t, fx, supplier } = await withSupplier();
+    await t.mutation(api.purchases.create, {
+      token: fx.ownerToken,
+      supplierId: supplier._id,
+      items: [{ productId: fx.cola, qty: 5 }],
+      entered: 10,
+      currency: 'usd',
+    });
+
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId: fx.cola,
+      patch: { supplierId: supplier._id },
+    });
+
+    const [purchase] = await t.query(api.purchases.bySupplier, {
+      token: fx.ownerToken,
+      supplierId: supplier._id,
+    });
+    expect(purchase.items[0].name).toBe('Coca-Cola 600ml');
+    expect(purchase.supplierName).toBe('Distribuidora El Sol, C.A.');
+  });
+});

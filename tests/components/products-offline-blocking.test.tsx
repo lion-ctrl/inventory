@@ -8,13 +8,16 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { CategoryWithCount, Product } from '@/types';
+import type { CategoryWithCount, Product, Supplier } from '@/types';
 
-const { onlineMock, productsMock, categoriesMock } = vi.hoisted(() => ({
-  onlineMock: { current: true },
-  productsMock: { current: [] as Product[] },
-  categoriesMock: { current: [] as CategoryWithCount[] },
-}));
+const { onlineMock, productsMock, categoriesMock, suppliersMock } = vi.hoisted(
+  () => ({
+    onlineMock: { current: true },
+    productsMock: { current: [] as Product[] },
+    categoriesMock: { current: [] as CategoryWithCount[] },
+    suppliersMock: { current: [] as Supplier[] },
+  })
+);
 
 vi.mock('react-router', () => ({
   useNavigate: () => vi.fn(),
@@ -29,6 +32,7 @@ vi.mock('@/state/hooks', () => ({
   useBsRate: () => 0,
   useCategories: () => categoriesMock.current,
   useProducts: () => productsMock.current,
+  useSuppliers: () => suppliersMock.current,
 }));
 vi.mock('@/state/SessionContext', () => ({
   useSession: () => ({ token: 't', user: null }),
@@ -67,8 +71,7 @@ const renderScreen = (online: boolean) => {
   return render(<ProductsScreen />);
 };
 
-const btn = (name: RegExp | string) =>
-  screen.getByRole('button', { name });
+const btn = (name: RegExp | string) => screen.getByRole('button', { name });
 
 afterEach(() => {
   cleanup();
@@ -76,6 +79,7 @@ afterEach(() => {
   onlineMock.current = true;
   productsMock.current = [];
   categoriesMock.current = [];
+  suppliersMock.current = [];
 });
 
 describe('Productos — offline write-blocking (FEATURES §18)', () => {
@@ -143,10 +147,7 @@ describe('Categorías — offline write-blocking (FEATURES §18)', () => {
     await user.type(screen.getByPlaceholderText('Nueva categoría'), 'Snacks');
 
     expect(btn('Crear')).toHaveProperty('disabled', true);
-    expect(screen.getByLabelText('Renombrar')).toHaveProperty(
-      'disabled',
-      true
-    );
+    expect(screen.getByLabelText('Renombrar')).toHaveProperty('disabled', true);
     expect(screen.getByLabelText('Eliminar')).toHaveProperty('disabled', true);
     expect(
       screen.getByText(
@@ -167,10 +168,66 @@ describe('Categorías — offline write-blocking (FEATURES §18)', () => {
       'disabled',
       false
     );
-    expect(screen.getByLabelText('Eliminar')).toHaveProperty(
-      'disabled',
-      false
-    );
+    expect(screen.getByLabelText('Eliminar')).toHaveProperty('disabled', false);
     expect(screen.queryByText(/requieren conexión/)).toBeNull();
+  });
+});
+
+// --- Preferred supplier -----------------------------------------------------
+// The link answers "who do I reorder this from". It is optional, so "Sin
+// proveedor" is a real choice; and a RETIRED supplier still labels the products
+// that name it, marked, because the link is historically true.
+describe('Productos — proveedor preferido', () => {
+  const makeSupplier = (over: Partial<Supplier> = {}): Supplier =>
+    ({
+      _id: 's_sol',
+      _creationTime: 0,
+      name: 'Distribuidora El Sol, C.A.',
+      taxPrefix: 'J',
+      taxId: '40123456-7',
+      active: true,
+      createdAt: 0,
+      ...over,
+    }) as unknown as Supplier;
+
+  test('the form offers the supplier base plus an explicit "Sin proveedor"', async () => {
+    const user = userEvent.setup();
+    suppliersMock.current = [makeSupplier()];
+    renderScreen(true);
+
+    await user.click(btn(/Nuevo producto/));
+    const picker = screen.getByLabelText('Proveedor', { selector: 'select' });
+    const options = Array.from(picker.querySelectorAll('option')).map(
+      (o) => o.textContent
+    );
+    expect(options).toEqual(['Sin proveedor', 'Distribuidora El Sol, C.A.']);
+    // Unset is the default: a product without a supplier stays valid.
+    expect(picker).toHaveProperty('value', '');
+  });
+
+  test('a retired supplier is still offered, marked as inactive', async () => {
+    const user = userEvent.setup();
+    suppliersMock.current = [makeSupplier({ active: false })];
+    renderScreen(true);
+
+    await user.click(btn(/Nuevo producto/));
+    const picker = screen.getByLabelText('Proveedor', { selector: 'select' });
+    expect(
+      Array.from(picker.querySelectorAll('option')).map((o) => o.textContent)
+    ).toEqual(['Sin proveedor', 'Distribuidora El Sol, C.A. (inactivo)']);
+  });
+
+  test('the product detail shows a dash when no supplier is set', async () => {
+    const user = userEvent.setup();
+    suppliersMock.current = [makeSupplier()];
+    renderScreen(true);
+
+    await user.click(
+      screen.getByText('Coca-Cola 600ml').closest('button') as HTMLElement
+    );
+    const row = screen
+      .getByText('Proveedor')
+      .closest('.prod-detail-row') as HTMLElement;
+    expect(row.textContent).toContain('—');
   });
 });

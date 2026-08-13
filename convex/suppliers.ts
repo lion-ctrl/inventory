@@ -220,6 +220,20 @@ export const remove = mutation({
       );
     }
 
+    // Same reasoning for the preferred-supplier link, and sharper: a purchase
+    // freezes `supplierName`, so it survives a dangling id readably. A product
+    // has no snapshot — it would keep an id pointing nowhere and its form would
+    // show an empty picker with nothing to explain it.
+    const anyProduct = await ctx.db
+      .query('products')
+      .withIndex('by_supplier', (q) => q.eq('supplierId', args.supplierId))
+      .first();
+    if (anyProduct) {
+      throw new ConvexError(
+        'No puedes eliminar un proveedor asignado a productos. Márcalo como inactivo.'
+      );
+    }
+
     await ctx.db.delete('suppliers', args.supplierId);
     return null;
   },
