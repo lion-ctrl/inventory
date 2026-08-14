@@ -26,6 +26,8 @@ import {
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { initialOf } from '@/lib/initials';
+import { parseQty, qtyToInput } from '@/lib/qty';
+import { DEFAULT_UNIT, formatQty, isMeasured } from '@convex/units';
 import { mutationError } from '@/lib/mutationError';
 import { useBsRate, useProducts, useSuppliers } from '@/state/hooks';
 import type { Purchase, Supplier } from '@/types';
@@ -499,10 +501,24 @@ function SupplierForm({
   );
 }
 
+/**
+ * One product on a purchase being drafted. Carries the product's base unit so
+ * the stepper enforces the SAME rule the sale side does: there is one unit per
+ * product and no conversion between buying and selling.
+ */
+/**
+ * One step down. The buttons move by whole units for everything — a weighed
+ * product is TYPED, not clicked up from zero — but a quantity already below one
+ * must not be raised by pressing minus, which a plain `Math.max(1, qty - 1)`
+ * would do to half a kilo.
+ */
+const decQty = (qty: number) => Math.max(Math.min(qty, 1), qty - 1);
+
 interface PurchaseLine {
   productId: string;
   name: string;
   qty: number;
+  unit?: string;
 }
 
 /**
@@ -551,13 +567,13 @@ function PurchaseForm({
         })
         .slice(0, 8);
 
-  const addLine = (productId: string, name: string) => {
+  const addLine = (productId: string, name: string, unit?: string) => {
     setLines((prev) =>
       prev.some((l) => l.productId === productId)
         ? prev.map((l) =>
             l.productId === productId ? { ...l, qty: l.qty + 1 } : l
           )
-        : [...prev, { productId, name, qty: 1 }]
+        : [...prev, { productId, name, unit, qty: 1 }]
     );
     setQ('');
   };
@@ -614,7 +630,7 @@ function PurchaseForm({
             <div
               className="lrow"
               key={p._id}
-              onClick={() => addLine(p._id, p.name)}
+              onClick={() => addLine(p._id, p.name, p.unit)}
               style={{ cursor: 'pointer' }}
             >
               <div className="thumb" aria-hidden="true">
@@ -643,6 +659,11 @@ function PurchaseForm({
             </div>
             <div style={{ minWidth: 0 }}>
               <p className="pname">{l.name}</p>
+              {/* Only when it says something the number does not: for the
+                  default unit a bare quantity already means what it means. */}
+              {l.unit && l.unit !== DEFAULT_UNIT && (
+                <div className="pmeta">{formatQty(l.qty, l.unit)}</div>
+              )}
             </div>
             <div className="cart-right">
               <button
@@ -656,19 +677,19 @@ function PurchaseForm({
             <div className="cart-qty-row">
               <div className="qty">
                 <button
-                  onClick={() => setQty(l.productId, Math.max(1, l.qty - 1))}
+                  onClick={() => setQty(l.productId, decQty(l.qty))}
                   aria-label="quitar uno"
                 >
                   −
                 </button>
                 <input
                   type="text"
-                  inputMode="numeric"
+                  inputMode={isMeasured(l.unit) ? 'decimal' : 'numeric'}
                   className="qty-input"
-                  value={String(l.qty)}
+                  value={qtyToInput(l.qty, l.unit)}
                   onChange={(e) => {
-                    const n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-                    setQty(l.productId, Number.isNaN(n) || n < 1 ? 1 : n);
+                    const n = parseQty(e.target.value, l.unit);
+                    setQty(l.productId, n === null || n <= 0 ? 1 : n);
                   }}
                   aria-label={`Cantidad de ${l.name}`}
                 />

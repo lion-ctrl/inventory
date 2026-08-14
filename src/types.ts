@@ -65,6 +65,8 @@ export interface SaleItemSnapshot {
   cat?: string;
   price: number;
   qty: number;
+  /** Frozen at sale time; absent means the default counted unit. */
+  unit?: string;
   exempt?: boolean;
 }
 

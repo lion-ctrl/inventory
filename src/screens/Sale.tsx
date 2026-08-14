@@ -28,19 +28,15 @@ import {
 } from '@/state/hooks';
 import { useOnline } from '@/state/useOnline';
 import { initialOf } from '@/lib/initials';
+import { parseQty, qtyToInput } from '@/lib/qty';
+import { formatQty, isMeasured } from '@convex/units';
+import { round2 } from '@convex/money';
 import { mutationError } from '@/lib/mutationError';
 import { createOfflineClient } from '@/state/offlineClient';
 import type { CartItem, Client, Product, SplitRow } from '@/types';
 import { splitUsd } from './Payment';
 import { ClientForm, ClientPickerSheet, formatTaxId } from './Clients';
 import { CameraScanner } from './CameraScanner';
-
-// Round to 2 decimals — mirrors convex/permissions.ts `round2`. The cart MUST
-// round the IVA the same way the backend `checkout` does, so the displayed USD
-// total equals what's charged AND the Bs conversion (total * bsRate) lines up
-// with the rounded USD total (no sub-cent divergence). Local on purpose:
-// frontend code must not import from convex/.
-const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // Ported from prototype app.jsx — drives the >= 1000px two-pane layout.
 function useViewport() {
@@ -304,11 +300,16 @@ function CartItemRow({
   // stock (an untracked service) keeps the legacy "uncapped" behavior. NOTE: the
   // old `stock > 0` guard treated a sold-out 0 as "uncapped" → the million bug.
   const stockCap = typeof item.stock === 'number' ? item.stock : MAX_QTY;
-  const fmt = (n: number) => n.toLocaleString('es');
+  // Both the formatter and the parser follow the PRODUCT's unit, so a cart can
+  // hold a crate and a kilogram at once and each line enforces its own rule.
+  // Memoized because it now closes over the unit, which makes it a real
+  // dependency of the effect below rather than incidental noise.
+  const fmt = useCallback((n: number) => qtyToInput(n, item.unit), [item.unit]);
+  const measured = isMeasured(item.unit);
   const [draft, setDraft] = useState(fmt(item.qty));
   useEffect(() => {
     setDraft(fmt(item.qty));
-  }, [item.qty]);
+  }, [item.qty, fmt]);
   const categories = useCategories();
   const catLabel =
     categories.find((c) => c._id === item.categoryId)?.label ?? '';
@@ -328,7 +329,9 @@ function CartItemRow({
           {bsRate > 0 ? ` · Bs ${(item.price * bsRate).toFixed(2)}` : ''}
         </div>
         {item.qty >= stockCap && stockCap < MAX_QTY && (
-          <div className="pmeta qty-max">Máx. {stockCap} en stock</div>
+          <div className="pmeta qty-max">
+            Máx. {formatQty(stockCap, item.unit)} en stock
+          </div>
         )}
       </div>
       <div className="cart-right">
@@ -349,25 +352,34 @@ function CartItemRow({
           </button>
           <input
             type="text"
-            inputMode="numeric"
+            // `decimal` puts a separator on the phone keypad; `numeric` does not,
+            // which would leave a weighed product unsellable on the device this
+            // app actually runs on.
+            inputMode={measured ? 'decimal' : 'numeric'}
             className="qty-input"
             value={draft}
             onChange={(e) => {
-              let n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-              if (isNaN(n)) {
+              const parsed = parseQty(e.target.value, item.unit);
+              if (parsed === null) {
                 setDraft('');
                 return;
               }
-              if (n > stockCap) n = stockCap;
-              setDraft(fmt(n));
-              if (n >= 1 && onSetQty) onSetQty(n);
+              const n = Math.min(parsed, stockCap);
+              // Mid-edit the field keeps what was TYPED unless the cap bit, so
+              // `1.` survives long enough to become `1.5`. Reformatting every
+              // keystroke would eat the separator the moment it is typed.
+              setDraft(n === parsed ? e.target.value : fmt(n));
+              if (n > 0 && onSetQty) onSetQty(n);
             }}
             onBlur={() => {
-              let n = parseInt(draft.replace(/\D/g, ''), 10);
-              if (!n || n < 1) {
+              const parsed = parseQty(draft, item.unit);
+              // `> 0` rather than `>= 1`: identical for a counted integer, and
+              // half a kilo is a real quantity.
+              if (parsed === null || parsed <= 0) {
                 setDraft(fmt(item.qty));
               } else {
-                n = Math.min(stockCap, n);
+                const n = Math.min(stockCap, parsed);
+                setDraft(fmt(n));
                 if (onSetQty) onSetQty(n);
               }
             }}
@@ -505,11 +517,15 @@ export function ProductFoundSheet({
   // this as "disponibles".
   const available = product.stock;
   const [qty, setQty] = useState(Math.min(1, maxAddable) || 1);
-  const fmt = (n: number) => n.toLocaleString('es');
+  const fmt = useCallback(
+    (n: number) => qtyToInput(n, product.unit),
+    [product.unit]
+  );
+  const measured = isMeasured(product.unit);
   const [draft, setDraft] = useState(fmt(Math.min(1, maxAddable) || 1));
   useEffect(() => {
     setDraft(fmt(qty));
-  }, [qty]);
+  }, [qty, fmt]);
   const totalQty = currentCartQty + qty;
   const insufficientStock = totalQty > product.stock;
   const setQtyClamped = (n: number) =>
@@ -663,26 +679,29 @@ export function ProductFoundSheet({
           </button>
           <input
             type="text"
-            inputMode="numeric"
+            inputMode={measured ? 'decimal' : 'numeric'}
             className="qty-input"
             value={draft}
             onChange={(e) => {
-              let n = parseInt(e.target.value.replace(/\D/g, ''), 10);
-              if (isNaN(n)) {
+              const parsed = parseQty(e.target.value, product.unit);
+              if (parsed === null) {
                 setDraft('');
                 return;
               }
-              const cap = maxAddable || 1;
-              if (n > cap) n = cap;
-              setDraft(fmt(n));
-              if (n >= 1) setQty(n);
+              const n = Math.min(parsed, maxAddable || 1);
+              // Keeps what was TYPED unless the cap bit, so `1.` survives long
+              // enough to become `1.5`.
+              setDraft(n === parsed ? e.target.value : fmt(n));
+              if (n > 0) setQty(n);
             }}
             onBlur={() => {
-              const n = parseInt(draft.replace(/\D/g, ''), 10);
-              if (!n || n < 1) {
+              const parsed = parseQty(draft, product.unit);
+              // `> 0`, not `>= 1`: identical for a counted integer, and half a
+              // kilo is a real quantity.
+              if (parsed === null || parsed <= 0) {
                 setDraft(fmt(qty));
               } else {
-                const v = Math.min(maxAddable || 1, n);
+                const v = Math.min(maxAddable || 1, parsed);
                 setQty(v);
                 setDraft(fmt(v));
               }
@@ -1389,7 +1408,10 @@ export default function SaleScreen({
   );
   const tax = round2(taxableBase * (ivaPct / 100));
   const total = round2(subtotal + tax);
-  const itemCount = cart.reduce((s, i) => s + i.qty, 0);
+  // COUNT of lines, not sum of quantities. The chip sits beside "Carrito" and
+  // 1.5 kg of cheese plus 2 sodas is 2 lines, never 3.5 of anything — quantities
+  // in different units do not add.
+  const itemCount = cart.length;
 
   // Notice for lines auto-removed because their product was paused (live, or
   // dropped while resuming a held cart). An external event (acknowledge only, no

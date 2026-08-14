@@ -99,10 +99,9 @@ export default function Dashboard() {
 
   const revenue = todaySales.reduce((a, s) => a + s.total, 0);
   const yRevenue = yesterSales.reduce((a, s) => a + s.total, 0);
-  const units = todaySales.reduce(
-    (a, s) => a + s.items.reduce((u, i) => u + i.qty, 0),
-    0
-  );
+  // The tile is labelled "Productos", so it counts LINES sold today. Summing
+  // quantities would add 1.5 kg of cheese to 2 sodas and report 3.5.
+  const units = todaySales.reduce((a, s) => a + s.items.length, 0);
   const trend =
     yRevenue > 0 ? Math.round(((revenue - yRevenue) / yRevenue) * 100) : null;
 

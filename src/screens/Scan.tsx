@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { AppBar, Banner, Button, Chip, Icon, Input, Sheet } from '@/components';
 import { useOnline } from '@/state/useOnline';
+import { formatQty } from '@convex/units';
 import { initialOf } from '@/lib/initials';
 import {
   useBsRate,
@@ -42,7 +43,7 @@ function ProductInfoSheet({
 
         <div className="scan-card-chips">
           {p.sellable === false && <Chip tone="neutral">Pausado</Chip>}
-          <Chip tone={stockTone}>{p.stock} en stock</Chip>
+          <Chip tone={stockTone}>{formatQty(p.stock, p.unit)} en stock</Chip>
           {p.exempt === true && <Chip tone="info">Exento IVA</Chip>}
         </div>
 
@@ -283,7 +284,7 @@ export default function ScanScreen() {
                   p.stock > 0 &&
                   p.stock <= (p.minStock ?? 5) && (
                     <div className="quick-stock-max">
-                      Máx. {p.stock} en stock
+                      Máx. {formatQty(p.stock, p.unit)} en stock
                     </div>
                   )}
                 {p.sellable !== false && p.stock <= 0 && (

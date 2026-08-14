@@ -13,14 +13,14 @@ function Harness({
   total = 10,
   bsRate = 36.5,
   onConfirm = () => {},
+  initialSplits = [{ id: 1, method: 'cash', amount: '' }],
 }: {
   total?: number;
   bsRate?: number;
   onConfirm?: (method: string, tendered: number, splits: CleanSplit[]) => void;
+  initialSplits?: SplitRow[];
 }) {
-  const [splits, setSplits] = useState<SplitRow[]>([
-    { id: 1, method: 'cash', amount: '' },
-  ]);
+  const [splits, setSplits] = useState<SplitRow[]>(initialSplits);
   const nextIdRef = useRef(2);
   return (
     <PaymentSheet
@@ -132,5 +132,26 @@ describe('PaymentSheet', () => {
       screen.getAllByRole('button', { name: 'Quitar método' })[1]
     );
     expect(screen.queryByRole('button', { name: 'Quitar método' })).toBeNull();
+  });
+});
+
+// The split list is RESTORED from a persisted draft (`CartContext` →
+// `setSplits(draft.splits)`), so it can arrive empty even though the UI never
+// lets the last row be removed — the delete button only renders past one row.
+// `[].every()` is true, so an empty list used to satisfy the confirm guard and
+// then crash reading `cleanSplits[0].method`.
+describe('PaymentSheet — a restored draft with no split rows', () => {
+  test('cannot confirm, and does not crash trying', async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(<Harness total={0} initialSplits={[]} onConfirm={onConfirm} />);
+
+    const button = confirmButton();
+    expect(button).toHaveProperty('disabled', true);
+
+    // Even if the guard is bypassed, the handler must not throw.
+    button.removeAttribute('disabled');
+    await user.click(button);
+    expect(onConfirm).not.toHaveBeenCalled();
   });
 });

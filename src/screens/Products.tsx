@@ -23,6 +23,13 @@ import {
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { initialOf } from '@/lib/initials';
+import {
+  DEFAULT_UNIT,
+  PRODUCT_UNITS,
+  formatQty,
+  unitLabel,
+} from '@convex/units';
+import type { ProductUnitId } from '@convex/units';
 import { mutationError } from '@/lib/mutationError';
 import { skuFromName } from '@convex/sku';
 import { useOnline } from '@/state/useOnline';
@@ -95,9 +102,9 @@ function stockTone(stock: number, minStock = 5) {
   if (stock <= minStock) return 'warn';
   return 'ok';
 }
-function stockLabel(stock: number) {
+function stockLabel(stock: number, unit?: string) {
   if (stock <= 0) return 'Agotado';
-  return `${stock} en stock`;
+  return `${formatQty(stock, unit)} en stock`;
 }
 
 function ProductCard({
@@ -120,7 +127,7 @@ function ProductCard({
         <div className="prod-card-chips">
           {product.sellable === false && <Chip tone="neutral">Pausado</Chip>}
           <Chip tone={stockTone(product.stock, product.minStock)}>
-            {stockLabel(product.stock)}
+            {stockLabel(product.stock, product.unit)}
           </Chip>
           {product.exempt === true && <Chip tone="info">Exento IVA</Chip>}
         </div>
@@ -161,6 +168,8 @@ interface ProductFormState {
   supplierId: string;
   /** Empty string = no photo; holds a Convex storage id once one is uploaded. */
   imageId: string;
+  /** Always a catalogue id; DEFAULT_UNIT stands for the absent value. */
+  unit: string;
 }
 
 type ProductFormValues = Omit<
@@ -202,6 +211,7 @@ function ProductForm({
     sellable: initial?.sellable !== false,
     supplierId: initial?.supplierId ?? '',
     imageId: initial?.imageId ?? '',
+    unit: initial?.unit ?? DEFAULT_UNIT,
   }));
   // The address the server resolved for an already-saved photo, or an object URL
   // for one just picked. Never persisted: it is a view of the file, not a fact
@@ -388,6 +398,26 @@ function ProductForm({
           placeholder="Ej. Coca-Cola 600ml"
           autoFocus
         />
+      </label>
+
+      {/* Base unit — what `price` and `stock` are each PER. Absent means the
+          default counted unit, which is what every product predating this is.
+          Choosing a measured unit is also what lets the quantity inputs accept a
+          fraction: the rule is derived from this, never configured beside it. */}
+      <label className="client-field">
+        <span>Unidad base</span>
+        <select
+          className="input cat-select"
+          value={form.unit}
+          onChange={set('unit')}
+        >
+          {PRODUCT_UNITS.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+              {u.measured ? ' (permite decimales)' : ''}
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="prod-form-row">
@@ -606,6 +636,10 @@ function ProductDetailSheet({
           <div className="prod-detail-row">
             <span className="k">Categoría</span>
             <span className="v">{catMap.get(product.categoryId) ?? ''}</span>
+          </div>
+          <div className="prod-detail-row">
+            <span className="k">Unidad base</span>
+            <span className="v">{unitLabel(product.unit)}</span>
           </div>
           <div className="prod-detail-row">
             <span className="k">Proveedor</span>
@@ -1003,6 +1037,8 @@ export default function ProductsScreen() {
   // from the same navigation state, so listing it would be redundant.
   useEffect(() => {
     setStockFilter(initialStock);
+    // initialStock is derived from the same navigation state as location.key,
+    // so listing it would re-run this on every render for no new information.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
   const [sort, setSort] = useState('created-desc');
@@ -1132,6 +1168,7 @@ export default function ProductsScreen() {
             categoryId: form.categoryId as Id<'categories'>,
             exempt: form.exempt,
             sellable: form.sellable,
+            unit: form.unit as ProductUnitId,
             // null CLEARS the link; an id sets it. The empty option in the
             // picker is a real choice, so it has to reach the server as one.
             supplierId: form.supplierId
@@ -1151,6 +1188,12 @@ export default function ProductsScreen() {
           minStock: form.minStock,
           categoryId: form.categoryId as Id<'categories'>,
           exempt: form.exempt,
+          // Omitted at the DEFAULT rather than stored: an absent unit is what
+          // every product predating this capability has, and writing the default
+          // explicitly would make new products look different for no reason.
+          ...(form.unit !== DEFAULT_UNIT
+            ? { unit: form.unit as ProductUnitId }
+            : {}),
           // Omitted entirely when unset — create has no "clear" case.
           ...(form.supplierId
             ? { supplierId: form.supplierId as Id<'suppliers'> }

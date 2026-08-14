@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { AppBar, BottomBar, Button, Icon, Input, Sheet } from '@/components';
 import { useSettingsDoc } from '@/state/hooks';
+import { DEFAULT_UNIT, formatQty } from '@convex/units';
 import type {
   CleanSplit,
   ClientSnapshot,
@@ -94,7 +95,7 @@ export function PaymentSheet({
 
   // Convert a row's typed amount into USD. Bs-currency methods are typed in Bs.
   const rowUsd = (r: SplitRow) => {
-    const v = parseFloat(r.amount) || 0;
+    const v = parseFloat(String(r.amount)) || 0;
     if (METHOD_CURRENCY[r.method] === 'bs') return rate > 0 ? v / rate : 0;
     return v;
   };
@@ -124,11 +125,20 @@ export function PaymentSheet({
         entered: parseFloat(r.amount),
         currency: METHOD_CURRENCY[r.method],
       }));
+    // A payment with no rows is not a payment. The split list is RESTORED from
+    // a persisted draft, so it can arrive empty even though the UI never lets
+    // the last row be removed — the delete button only renders past one row.
+    if (cleanSplits.length === 0) return;
     void onConfirm(cleanSplits[0].method, total, cleanSplits);
   };
 
+  // `splits.length > 0` is load-bearing: `[].every()` is TRUE, so an empty list
+  // used to satisfy this guard whenever the remaining amount rounded to zero,
+  // enable the button, and then crash on `cleanSplits[0]`.
   const canConfirm =
-    splitComplete && splits.every((r) => parseFloat(r.amount) > 0);
+    splitComplete &&
+    splits.length > 0 &&
+    splits.every((r) => parseFloat(r.amount) > 0);
 
   return (
     <Sheet onClose={onClose}>
@@ -503,7 +513,12 @@ export function SuccessScreen({
                 </div>
                 <div className="rcpt-item-line">
                   <span>
-                    {i.name} {i.qty > 1 ? `x${i.qty}` : ''}
+                    {i.name}{' '}
+                    {/* Shown whenever it is not exactly one counted unit: a bare
+                        `1.5` on a fiscal line does not say 1.5 of what. */}
+                    {i.qty !== 1 || (i.unit && i.unit !== DEFAULT_UNIT)
+                      ? `x${formatQty(i.qty, i.unit)}`
+                      : ''}
                     {i.exempt === true ? ' (E)' : ''}
                   </span>
                   <span>Bs {bsNum(i.price * i.qty)}</span>

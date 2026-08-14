@@ -19,6 +19,7 @@ import {
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { mutationError } from '@/lib/mutationError';
+import { formatQty } from '@convex/units';
 import { initialOf } from '@/lib/initials';
 import { useBsRate } from '@/state/hooks';
 import { usePendingSales } from '@/state/usePendingSales';
@@ -233,7 +234,9 @@ function SaleTableRow({ sale, onClick, bsRate }: SaleRowProps) {
     sale.client?.kind === 'business'
       ? '🏢'
       : (sale.client?.name?.[0] || '?').toUpperCase();
-  const itemCount = sale.items.reduce((s, i) => s + i.qty, 0);
+  // COUNT of lines, not sum of quantities: a sale of 1.5 kg of cheese and 2
+  // sodas is 2 products, never 3.5. Quantities in different units do not add.
+  const itemCount = sale.items.length;
   const isSplitPayment = sale.splits && sale.splits.length > 1;
   const isRefunded = !!sale.refund;
   return (
@@ -303,7 +306,9 @@ function SaleRow({ sale, onClick, bsRate }: SaleRowProps) {
     sale.client?.kind === 'business'
       ? '🏢'
       : (sale.client?.name?.[0] || '?').toUpperCase();
-  const itemCount = sale.items.reduce((s, i) => s + i.qty, 0);
+  // COUNT of lines, not sum of quantities: a sale of 1.5 kg of cheese and 2
+  // sodas is 2 products, never 3.5. Quantities in different units do not add.
+  const itemCount = sale.items.length;
   const isSplitPayment = sale.splits && sale.splits.length > 1;
   const isRefunded = !!sale.refund;
   return (
@@ -445,7 +450,7 @@ function SaleDetailSheet({
         </div>
 
         <div className="hist-detail-section-title">
-          Productos ({sale.items.reduce((s, i) => s + i.qty, 0)})
+          Productos ({sale.items.length})
         </div>
         <div className="hist-detail-items">
           {sale.items.map((it, i) => (
@@ -457,7 +462,7 @@ function SaleDetailSheet({
                   {it.sku} · {it.barcode}
                 </div>
                 <div className="hist-item-sku mono">
-                  ${it.price.toFixed(2)} c/u × {it.qty}
+                  ${it.price.toFixed(2)} c/u × {formatQty(it.qty, it.unit)}
                 </div>
               </div>
               <div className="hist-item-right">
@@ -800,10 +805,7 @@ export default function HistoryScreen() {
     const count = active.length;
     const revenue = active.reduce((s, x) => s + x.total, 0);
     const avg = count > 0 ? revenue / count : 0;
-    const units = active.reduce(
-      (s, x) => s + x.items.reduce((u, i) => u + i.qty, 0),
-      0
-    );
+    const units = active.reduce((s, x) => s + x.items.length, 0);
     return { count, revenue, avg, units };
   }, [filtered]);
 
