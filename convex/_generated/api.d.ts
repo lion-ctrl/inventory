@@ -20,6 +20,7 @@ import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as settings from "../settings.js";
+import type * as sku from "../sku.js";
 import type * as suppliers from "../suppliers.js";
 
 import type {
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   seed: typeof seed;
   sessions: typeof sessions;
   settings: typeof settings;
+  sku: typeof sku;
   suppliers: typeof suppliers;
 }>;
 

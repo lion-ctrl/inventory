@@ -20,6 +20,15 @@ Rules for reviewing staged changes in this repository. The app lives at the repo
 
 6. Imports: use `@/` for src and `@convex/` for convex/\_generated; cross-directory
    relative imports (`../`) are not allowed. Same-folder `./Sibling` imports are fine.
+   `src/` MAY also import a PURE module from `convex/` through the same `@convex/`
+   alias — pure meaning no Convex imports, no `ctx`, no I/O, just functions over
+   plain values (`convex/sku.ts` is the case this was written for). It exists so a
+   rule the server enforces can be previewed by the form using the very same code,
+   and a second copy in `src/` would be a copy that drifts. The direction is ONE
+   WAY: `convex/` never imports from `src/`. Vite and tsconfig both declare the
+   alias, so the client resolves it; the Convex bundler does not know `@/` and
+   pulling application code into a deployment is not something to discover at
+   push time.
 7. No new RUNTIME dependencies (the `dependencies` block in package.json),
    UNLESS the owner explicitly requested a feature that requires one and the
    commit message documents that request (e.g. @zxing for owner-requested

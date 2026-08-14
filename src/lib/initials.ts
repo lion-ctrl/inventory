@@ -10,5 +10,9 @@
  * established for the same question, so the app answers "no image" one way.
  */
 export function initialOf(name?: string): string {
-  return (name?.trim()[0] || '?').toUpperCase();
+  // `Array.from` iterates CODE POINTS; indexing a string would take one UTF-16
+  // code unit and cut an astral character — an emoji, two units — in half,
+  // rendering a replacement box. Products no longer carry an emoji of their
+  // own, which is precisely why a product NAME is now free to start with one.
+  return (Array.from(name?.trim() ?? '')[0] || '?').toUpperCase();
 }

@@ -3,9 +3,9 @@
 // Ported from prototype products.jsx: data comes from Convex (useProducts /
 // useCategories) and writes go through mutations — useQuery reactivity refreshes
 // the lists, so the prototype's setProducts/setCategories plumbing is gone.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useLocation } from 'react-router';
 import { useMutation } from 'convex/react';
 import { api } from '@convex/_generated/api';
 import type { Id } from '@convex/_generated/dataModel';
@@ -22,6 +22,9 @@ import {
   useToast,
 } from '@/components';
 import { useSession } from '@/state/SessionContext';
+import { initialOf } from '@/lib/initials';
+import { mutationError } from '@/lib/mutationError';
+import { skuFromName } from '@convex/sku';
 import { useOnline } from '@/state/useOnline';
 import {
   useBsRate,
@@ -30,6 +33,10 @@ import {
   useSuppliers,
 } from '@/state/hooks';
 import type { CategoryWithCount, Product, Supplier } from '@/types';
+
+/** A product photo the shop can actually upload over mobile data. */
+const MAX_PHOTO_MB = 5;
+const MAX_PHOTO_BYTES = MAX_PHOTO_MB * 1024 * 1024;
 
 const STOCK_LEVELS = [
   { id: 'all', label: 'Todos' },
@@ -40,17 +47,47 @@ const STOCK_LEVELS = [
 ];
 
 // Shared error toast, as a hook so each component can pull the toast API. Replaces
-// the old native alert() (owner directive: no browser dialogs).
+// the old native alert() (owner directive: no browser dialogs). The message itself
+// comes from the one shared helper — this screen used to carry its own copy of it.
 function useAlertError() {
   const toast = useToast();
-  // Narrowed from `unknown` at the boundary: a caught value is not an Error, and
-  // a server ConvexError carries its Spanish text on `.data`.
-  return (e: unknown) => {
-    const data = (e as { data?: unknown } | null)?.data;
-    toast.error(
-      typeof data === 'string' ? data : 'Ocurrió un error. Intenta de nuevo.'
-    );
-  };
+  return (e: unknown) => toast.error(mutationError(e));
+}
+
+/**
+ * Fill the square the prototype already sizes and rounds, without adding a CSS
+ * class to a stylesheet that is a verbatim port. `inherit` on the radius is what
+ * keeps this honest: the box owns its shape, the photo just follows it.
+ *
+ * Declared ONCE because the catalogue and the form preview both render a photo
+ * into the same kind of box, and a duplicated literal is how two identical
+ * things start drifting.
+ */
+const PHOTO_FILL = {
+  width: '100%',
+  height: '100%',
+  objectFit: 'cover',
+  borderRadius: 'inherit',
+} as const;
+
+/**
+ * A product's photo, or its initial when there is none. The initial also covers
+ * the cases a photo cannot: OFFLINE, where storage addresses are network-backed
+ * and absent from the Dexie mirror, and a fetch that fails — `onError` falls
+ * back rather than leaving a broken image. Rendered inside the prototype's
+ * existing fixed-size box, so it needs no CSS of its own.
+ */
+function ProductImage({ product }: { product: Product }) {
+  const [failed, setFailed] = useState(false);
+  if (!product.imageUrl || failed) return <>{initialOf(product.name)}</>;
+  return (
+    <img
+      src={product.imageUrl}
+      alt=""
+      style={PHOTO_FILL}
+      onError={() => setFailed(true)}
+    />
+  );
 }
 
 function stockTone(stock: number, minStock = 5) {
@@ -77,7 +114,9 @@ function ProductCard({
   return (
     <button className="prod-card" onClick={() => onClick(product)}>
       <div className="prod-card-head">
-        <div className="prod-card-glyph">{product.glyph}</div>
+        <div className="prod-card-glyph">
+          <ProductImage product={product} />
+        </div>
         <div className="prod-card-chips">
           {product.sellable === false && <Chip tone="neutral">Pausado</Chip>}
           <Chip tone={stockTone(product.stock, product.minStock)}>
@@ -111,17 +150,17 @@ function ProductCard({
 
 interface ProductFormState {
   name: string;
-  sku: string;
   barcode: string;
   price: string;
   stock: string;
   minStock: string;
   exempt: boolean;
-  glyph: string;
   categoryId: string;
   sellable: boolean;
   /** Empty string = no preferred supplier; the picker offers that explicitly. */
   supplierId: string;
+  /** Empty string = no photo; holds a Convex storage id once one is uploaded. */
+  imageId: string;
 }
 
 type ProductFormValues = Omit<
@@ -151,19 +190,81 @@ function ProductForm({
   /** Offline blocks the write (FEATURES §18) — create/edit require connection. */
   online: boolean;
 }) {
+  const { token } = useSession();
   const [form, setForm] = useState<ProductFormState>(() => ({
     name: initial?.name || '',
-    sku: initial?.sku || '',
     barcode: initial?.barcode || '',
     price: initial?.price != null ? String(initial.price) : '',
     stock: initial?.stock != null ? String(initial.stock) : '0',
     minStock: initial?.minStock != null ? String(initial.minStock) : '5',
     exempt: initial?.exempt === true,
-    glyph: initial?.glyph || '📦',
     categoryId: initial?.categoryId || categories[0]?._id || '',
     sellable: initial?.sellable !== false,
     supplierId: initial?.supplierId ?? '',
+    imageId: initial?.imageId ?? '',
   }));
+  // The address the server resolved for an already-saved photo, or an object URL
+  // for one just picked. Never persisted: it is a view of the file, not a fact
+  // about the product.
+  const [photoPreview, setPhotoPreview] = useState<string | null>(
+    initial?.imageUrl ?? null
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const generateUploadUrl = useMutation(api.products.generateUploadUrl);
+  const alertError = useAlertError();
+  const toast = useToast();
+
+  /**
+   * The object URL currently on screen, if the preview is showing a locally
+   * picked file rather than the server's address. Tracked separately because
+   * only OUR urls may be revoked — revoking the server address would blank the
+   * photo of an already-saved product.
+   */
+  const objectUrlRef = useRef<string | null>(null);
+  /** Hand the file's memory back. Browsers hold a picked photo until told. */
+  const releasePreview = () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
+  };
+  useEffect(() => releasePreview, []);
+
+  /**
+   * Upload straight to storage and keep only the returned id. The binary never
+   * goes through a mutation, so a large photo cannot blow the argument limit.
+   */
+  const pickPhoto = async (file: File | null) => {
+    if (!file || !token) return;
+    // A phone camera hands back 8-12 MB per shot, and this app is used over
+    // Venezuelan mobile data. Refusing here costs the user one message; not
+    // refusing costs them the upload, and they find out by watching it hang.
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error(
+        `La foto pesa demasiado. El máximo es ${MAX_PHOTO_MB} MB — tómala en menor resolución.`
+      );
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await generateUploadUrl({ token });
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error('upload failed');
+      const { storageId } = (await res.json()) as { storageId: string };
+      setForm((f) => ({ ...f, imageId: storageId }));
+      releasePreview();
+      objectUrlRef.current = URL.createObjectURL(file);
+      setPhotoPreview(objectUrlRef.current);
+    } catch (e) {
+      alertError(e);
+    } finally {
+      setUploading(false);
+    }
+  };
   type FieldEvent = ChangeEvent<
     HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
   >;
@@ -184,9 +285,13 @@ function ProductForm({
       setForm({ ...form, [k]: v });
     };
 
+  // Editing shows the STORED code — a rename does not move it. Creating previews
+  // what the name derives to, through the very function the server will run, so
+  // the field never teaches a code that turns out to be a different one.
+  const skuPreview = initial ? initial.sku : skuFromName(form.name);
+
   const valid =
     form.name.trim().length >= 2 &&
-    form.sku.trim().length >= 1 &&
     form.barcode.trim().length >= 1 &&
     parseFloat(form.price) > 0;
 
@@ -194,7 +299,6 @@ function ProductForm({
     onSave({
       ...form,
       name: form.name.trim(),
-      sku: form.sku.trim().toUpperCase(),
       barcode: form.barcode.trim(),
       price: parseFloat(form.price) || 0,
       stock: parseInt(form.stock, 10) || 0,
@@ -215,20 +319,65 @@ function ProductForm({
         />
       )}
       <div className="prod-form-icon-row">
+        {/* The preview box is the prototype's, unchanged: fixed size, surface
+            background, centered content. A photo fills it; without one it shows
+            the same initial the catalogue will show. */}
         <div className="prod-form-icon-preview" aria-hidden="true">
-          {form.glyph || '📦'}
+          {photoPreview ? (
+            <img
+              src={photoPreview}
+              alt=""
+              style={PHOTO_FILL}
+              onError={() => setPhotoPreview(null)}
+            />
+          ) : (
+            initialOf(form.name)
+          )}
         </div>
-        <label className="client-field" style={{ flex: 1 }}>
-          <span>Emoji / símbolo</span>
-          <Input
-            value={form.glyph}
-            onChange={set('glyph')}
-            placeholder="📦"
-            maxLength={4}
+        <div className="client-field" style={{ flex: 1 }}>
+          <span>Foto del producto</span>
+          {/* The native file input is hidden and driven from a Button: the
+              browser's own control cannot be styled and shows the raw filename,
+              which reads nothing like the rest of the form. */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            disabled={!online || uploading}
+            onChange={(e) => void pickPhoto(e.target.files?.[0] ?? null)}
+            aria-label="Foto del producto"
           />
-        </label>
+          <div className="row" style={{ gap: 8 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="image"
+              onClick={() => fileRef.current?.click()}
+              disabled={!online || uploading}
+            >
+              {uploading
+                ? 'Subiendo…'
+                : form.imageId
+                  ? 'Cambiar foto'
+                  : 'Elegir foto'}
+            </Button>
+            {form.imageId && !uploading && (
+              <IconButton
+                icon="trash-2"
+                ariaLabel="Quitar foto"
+                onClick={() => {
+                  setForm((f) => ({ ...f, imageId: '' }));
+                  releasePreview();
+                  setPhotoPreview(null);
+                  if (fileRef.current) fileRef.current.value = '';
+                }}
+                disabled={!online}
+              />
+            )}
+          </div>
+        </div>
       </div>
-
       <label className="client-field">
         <span>
           Nombre del producto<span className="req"> *</span>
@@ -243,15 +392,13 @@ function ProductForm({
 
       <div className="prod-form-row">
         <label className="client-field">
-          <span>
-            SKU<span className="req"> *</span>
-          </span>
-          <Input
-            mono
-            value={form.sku}
-            onChange={set('sku')}
-            placeholder="COCA-600"
-          />
+          <span>SKU</span>
+          {/* Derived, never typed. While CREATING this previews the code the
+              server is about to assign, from the same function the server uses;
+              while EDITING it shows the stored code, which a rename does not
+              move — it may already be on a shelf label. `readOnly` rather than
+              `disabled` so it stays legible and selectable. */}
+          <Input mono value={skuPreview} readOnly tabIndex={-1} />
         </label>
         <label className="client-field">
           <span>
@@ -433,7 +580,9 @@ function ProductDetailSheet({
           />
         )}
         <div className="prod-detail-head">
-          <div className="prod-detail-glyph">{product.glyph}</div>
+          <div className="prod-detail-glyph">
+            <ProductImage product={product} />
+          </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="prod-detail-name">{product.name}</div>
             <Chip
@@ -834,7 +983,6 @@ export default function ProductsScreen() {
   const { token } = useSession();
   const online = useOnline();
   const bsRate = useBsRate();
-  const _navigate = useNavigate();
   const location = useLocation();
   // Dashboard navigates here with router state (e.g. { stock: 'low' }) — the
   // prototype's initialStock/stockKey props.
@@ -857,7 +1005,7 @@ export default function ProductsScreen() {
     setStockFilter(initialStock);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
-  const [sort, setSort] = useState('name-asc');
+  const [sort, setSort] = useState('created-desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -939,8 +1087,12 @@ export default function ProductsScreen() {
         return a.stock - b.stock;
       case 'stock-desc':
         return b.stock - a.stock;
+      case 'created-asc':
+        return a._creationTime - b._creationTime;
       default:
-        return 0;
+        // 'created-desc' — newest first. The default: after adding a product you
+        // expect to see it, and hunting for it alphabetically is the wrong job.
+        return b._creationTime - a._creationTime;
     }
   });
 
@@ -973,38 +1125,37 @@ export default function ProductsScreen() {
           productId: editing._id,
           patch: {
             barcode: form.barcode,
-            sku: form.sku,
             name: form.name,
             price: form.price,
             stock: form.stock,
             minStock: form.minStock,
             categoryId: form.categoryId as Id<'categories'>,
             exempt: form.exempt,
-            glyph: form.glyph,
             sellable: form.sellable,
             // null CLEARS the link; an id sets it. The empty option in the
             // picker is a real choice, so it has to reach the server as one.
             supplierId: form.supplierId
               ? (form.supplierId as Id<'suppliers'>)
               : null,
+            // null CLEARS and lets the server delete the previous file.
+            imageId: form.imageId ? (form.imageId as Id<'_storage'>) : null,
           },
         });
       } else {
         const id = await createProduct({
           token: token!,
           barcode: form.barcode,
-          sku: form.sku,
           name: form.name,
           price: form.price,
           stock: form.stock,
           minStock: form.minStock,
           categoryId: form.categoryId as Id<'categories'>,
           exempt: form.exempt,
-          glyph: form.glyph,
           // Omitted entirely when unset — create has no "clear" case.
           ...(form.supplierId
             ? { supplierId: form.supplierId as Id<'suppliers'> }
             : {}),
+          ...(form.imageId ? { imageId: form.imageId as Id<'_storage'> } : {}),
         });
         // create() has no `sellable` arg — pause right after when the toggle was off
         if (form.sellable === false) {
@@ -1177,6 +1328,8 @@ export default function ProductsScreen() {
                 value={sort}
                 onChange={(e) => setSort(e.target.value)}
               >
+                <option value="created-desc">Más recientes primero</option>
+                <option value="created-asc">Más antiguos primero</option>
                 <option value="name-asc">Nombre (A–Z)</option>
                 <option value="name-desc">Nombre (Z–A)</option>
                 <option value="price-asc">Precio (menor a mayor)</option>

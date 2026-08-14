@@ -26,6 +26,7 @@ import {
   Globe,
   Hash,
   House,
+  Image,
   Info,
   Link,
   Lock,
@@ -90,6 +91,7 @@ const REGISTRY: Record<string, LucideIcon> = {
   'chevron-right': ChevronRight,
   'chevrons-left': ChevronsLeft,
   'chevrons-right': ChevronsRight,
+  image: Image,
   info: Info,
   banknote: Banknote,
   'credit-card': CreditCard,
@@ -142,10 +144,15 @@ const REGISTRY: Record<string, LucideIcon> = {
   download: Download,
 };
 
-export interface IconProps extends Omit<
-  HTMLAttributes<HTMLSpanElement>,
-  'color'
-> {
+/**
+ * Everything a `<span>` accepts, minus `color`: the icon takes its own, typed as
+ * a CSS color rather than the HTML attribute of the same name that `<span>`
+ * declares. Named rather than inlined into the `extends` clause, where the
+ * generic wrapped across four lines and read like a formatting accident.
+ */
+type SpanProps = Omit<HTMLAttributes<HTMLSpanElement>, 'color'>;
+
+export interface IconProps extends SpanProps {
   name: string;
   size?: number;
   color?: CSSProperties['color'];

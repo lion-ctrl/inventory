@@ -110,7 +110,27 @@ export const productFields = {
   minStock: v.number(),
   categoryId: v.id('categories'),
   exempt: v.optional(v.boolean()),
-  glyph: v.optional(v.string()),
+  // NO `glyph`. The product emoji was removed: a photograph identifies a product,
+  // and where there is none the catalogue shows the product's initial, which
+  // nobody has to pick and which survives offline.
+  //
+  // PUSHING THIS TO A DEPLOYMENT WHOSE PRODUCTS STILL CARRY `glyph` WILL FAIL.
+  // Convex validates existing documents against the schema and rejects fields it
+  // no longer declares, and it pushes schema and functions together — so a
+  // migration written to fix it cannot land in the same push that breaks. Clear
+  // the field FIRST, from a deployment where the schema still declares it:
+  //
+  //   internalMutation → for each product, ctx.db.patch(id, { glyph: undefined })
+  //
+  // That one-off was written, run against this project's deployment, and then
+  // deleted rather than committed: once the field is gone it no longer typechecks,
+  // so keeping it would have meant a cast against a phantom field. Recorded here
+  // as a recipe instead, because the next deployment to need it will not have the
+  // file either.
+  //
+  // Note `saleItemValidator` KEEPS its `glyph`: that one is a frozen snapshot of
+  // a line as it was sold, carried by every sale already stored, and rewriting
+  // financial history to tidy up a decorative field is not on the table.
   // undefined/true = on sale; false = paused
   sellable: v.optional(v.boolean()),
   // The supplier this product is normally reordered from — a reordering hint,
@@ -118,6 +138,10 @@ export const productFields = {
   // SINGULAR on purpose: `purchases` already records everyone this was actually
   // bought from, with dates. This answers "who do I call", which has one answer.
   supplierId: v.optional(v.id('suppliers')),
+  // Convex File Storage reference — the app's first stored binary. Only the id
+  // lives on the document; `products.list` resolves it to an address so no
+  // screen has to ask per product. Optional: most of the catalogue has none.
+  imageId: v.optional(v.id('_storage')),
 };
 
 export const clientFields = {
@@ -305,6 +329,16 @@ export const productDocValidator = v.object({
   ...productFields,
 });
 
+// What `products.list` returns: the document plus the RESOLVED photo address.
+// `imageUrl` is derived per read, never stored — a storage address is not a fact
+// about the product, and persisting one would go stale.
+export const productWithImageValidator = v.object({
+  _id: v.id('products'),
+  _creationTime: v.number(),
+  ...productFields,
+  imageUrl: v.optional(v.string()),
+});
+
 export const clientDocValidator = v.object({
   _id: v.id('clients'),
   _creationTime: v.number(),
@@ -421,6 +455,10 @@ export default defineSchema({
   products: defineTable(productFields)
     .index('by_supplier', ['supplierId'])
     .index('by_barcode', ['barcode'])
+    // `create` derives the SKU from the name and has to know which codes are
+    // already taken. Read as a RANGE over the derived prefix, so the collision
+    // check costs one indexed read rather than a scan of the catalogue.
+    .index('by_sku', ['sku'])
     .index('by_category', ['categoryId']),
 
   clients: defineTable(clientFields).index('by_taxId', ['taxPrefix', 'taxId']),
