@@ -113,8 +113,7 @@ function SupplierPurchases({
                 <p className="pname">{fmtPurchaseDate(p.createdAt)}</p>
                 <div className="pmeta">
                   {p.items.length}{' '}
-                  {p.items.length === 1 ? 'producto' : 'productos'} ·{' '}
-                  {p.items.reduce((n, i) => n + i.qty, 0)} unidades
+                  {p.items.length === 1 ? 'producto' : 'productos'}
                 </div>
                 <div className="pmeta">{p.createdByName}</div>
                 {p.note && <div className="pmeta">{p.note}</div>}
@@ -522,6 +521,55 @@ interface PurchaseLine {
 }
 
 /**
+ * The quantity field of a purchase line.
+ *
+ * It keeps its own DRAFT of what was typed, which is the whole reason this is a
+ * component rather than a controlled input: rendering the parsed number back on
+ * every keystroke eats the decimal separator the instant it is typed — `1.`
+ * parses to `1`, re-renders as `"1"`, and `1.5` can never be reached. Venta's
+ * quantity field solves it the same way; the purchase form is the other half of
+ * the promise `src/lib/qty.ts` makes, that a quantity accepted in one input is
+ * accepted in the others for the same product.
+ */
+function PurchaseQtyInput({
+  line,
+  onChange,
+}: {
+  line: PurchaseLine;
+  onChange: (productId: string, qty: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => qtyToInput(line.qty, line.unit));
+
+  // Follow the value when it moves from OUTSIDE this field — the − and + buttons
+  // — without fighting what is being typed into it.
+  useEffect(() => {
+    setDraft((current) =>
+      parseQty(current, line.unit) === line.qty
+        ? current
+        : qtyToInput(line.qty, line.unit)
+    );
+  }, [line.qty, line.unit]);
+
+  return (
+    <input
+      type="text"
+      inputMode={isMeasured(line.unit) ? 'decimal' : 'numeric'}
+      className="qty-input"
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const n = parseQty(e.target.value, line.unit);
+        // A half-typed value leaves the committed quantity alone; only a real
+        // number moves it, and a purchase line is never zero.
+        if (n !== null && n > 0) onChange(line.productId, n);
+      }}
+      onBlur={() => setDraft(qtyToInput(line.qty, line.unit))}
+      aria-label={`Cantidad de ${line.name}`}
+    />
+  );
+}
+
+/**
  * Register a purchase: pick products with quantities, then ONE global amount for
  * the whole order. The amount can be typed in Bs or in $ — whichever field the
  * owner touches becomes the source of truth and the other shows the conversion
@@ -639,7 +687,7 @@ function PurchaseForm({
               <div>
                 <p className="pname">{p.name}</p>
                 <div className="pmeta">
-                  {p.sku} · {p.stock} en stock
+                  {p.sku} · {formatQty(p.stock, p.unit)} en stock
                 </div>
               </div>
             </div>
@@ -682,17 +730,7 @@ function PurchaseForm({
                 >
                   −
                 </button>
-                <input
-                  type="text"
-                  inputMode={isMeasured(l.unit) ? 'decimal' : 'numeric'}
-                  className="qty-input"
-                  value={qtyToInput(l.qty, l.unit)}
-                  onChange={(e) => {
-                    const n = parseQty(e.target.value, l.unit);
-                    setQty(l.productId, n === null || n <= 0 ? 1 : n);
-                  }}
-                  aria-label={`Cantidad de ${l.name}`}
-                />
+                <PurchaseQtyInput line={l} onChange={setQty} />
                 <button
                   onClick={() => setQty(l.productId, l.qty + 1)}
                   aria-label="agregar uno"
@@ -1130,10 +1168,7 @@ export default function SuppliersScreen() {
       {confirmDelPurchase && (
         <ConfirmDialog
           title="¿Eliminar compra?"
-          message={`Se descontarán ${confirmDelPurchase.items.reduce(
-            (n, i) => n + i.qty,
-            0
-          )} unidades del inventario. Esta acción no se puede deshacer.`}
+          message={`Se descontarán del inventario las cantidades de ${confirmDelPurchase.items.length} ${confirmDelPurchase.items.length === 1 ? 'producto' : 'productos'}. Esta acción no se puede deshacer.`}
           confirmLabel="Sí, eliminar"
           cancelLabel="Cancelar"
           tone="danger"

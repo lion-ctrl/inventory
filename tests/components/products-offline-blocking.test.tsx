@@ -445,3 +445,52 @@ describe('Productos — peso de la foto', () => {
     expect(screen.queryByText(/La foto pesa demasiado/)).toBeNull();
   });
 });
+
+// --- Stock of a measured product ---------------------------------------------
+// A product sold by the kilo has a fractional stock. The form has to be able to
+// READ it back and WRITE it — an integer-only field does not just refuse new
+// decimals, it silently truncates the ones already stored the next time anyone
+// saves the product for an unrelated reason.
+describe('Productos — stock de un producto medido', () => {
+  const kgProduct = () =>
+    makeProduct({ name: 'Queso llanero', unit: 'kilogram', stock: 2.5 });
+
+  test('the stock field accepts a decimal for a measured product', async () => {
+    const user = userEvent.setup();
+    onlineMock.current = true;
+    productsMock.current = [kgProduct()];
+    categoriesMock.current = [makeCategory()];
+    render(<ProductsScreen />);
+
+    await user.click(
+      screen.getByText('Queso llanero').closest('button') as HTMLElement
+    );
+    await user.click(btn(/Editar/));
+
+    const stock = screen.getByLabelText('Stock', { selector: 'input' });
+    await user.clear(stock);
+    await user.type(stock, '2.5');
+
+    expect(stock).toHaveProperty('value', '2.5');
+  });
+
+  test('a counted product still refuses a decimal stock', async () => {
+    const user = userEvent.setup();
+    onlineMock.current = true;
+    productsMock.current = [makeProduct()];
+    categoriesMock.current = [makeCategory()];
+    render(<ProductsScreen />);
+
+    await user.click(
+      screen.getByText('Coca-Cola 600ml').closest('button') as HTMLElement
+    );
+    await user.click(btn(/Editar/));
+
+    const stock = screen.getByLabelText('Stock', { selector: 'input' });
+    await user.clear(stock);
+    await user.type(stock, '2.5');
+
+    // Byte-identical to the behaviour before units existed.
+    expect(stock).toHaveProperty('value', '25');
+  });
+});

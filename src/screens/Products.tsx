@@ -27,8 +27,10 @@ import {
   DEFAULT_UNIT,
   PRODUCT_UNITS,
   formatQty,
+  isMeasured,
   unitLabel,
 } from '@convex/units';
+import { parseQty } from '@/lib/qty';
 import type { ProductUnitId } from '@convex/units';
 import { mutationError } from '@/lib/mutationError';
 import { skuFromName } from '@convex/sku';
@@ -281,19 +283,52 @@ function ProductForm({
   const set = (k: keyof ProductFormState) => (e: FieldEvent) =>
     setForm({ ...form, [k]: e.target.value });
   const setNum =
-    (k: keyof ProductFormState, allowDecimal?: boolean) => (e: FieldEvent) => {
-      let v = e.target.value.replace(/[^\d.]/g, '');
+    (k: keyof ProductFormState, allowDecimal?: boolean, maxDecimals = 2) =>
+    (e: FieldEvent) => {
+      // The comma is ACCEPTED and normalised, not stripped. A Spanish keyboard
+      // gives a comma, and `inputMode="decimal"` on a phone puts it under the
+      // thumb — so it is the default path here, not an edge case. Deleting it
+      // turned `2,5` into `25`, which for a stock figure is inventory that never
+      // existed. Normalised at the point of typing rather than at submit,
+      // because `parseFloat` (price) would not understand it either.
+      let v = e.target.value.replace(/[^\d.,]/g, '').replace(/,/g, '.');
       if (!allowDecimal) v = v.replace(/\./g, '');
       if (allowDecimal) {
         const first = v.indexOf('.');
         if (first !== -1) {
           v = v.slice(0, first + 1) + v.slice(first + 1).replace(/\./g, '');
           const [a, b] = v.split('.');
-          v = a + '.' + (b || '').slice(0, 2);
+          v = a + '.' + (b || '').slice(0, maxDecimals);
         }
       }
       setForm({ ...form, [k]: v });
     };
+
+  /**
+   * Changing the unit changes whether a fraction is legal, so the quantities
+   * ALREADY typed have to be re-read under the new rule. Without this, `2.5`
+   * stays sitting in the box after switching to a counted unit and is saved
+   * without a word about it.
+   *
+   * Counted units floor rather than round: a stock figure is inventory, and
+   * rounding 2.5 up to 3 invents half a kilo of cheese that is not on the shelf.
+   * The floored value is visible in the field before saving, so it can be
+   * corrected — an invented one would not be noticed.
+   */
+  const setUnit = (e: FieldEvent) => {
+    const unit = e.target.value;
+    const reQty = (raw: string) => {
+      const n = parseFloat(raw);
+      if (!Number.isFinite(n)) return raw;
+      return String(isMeasured(unit) ? n : Math.floor(n));
+    };
+    setForm((f) => ({
+      ...f,
+      unit,
+      stock: reQty(f.stock),
+      minStock: reQty(f.minStock),
+    }));
+  };
 
   // Editing shows the STORED code — a rename does not move it. Creating previews
   // what the name derives to, through the very function the server will run, so
@@ -311,8 +346,8 @@ function ProductForm({
       name: form.name.trim(),
       barcode: form.barcode.trim(),
       price: parseFloat(form.price) || 0,
-      stock: parseInt(form.stock, 10) || 0,
-      minStock: parseInt(form.minStock, 10) || 0,
+      stock: parseQty(form.stock, form.unit) ?? 0,
+      minStock: parseQty(form.minStock, form.unit) ?? 0,
       exempt: form.exempt === true,
       sellable: form.sellable !== false,
     });
@@ -409,7 +444,7 @@ function ProductForm({
         <select
           className="input cat-select"
           value={form.unit}
-          onChange={set('unit')}
+          onChange={setUnit}
         >
           {PRODUCT_UNITS.map((u) => (
             <option key={u.id} value={u.id}>
@@ -496,9 +531,9 @@ function ProductForm({
           <span>Stock</span>
           <Input
             mono
-            inputMode="numeric"
+            inputMode={isMeasured(form.unit) ? 'decimal' : 'numeric'}
             value={form.stock}
-            onChange={setNum('stock', false)}
+            onChange={setNum('stock', isMeasured(form.unit), 3)}
             placeholder="0"
           />
         </label>
@@ -509,9 +544,9 @@ function ProductForm({
           <span>Bajo stock</span>
           <Input
             mono
-            inputMode="numeric"
+            inputMode={isMeasured(form.unit) ? 'decimal' : 'numeric'}
             value={form.minStock}
-            onChange={setNum('minStock', false)}
+            onChange={setNum('minStock', isMeasured(form.unit), 3)}
             placeholder="5"
           />
         </label>
@@ -593,8 +628,11 @@ function ProductDetailSheet({
   online: boolean;
 }) {
   const [adjust, setAdjust] = useState('');
-  if (!product) return null;
-  const newStock = adjust !== '' ? parseInt(adjust, 10) : null;
+  // The adjustment is a quantity of THIS product, so it obeys the same unit the
+  // rest of the form does. It used to strip the separator and parseInt, which
+  // did not merely truncate: adjusting a 2.5 kg product to 3.75 typed as 375.
+  const measured = isMeasured(product.unit);
+  const newStock = adjust !== '' ? parseQty(adjust, product.unit) : null;
   const delta =
     newStock != null && !isNaN(newStock) ? newStock - product.stock : null;
 
@@ -619,7 +657,7 @@ function ProductDetailSheet({
               tone={stockTone(product.stock, product.minStock)}
               style={{ marginTop: 6 }}
             >
-              {stockLabel(product.stock)}
+              {stockLabel(product.stock, product.unit)}
             </Chip>
           </div>
         </div>
@@ -659,7 +697,9 @@ function ProductDetailSheet({
           )}
           <div className="prod-detail-row">
             <span className="k">Stock actual</span>
-            <span className="v tabular">{product.stock} unidades</span>
+            <span className="v tabular">
+              {formatQty(product.stock, product.unit)}
+            </span>
           </div>
           <div className="prod-detail-row">
             <span className="k">Disponible para venta</span>
@@ -684,10 +724,18 @@ function ProductDetailSheet({
           <div className="prod-detail-adjust-row">
             <Input
               mono
-              inputMode="numeric"
+              // A numeric keypad has no decimal point, so a weighed product
+              // could not be adjusted at all from a phone.
+              inputMode={measured ? 'decimal' : 'numeric'}
               placeholder={`${product.stock}`}
               value={adjust}
-              onChange={(e) => setAdjust(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) =>
+                setAdjust(
+                  measured
+                    ? e.target.value.replace(/[^\d.,]/g, '')
+                    : e.target.value.replace(/\D/g, '')
+                )
+              }
             />
 
             <Button
@@ -697,7 +745,7 @@ function ProductDetailSheet({
                 delta === null || delta === 0 || isNaN(delta) || !online
               }
               onClick={() => {
-                onAdjustStock(product._id, newStock!);
+                if (newStock !== null) onAdjustStock(product._id, newStock);
                 setAdjust('');
               }}
             >
@@ -706,8 +754,8 @@ function ProductDetailSheet({
           </div>
           {delta !== null && !isNaN(delta) && delta !== 0 && (
             <div className={`prod-detail-delta ${delta > 0 ? 'pos' : 'neg'}`}>
-              {delta > 0 ? `+${delta}` : delta} unidad
-              {Math.abs(delta) === 1 ? '' : 'es'}
+              {delta > 0 ? '+' : '−'}
+              {formatQty(Math.abs(delta), product.unit)}
               {delta > 0 ? ' (entrada)' : ' (salida)'}
             </div>
           )}
@@ -1037,8 +1085,7 @@ export default function ProductsScreen() {
   // from the same navigation state, so listing it would be redundant.
   useEffect(() => {
     setStockFilter(initialStock);
-    // initialStock is derived from the same navigation state as location.key,
-    // so listing it would re-run this on every render for no new information.
+    // initialStock comes from the same navigation state as location.key.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.key]);
   const [sort, setSort] = useState('created-desc');
