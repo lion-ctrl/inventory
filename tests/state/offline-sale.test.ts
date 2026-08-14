@@ -77,3 +77,44 @@ describe('buildOfflineSale', () => {
     expect(completedSale.tendered).toBeUndefined();
   });
 });
+
+// The receipt must not depend on whether the sale was online. Every CONSUMER of a
+// line snapshot became unit-aware; this is the offline PRODUCER, and it silently
+// dropped the unit — the same cart printed `1.5 kg` synced and a bare `1.5` here.
+describe('buildOfflineSale — the receipt carries the base unit', () => {
+  const cheese = {
+    _id: 'p_queso',
+    name: 'Queso llanero',
+    sku: 'QUESO',
+    barcode: '7591000001111',
+    price: 8,
+    qty: 1.5,
+    unit: 'kilogram',
+    exempt: false,
+    stock: 10,
+    categoryId: 'c1',
+    minStock: 1,
+  } as unknown as CartItem;
+
+  test('a measured product keeps its unit on the offline receipt', () => {
+    const { completedSale } = buildOfflineSale({ ...base, cart: [cheese] });
+    expect(completedSale.items[0].unit).toBe('kilogram');
+  });
+
+  test('the SYNC payload deliberately does not carry the unit', () => {
+    // The op sends { productId, qty } and nothing else: on sync the server
+    // snapshots the unit from the LIVE product, exactly as it does for price and
+    // name. Sending it from here would be asking the server to trust a figure
+    // the client supplied — the receipt is a local view, not a source of truth.
+    const { payload } = buildOfflineSale({ ...base, cart: [cheese] });
+    expect(payload.items[0]).toEqual({ productId: 'p_queso', qty: 1.5 });
+  });
+
+  test('a counted product carries no unit, exactly as the server omits it', () => {
+    // snapshotLines drops the default so a line stays byte-identical to every
+    // line already stored. The offline builder mirrors that rule rather than
+    // inventing its own.
+    const { completedSale } = buildOfflineSale(base);
+    expect(completedSale.items[0]).not.toHaveProperty('unit');
+  });
+});

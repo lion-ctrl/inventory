@@ -573,3 +573,51 @@ describe('sales — a weighed product survives checkout', () => {
     ).rejects.toThrow('Cantidad inválida en el carrito.');
   });
 });
+
+// `roundQty` existed to drop float noise and was called at no write site. Stock
+// 0.3 minus 0.1 stored 0.19999999999999998: the screen rounded it to "0.2 kg",
+// the next sale of 0.2 was refused as insufficient, and the displayed stock was
+// permanently unsellable. The values here are chosen to be binary-INEXACT on
+// purpose — the earlier tests all used halves and quarters, which cannot fail.
+describe('sales — a fractional stock never accumulates float residue', () => {
+  test('selling 0.1 from 0.3 leaves exactly 0.2, and 0.2 is then sellable', async () => {
+    const { t, fx } = await setup();
+    const productId = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      barcode: '7591000002222',
+      name: 'Queso de mano',
+      price: 10,
+      stock: 0.3,
+      minStock: 0,
+      unit: 'kilogram',
+    });
+
+    await t.mutation(api.sales.checkout, {
+      token: fx.ownerToken,
+      clientId: fx.clientId,
+      items: [{ productId, qty: 0.1 }],
+      method: 'cash',
+      splits: cash(5),
+    });
+
+    const afterFirst = (await t.run((ctx) =>
+      ctx.db.get('products', productId)
+    ))!;
+    // Raw arithmetic would leave 0.19999999999999998 here.
+    expect(afterFirst.stock).toBe(0.2);
+
+    // The whole point: what the screen shows must still be sellable.
+    await t.mutation(api.sales.checkout, {
+      token: fx.ownerToken,
+      clientId: fx.clientId,
+      items: [{ productId, qty: 0.2 }],
+      method: 'cash',
+      splits: cash(5),
+    });
+    const afterSecond = (await t.run((ctx) =>
+      ctx.db.get('products', productId)
+    ))!;
+    expect(afterSecond.stock).toBe(0);
+  });
+});

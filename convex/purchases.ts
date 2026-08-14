@@ -7,6 +7,7 @@ import {
   publicPurchaseDocValidator,
   purchaseCurrencyValidator,
 } from './schema';
+import { roundQty } from './units';
 
 // A purchase placed with a supplier. It is the ONLY write in the app
 // that raises stock, so the mutations below are the inverse pair of a sale:
@@ -132,7 +133,7 @@ export const create = mutation({
 
     for (const line of lines) {
       await ctx.db.patch('products', line.product._id, {
-        stock: line.product.stock + line.qty,
+        stock: roundQty(line.product.stock + line.qty),
       });
     }
 
@@ -176,7 +177,7 @@ export const remove = mutation({
       const product = await ctx.db.get('products', item.productId);
       if (!product) continue; // product deleted since — nothing to give back
       await ctx.db.patch('products', product._id, {
-        stock: Math.max(0, product.stock - item.qty),
+        stock: Math.max(0, roundQty(product.stock - item.qty)),
       });
     }
 

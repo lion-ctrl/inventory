@@ -11,6 +11,7 @@ import type {
   CompletedSale,
   SaleItemSnapshot,
 } from '@/types';
+import { DEFAULT_UNIT } from '@convex/units';
 import type { SaleCreatePayload } from './sync';
 
 export function buildOfflineSale(input: {
@@ -32,6 +33,9 @@ export function buildOfflineSale(input: {
     price: i.price,
     qty: i.qty,
     exempt: i.exempt,
+    // Mirrors snapshotLines on the server: carried only when it is not the
+    // default, so an offline receipt and a synced one render identically.
+    ...(i.unit && i.unit !== DEFAULT_UNIT ? { unit: i.unit } : {}),
   }));
 
   const clientSnapshot: ClientSnapshot = {

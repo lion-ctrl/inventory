@@ -2,7 +2,7 @@ import { ConvexError, v, type Infer } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { DEFAULT_UNIT } from './units';
+import { DEFAULT_UNIT, roundQty } from './units';
 import { getSettings, requirePerm, requireSession } from './permissions';
 import { round2 } from './money';
 import {
@@ -256,7 +256,7 @@ async function persistSale(
   // Decrement stocks.
   for (const { product, qty } of params.lines) {
     await ctx.db.patch('products', product._id, {
-      stock: product.stock - qty,
+      stock: roundQty(product.stock - qty),
     });
   }
 
@@ -548,7 +548,7 @@ export const refund = mutation({
       const product = await ctx.db.get('products', item.productId);
       if (product) {
         await ctx.db.patch('products', product._id, {
-          stock: product.stock + item.qty,
+          stock: roundQty(product.stock + item.qty),
         });
       }
     }

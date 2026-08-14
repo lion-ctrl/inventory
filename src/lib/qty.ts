@@ -40,6 +40,30 @@ export function parseQty(raw: string, unit?: string): number | null {
 }
 
 /**
+ * Read a COMPLETE quantity string under a unit's rule — one already sitting in a
+ * field, not one being typed into it.
+ *
+ * `parseQty` is for the second case, and for a COUNTED unit it strips every
+ * non-digit so a partially typed value behaves exactly as it did before units
+ * existed. That is right while typing and catastrophic when reading: it turns
+ * the stored `"2.5"` of a product whose unit was later changed to a counted one
+ * into 25, inflating inventory tenfold on any unrelated save.
+ *
+ * Counted units FLOOR: rounding 2.5 up to 3 invents half a kilo that is not on
+ * the shelf, and the floored value is visible before saving so it can be fixed.
+ *
+ * Input is a plain `String(n)` or what was typed — NEVER the grouped output of
+ * `qtyToInput`, since `2.5` and `10.000` cannot both be resolved from a string.
+ * Cart and purchase fields pair `qtyToInput` with `parseQty`; the product form
+ * pairs `String(n)` with this. Mixing the pairs is the bug.
+ */
+export function normalizeQty(raw: string, unit?: string): number | null {
+  const n = parseFloat(raw.replace(/,/g, '.'));
+  if (!Number.isFinite(n)) return null;
+  return isMeasured(unit) ? roundQty(n) : Math.floor(n);
+}
+
+/**
  * What the quantity field shows for a value.
  *
  * A counted quantity keeps the `es` thousands grouping it has always had. A

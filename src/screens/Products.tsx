@@ -30,7 +30,7 @@ import {
   isMeasured,
   unitLabel,
 } from '@convex/units';
-import { parseQty } from '@/lib/qty';
+import { normalizeQty, parseQty } from '@/lib/qty';
 import type { ProductUnitId } from '@convex/units';
 import { mutationError } from '@/lib/mutationError';
 import { skuFromName } from '@convex/sku';
@@ -317,16 +317,11 @@ function ProductForm({
    */
   const setUnit = (e: FieldEvent) => {
     const unit = e.target.value;
-    // Deliberately NOT `parseQty`, which is the one parser everywhere else.
-    // `parseQty` reads a value being TYPED: for a counted unit it strips every
-    // non-digit, so `2.5` arrives as `25`. Here the value is already complete
-    // and merely being re-read under a different unit, and 2.5 kg becoming
-    // 25 units is exactly the inventory invention this function exists to
-    // prevent. `setNum` has already normalised the separator by this point.
+    // One rule, one place: normalizeQty reads a COMPLETE value under a unit,
+    // flooring for counted units so a switch never invents inventory.
     const reQty = (raw: string) => {
-      const n = parseFloat(raw);
-      if (!Number.isFinite(n)) return raw;
-      return String(isMeasured(unit) ? n : Math.floor(n));
+      const n = normalizeQty(raw, unit);
+      return n === null ? raw : String(n);
     };
     setForm((f) => ({
       ...f,
@@ -352,8 +347,8 @@ function ProductForm({
       name: form.name.trim(),
       barcode: form.barcode.trim(),
       price: parseFloat(form.price) || 0,
-      stock: parseQty(form.stock, form.unit) ?? 0,
-      minStock: parseQty(form.minStock, form.unit) ?? 0,
+      stock: normalizeQty(form.stock, form.unit) ?? 0,
+      minStock: normalizeQty(form.minStock, form.unit) ?? 0,
       exempt: form.exempt === true,
       sellable: form.sellable !== false,
     });
