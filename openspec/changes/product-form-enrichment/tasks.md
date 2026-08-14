@@ -31,16 +31,23 @@
 - [x] 2.7 (RED→GREEN) `tests/components/`: a product with no photo renders the placeholder; a photographed product renders the image; a failed image falls back to the placeholder; OFFLINE a photographed product renders the placeholder and stays searchable and sellable.
 - [x] 2.8 Confirm the Dexie mirror is unaffected: the product document (now carrying `imageUrl`) round-trips through `useMirroredQuery` untouched, and nothing tries to cache the binary.
 
-## Unit 3 — Base unit and fractional quantities
+## Unit 3 — Base unit and fractional quantities — DONE
 
-- [ ] 3.1 `convex/schema.ts`: `productUnitValidator` — a closed union of the thirteen catalogue values (piece, bottle, crate, can, jar, bag, pack, keg, pallet, liter, milliliter, kilogram, gram), optional on `productFields`, absent meaning piece. Custom is NOT shipped (see design decision 6). Export ONE shared list of which units are MEASURED, so 'may this be fractional' is derived and can never disagree with the unit.
-- [ ] 3.2 (RED) `tests/convex/sales.test.ts` + `tests/convex/purchases.test.ts`: a fractional quantity survives checkout and a purchase — totals, stock decrement and stock increment all correct. **The server needs no change** (`snapshotLines` validates only `qty > 0`, `sales.ts:139`); these tests exist to PIN that tolerance so a future guard does not silently break weighed products.
-- [ ] 3.3 `convex/products.ts`: `create`/`update` accept `unit`.
-- [ ] 3.4 (RED) `tests/components/`: the quantity input accepts `1.5` for a kilogram product and refuses a fraction for a whole-unit product, **in the same cart**.
-- [ ] 3.5 `src/screens/Sale.tsx`: make the four `parseInt(…replace(/\D/g, '')…)` sites unit-aware (lines ~355, ~365, ~669, ~680). Integer path stays byte-identical for `'unit'` products, including the `MAX_QTY` cap; the weighed path allows a decimal separator and clamps to live stock.
-- [ ] 3.6 `src/screens/Suppliers.tsx`: the purchase form's quantity stepper follows the same per-product rule.
-- [ ] 3.7 Display: quantity and unit shown together wherever a quantity appears (`Sale`, `Scan`, `Products`, `Payment` receipt lines). Decide the receipt case — see the design's open questions.
-- [ ] 3.8 `src/screens/Products.tsx`: unit selector in the form (a `cat-select`, like every other dropdown).
+- [x] 3.1 `convex/schema.ts`: `productUnitValidator` — a closed union of the thirteen catalogue values (piece, bottle, crate, can, jar, bag, pack, keg, pallet, liter, milliliter, kilogram, gram), optional on `productFields`, absent meaning piece. Custom is NOT shipped (see design decision 6). Export ONE shared list of which units are MEASURED, so 'may this be fractional' is derived and can never disagree with the unit.
+- [x] 3.2 (RED) `tests/convex/sales.test.ts` + `tests/convex/purchases.test.ts`: a fractional quantity survives checkout and a purchase — totals, stock decrement and stock increment all correct. **The server needs no change** (`snapshotLines` validates only `qty > 0`, `sales.ts:139`); these tests exist to PIN that tolerance so a future guard does not silently break weighed products.
+- [x] 3.3 `convex/products.ts`: `create`/`update` accept `unit`.
+- [x] 3.4 (RED) `tests/components/`: the quantity input accepts `1.5` for a kilogram product and refuses a fraction for a whole-unit product, **in the same cart**.
+- [x] 3.5 `src/screens/Sale.tsx`: make the four `parseInt(…replace(/\D/g, '')…)` sites unit-aware (lines ~355, ~365, ~669, ~680). Integer path stays byte-identical for `'unit'` products, including the `MAX_QTY` cap; the weighed path allows a decimal separator and clamps to live stock.
+- [x] 3.6 `src/screens/Suppliers.tsx`: the purchase form's quantity stepper follows the same per-product rule.
+- [x] 3.7 Display: quantity and unit shown together wherever a quantity appears (`Sale`, `Scan`, `Products`, `Payment` receipt lines). **The receipt question is answered YES**, on the terms the spec already set: a bare `1.5` on a fiscal line does not say 1.5 of what, and the reason the number can be fractional at all is the unit. Shown whenever the line is not exactly one COUNTED unit, omitted for the default — where a bare number has always meant what it means.
+- [x] 3.8 `src/screens/Products.tsx`: unit selector in the form (a `cat-select`, like every other dropdown).
+
+**Decided while building, and worth keeping:**
+
+- [x] 3.9 `convex/units.ts` is the catalogue and it is PURE (no `v`, no `ctx`), so `schema.ts` BUILDS `productUnitValidator` from it with a spread rather than restating the thirteen literals. The union stays exact — the compiler rejects `'parsec'` at a call site — and a unit added to the catalogue cannot be one the server rejects.
+- [x] 3.10 `saleItemValidator` gained an optional `unit`, frozen with the line like `sku` and `cat`. Without it a receipt reprinted next year reads today's unit, or none at all once the product is deleted. Written only for a non-default unit, so every line already stored stays exactly as it is.
+- [x] 3.11 `src/lib/qty.ts` — ONE parser and ONE formatter for every quantity field, because the spec's promise is that a quantity accepted in the cart is accepted in a purchase. A measured field takes both `.` and `,` (a Spanish keyboard gives the comma) and deliberately drops thousands grouping: `es` writes one thousand as `1.000`, and a field that groups cannot also carry a decimal.
+- [x] 3.12 `inputMode` follows the unit — `decimal` for measured, `numeric` otherwise. On the phone this app runs on, a numeric keypad has no separator key, which would leave a weighed product unsellable.
 
 ## Unit 4 — The SKU derives itself from the name
 

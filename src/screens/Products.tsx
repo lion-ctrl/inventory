@@ -317,6 +317,12 @@ function ProductForm({
    */
   const setUnit = (e: FieldEvent) => {
     const unit = e.target.value;
+    // Deliberately NOT `parseQty`, which is the one parser everywhere else.
+    // `parseQty` reads a value being TYPED: for a counted unit it strips every
+    // non-digit, so `2.5` arrives as `25`. Here the value is already complete
+    // and merely being re-read under a different unit, and 2.5 kg becoming
+    // 25 units is exactly the inventory invention this function exists to
+    // prevent. `setNum` has already normalised the separator by this point.
     const reQty = (raw: string) => {
       const n = parseFloat(raw);
       if (!Number.isFinite(n)) return raw;

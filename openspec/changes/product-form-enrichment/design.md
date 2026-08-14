@@ -86,5 +86,5 @@ Rollback is a deploy of the previous functions; the three fields can stay on the
 ## Open Questions
 
 - Should a low-stock product surface its preferred supplier on the Dashboard's low-stock tile, so reordering starts from where the shortage is noticed?
-- Does the receipt show quantity with its unit ("1.5 kg"), or is that noise on a fiscal document?
+- ~~Does the receipt show quantity with its unit ("1.5 kg"), or is that noise on a fiscal document?~~ **ANSWERED: yes.** A bare `1.5` does not say 1.5 of what, and the unit is the reason the number can be fractional at all. Shown whenever the line is not exactly one COUNTED unit; omitted for the default, where a bare number has always meant what it means.
 - When a photo is replaced, is the old file deleted immediately, or swept later?
