@@ -523,3 +523,53 @@ describe('sales.history — server-side window', () => {
     expect(sale).not.toHaveProperty('cashierId');
   });
 });
+
+// Unit 3 — fractional quantities (product-base-unit). The server already
+// tolerates them: `snapshotLines` validates `qty > 0` and nothing more. These
+// tests PIN that tolerance, so a future guard written for counted products
+// cannot silently break every product sold by weight.
+describe('sales — a weighed product survives checkout', () => {
+  test('1.5 kg is sold, totalled and taken off stock as 1.5', async () => {
+    const { t, fx } = await setup();
+    const cheese = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      barcode: '7591000009090',
+      name: 'Queso amarillo',
+      price: 8,
+      stock: 10,
+      minStock: 1,
+      unit: 'kilogram',
+    });
+
+    const sale = await t.mutation(api.sales.checkout, {
+      token: fx.cajeroPlainToken,
+      clientId: fx.clientId,
+      items: [{ productId: cheese, qty: 1.5 }],
+      method: 'cash',
+      // 1.5 x $8.00 = $12.00 plus IVA — the money path is untouched by the
+      // quantity being fractional.
+      splits: cash(13.92),
+      tendered: 13.92,
+    });
+
+    expect(sale.items[0].qty).toBe(1.5);
+    // 1.5 × $8.00 — money is rounded by the same rule as every other amount.
+    expect(sale.subtotal).toBe(12);
+    const row = await t.run((ctx) => ctx.db.get('products', cheese));
+    expect(row!.stock).toBe(8.5);
+  });
+
+  test('a quantity of zero is still refused, fractions or not', async () => {
+    const { t, fx } = await setup();
+    await expect(
+      t.mutation(api.sales.checkout, {
+        token: fx.cajeroPlainToken,
+        clientId: fx.clientId,
+        items: [{ productId: fx.cola, qty: 0 }],
+        method: 'cash',
+        splits: cash(0),
+      })
+    ).rejects.toThrow('Cantidad inválida en el carrito.');
+  });
+});

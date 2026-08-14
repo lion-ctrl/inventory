@@ -2,12 +2,9 @@ import { ConvexError, v, type Infer } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import {
-  getSettings,
-  requirePerm,
-  requireSession,
-  round2,
-} from './permissions';
+import { DEFAULT_UNIT } from './units';
+import { getSettings, requirePerm, requireSession } from './permissions';
+import { round2 } from './money';
 import {
   clientSnapshotValidator,
   publicSaleDocValidator,
@@ -162,6 +159,13 @@ export async function snapshotLines(
         ...(cat !== '' ? { cat } : {}),
         price: product.price,
         qty: line.qty,
+        // Frozen with the line, like `sku` and `cat`: the receipt and the
+        // history have to read "1.5 kg" long after the product may have been
+        // renamed, re-unitted or deleted outright. Omitted for the default unit,
+        // which is what every line written before this already means.
+        ...(product.unit && product.unit !== DEFAULT_UNIT
+          ? { unit: product.unit }
+          : {}),
         ...(product.exempt === true ? { exempt: true } : {}),
       },
     });

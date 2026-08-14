@@ -2,7 +2,8 @@ import { ConvexError, v } from 'convex/values';
 import type { Infer } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import { getSettings, requireSession, round2 } from './permissions';
+import { getSettings, requireSession } from './permissions';
+import { round2 } from './money';
 import { clientSnapshotOf, snapshotLines } from './sales';
 import {
   clientDocValidator,

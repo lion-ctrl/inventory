@@ -4,7 +4,11 @@ import type { Id } from './_generated/dataModel';
 import type { MutationCtx } from './_generated/server';
 import { mutation, query } from './_generated/server';
 import { requirePerm, requireSession } from './permissions';
-import { productDocValidator, productWithImageValidator } from './schema';
+import {
+  productDocValidator,
+  productUnitValidator,
+  productWithImageValidator,
+} from './schema';
 import { nextFreeSku, SKU_COLLISION_LIMIT, skuFromName } from './sku';
 
 /** A product as `list` returns it: the document plus its resolved photo address. */
@@ -192,6 +196,7 @@ export const create = mutation({
     exempt: v.optional(v.boolean()),
     supplierId: v.optional(v.id('suppliers')),
     imageId: v.optional(v.id('_storage')),
+    unit: v.optional(productUnitValidator),
   },
   returns: v.id('products'),
   handler: async (ctx, args) => {
@@ -235,6 +240,7 @@ export const update = mutation({
       supplierId: v.optional(v.union(v.id('suppliers'), v.null())),
       // null CLEARS the photo, same three-state contract as the supplier link.
       imageId: v.optional(v.union(v.id('_storage'), v.null())),
+      unit: v.optional(productUnitValidator),
     }),
   },
   returns: v.null(),

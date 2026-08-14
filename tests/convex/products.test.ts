@@ -798,3 +798,65 @@ describe('products — the barcode guard answers on its own terms', () => {
     ).rejects.toThrow('Ya existe un producto con ese código de barras.');
   });
 });
+
+// Unit 3 — the base unit (product-base-unit). Optional, so every product that
+// existed before this behaves as a counted one with no backfill.
+describe('products — the base unit', () => {
+  const newProduct = (extra: Record<string, unknown> = {}) => ({
+    barcode: '7591000002222',
+    name: 'Queso amarillo',
+    price: 8,
+    stock: 10,
+    minStock: 1,
+    ...extra,
+  });
+
+  test('a product can declare a unit, and one without stays valid', async () => {
+    const { t, fx } = await setup();
+    const weighed = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      unit: 'kilogram',
+      ...newProduct(),
+    });
+    const counted = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      ...newProduct({ barcode: '7591000001111', name: 'Refresco' }),
+    });
+
+    const rows = await t.run(async (ctx) => ({
+      a: await ctx.db.get('products', weighed),
+      b: await ctx.db.get('products', counted),
+    }));
+    expect(rows.a!.unit).toBe('kilogram');
+    // Absent, not defaulted into the document: an unset optional is not stored.
+    expect(rows.b).not.toHaveProperty('unit');
+  });
+
+  test('a unit outside the catalogue is refused by the validator', async () => {
+    const { t, fx } = await setup();
+    await expect(
+      t.mutation(api.products.create, {
+        token: fx.ownerToken,
+        categoryId: fx.categoryId,
+        // @ts-expect-error the union is closed, which is the point: the compiler
+        // already refuses this, and the runtime validator has to refuse it too
+        // for anything reaching the server that TypeScript never saw.
+        unit: 'parsec',
+        ...newProduct(),
+      })
+    ).rejects.toThrow();
+  });
+
+  test('the unit can be changed after creation', async () => {
+    const { t, fx } = await setup();
+    await t.mutation(api.products.update, {
+      token: fx.ownerToken,
+      productId: fx.cola,
+      patch: { unit: 'bottle' },
+    });
+    const row = await t.run((ctx) => ctx.db.get('products', fx.cola));
+    expect(row!.unit).toBe('bottle');
+  });
+});

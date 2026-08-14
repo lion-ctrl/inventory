@@ -1,4 +1,5 @@
 import { defineSchema, defineTable } from 'convex/server';
+import { PRODUCT_UNITS } from './units';
 import { v } from 'convex/values';
 
 // ---------------------------------------------------------------------------
@@ -62,6 +63,8 @@ export const saleItemValidator = v.object({
   price: v.number(),
   qty: v.number(),
   glyph: v.optional(v.string()),
+  /** Frozen at sale time so a receipt still reads '1.5 kg' years later. */
+  unit: v.optional(v.string()),
   exempt: v.optional(v.boolean()),
 });
 
@@ -100,6 +103,16 @@ export const purchaseCurrencyValidator = v.union(
 export const categoryFields = {
   label: v.string(),
 };
+
+/**
+ * The unit a product is sold in — built FROM the catalogue in `units.ts` rather
+ * than restating it, so a unit added there cannot be one the server rejects.
+ * Closed on purpose: a free-text unit is a field every screen would then have to
+ * guess the meaning of.
+ */
+export const productUnitValidator = v.union(
+  ...PRODUCT_UNITS.map((unit) => v.literal(unit.id))
+);
 
 export const productFields = {
   barcode: v.string(),
@@ -142,6 +155,13 @@ export const productFields = {
   // lives on the document; `products.list` resolves it to an address so no
   // screen has to ask per product. Optional: most of the catalogue has none.
   imageId: v.optional(v.id('_storage')),
+  // What `price` and `stock` are each PER. Optional, and absent means the default
+  // counted unit — which is what every product created before this capability
+  // is, so there is no backfill and no visible change for any of them.
+  // Whether the product may be sold in fractions is DERIVED from this value
+  // (`isMeasured` in `units.ts`) rather than stored beside it: a second flag is
+  // a second source of truth, and the day it disagrees you get half a crate.
+  unit: v.optional(productUnitValidator),
 };
 
 export const clientFields = {

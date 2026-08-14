@@ -132,8 +132,3 @@ export function assertPin(pin: string): void {
     throw new ConvexError('El PIN debe tener 6 dígitos.');
   }
 }
-
-/** Round to 2 decimal places (money in USD). */
-export function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}

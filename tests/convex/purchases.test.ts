@@ -329,3 +329,67 @@ describe('purchases.remove', () => {
     expect(await stockOf(t, fx.cola)).toBe(0); // clamped, not -47
   });
 });
+
+// Unit 3 — fractional quantities (product-base-unit). A product bought by weight
+// is sold by weight: there is ONE base unit per product and no conversion, so
+// the purchase side has to accept exactly what the sale side does.
+describe('purchases — a weighed product can be received in fractions', () => {
+  test('12.5 kg raises stock by 12.5, not by 12 or 13', async () => {
+    const { t, fx, supplierId } = await setup();
+    const cheese = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      barcode: '7591000009191',
+      name: 'Queso amarillo',
+      price: 8,
+      stock: 2.5,
+      minStock: 1,
+      unit: 'kilogram',
+    });
+
+    await t.mutation(api.purchases.create, {
+      token: fx.ownerToken,
+      supplierId,
+      items: [{ productId: cheese, qty: 12.5 }],
+      entered: 60,
+      currency: 'usd',
+    });
+
+    const row = await t.run((ctx) => ctx.db.get('products', cheese));
+    expect(row!.stock).toBe(15);
+  });
+
+  test('deleting that purchase puts the fraction back', async () => {
+    const { t, fx, supplierId } = await setup();
+    const cheese = await t.mutation(api.products.create, {
+      token: fx.ownerToken,
+      categoryId: fx.categoryId,
+      barcode: '7591000009292',
+      name: 'Queso blanco',
+      price: 6,
+      stock: 0.5,
+      minStock: 1,
+      unit: 'kilogram',
+    });
+
+    const purchase = await t.mutation(api.purchases.create, {
+      token: fx.ownerToken,
+      supplierId,
+      items: [{ productId: cheese, qty: 4.25 }],
+      entered: 25,
+      currency: 'usd',
+    });
+    expect((await t.run((ctx) => ctx.db.get('products', cheese)))!.stock).toBe(
+      4.75
+    );
+
+    await t.mutation(api.purchases.remove, {
+      token: fx.ownerToken,
+      purchaseId: purchase._id,
+    });
+
+    expect((await t.run((ctx) => ctx.db.get('products', cheese)))!.stock).toBe(
+      0.5
+    );
+  });
+});
