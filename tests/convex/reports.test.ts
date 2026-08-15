@@ -270,3 +270,56 @@ function cashFlowQuery(
 ) {
   return c.t.query(api.reports.cashFlow, args);
 }
+
+// Every other value in this file is a whole dollar, which makes all three round2
+// calls provable no-ops: delete them and the suite stays green. These are the
+// cent-bearing sums a bodega's real prices actually produce, and they separate
+// rounding from its absence. A stock figure already shipped in this repo carrying
+// float residue once — 0.3 minus 0.1 stored as 0.19999999999999998 — and the
+// tests missed it for exactly this reason.
+describe('reports.cashFlow — money is rounded, not merely summed', () => {
+  test('an income whose raw float sum drifts is reported to the cent', async () => {
+    const c = await setup();
+    const from = Date.now() - DAY;
+    const to = Date.now() + DAY;
+
+    // 0.1 + 0.2 === 0.30000000000000004 in IEEE-754.
+    await plantSale(c, from + 10, 0.1, 'DRIFT-1');
+    await plantSale(c, from + 20, 0.2, 'DRIFT-2');
+
+    const r = await cashFlowQuery(c, { token: c.fx.ownerToken, from, to });
+    expect(r.income).toBe(0.3);
+    expect(r.income).not.toBe(0.1 + 0.2);
+  });
+
+  test('the difference is rounded too — it is the figure the owner acts on', async () => {
+    const c = await setup();
+    const from = Date.now() - DAY;
+    const to = Date.now() + DAY;
+
+    await plantSale(c, from + 10, 0.3, 'DRIFT-3');
+    await plantPurchase(c, from + 20, 0.1);
+
+    const r = await cashFlowQuery(c, { token: c.fx.ownerToken, from, to });
+    // 0.3 - 0.1 === 0.19999999999999998 raw.
+    expect(r.net).toBe(0.2);
+    expect(r.net).not.toBe(0.3 - 0.1);
+  });
+
+  test('expenses combine a refund and a purchase without drifting', async () => {
+    const c = await setup();
+    const from = Date.now() - DAY;
+    const to = Date.now() + DAY;
+
+    // Sold long before the window, refunded inside it: an expense here.
+    await plantSale(c, from - 90 * DAY, 0.7, 'DRIFT-4', {
+      date: from + 5,
+      reason: 'producto dañado',
+    });
+    await plantPurchase(c, from + 15, 0.1);
+
+    const r = await cashFlowQuery(c, { token: c.fx.ownerToken, from, to });
+    expect(r.expenses).toBe(0.8);
+    expect(r.expenses).not.toBe(0.7 + 0.1);
+  });
+});

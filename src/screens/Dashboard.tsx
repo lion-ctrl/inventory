@@ -1,6 +1,6 @@
 // Dashboard — greeting, today's performance, quick actions, low stock & recent sales.
 // Pulls live data from Convex (sales history, products, clients, stored carts).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
@@ -87,12 +87,29 @@ export default function Dashboard() {
   const salesPartial = salesHistoryRaw?.truncated === true;
 
   // Cash-flow tiles: server-aggregated money in/out, gated server-side too
-  // (`requirePerm(employee, 'view_reports')`). Memoised like `salesFrom` above.
+  // (`requirePerm(employee, 'view_reports')`).
+  //
+  // NOT memoised on `[period]` alone, unlike `salesFrom` above: that one is an
+  // open-ended LOWER bound on a rolling window, where waking up late only widens
+  // the range. This window is CLOSED on the right, so a clock captured at mount
+  // rots — a POS tablet parked on this screen across midnight would put every
+  // later sale outside `[cashFrom, cashTo]`, and Ingresos and Diferencia would
+  // stop moving while the selector still read "Mes". Wrong money, no symptom.
   const [period, setPeriod] = useState<Period>('mes');
+  const [cashNow, setCashNow] = useState(() => Date.now());
   const { from: cashFrom, to: cashTo } = useMemo(
-    () => periodBounds(period, new Date()),
-    [period]
+    () => periodBounds(period, new Date(cashNow)),
+    [period, cashNow]
   );
+  // Wakes when the window EXPIRES rather than polling. `setTimeout` saturates
+  // past ~24.8 days and a month is longer, so the wait is taken in bounded hops
+  // and each wake re-reads the clock instead of assuming it arrived on time.
+  useEffect(() => {
+    const SIX_HOURS = 6 * 60 * 60 * 1000;
+    const delay = Math.min(Math.max(cashTo - cashNow + 1, 0), SIX_HOURS);
+    const timer = setTimeout(() => setCashNow(Date.now()), delay);
+    return () => clearTimeout(timer);
+  }, [cashTo, cashNow]);
   const cashFlow = useQuery(
     api.reports.cashFlow,
     token && can('view_reports')
