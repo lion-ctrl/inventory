@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as bootstrap from "../bootstrap.js";
 import type * as categories from "../categories.js";
 import type * as clients from "../clients.js";
 import type * as employees from "../employees.js";
@@ -34,6 +35,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  bootstrap: typeof bootstrap;
   categories: typeof categories;
   clients: typeof clients;
   employees: typeof employees;
