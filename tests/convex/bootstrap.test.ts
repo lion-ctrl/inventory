@@ -40,7 +40,7 @@ describe('bootstrap.createFirstOwner', () => {
 
     const row = await t.run(async (ctx) => {
       const all = await ctx.db.query('employees').collect();
-      return all[0]!;
+      return all[0];
     });
     expect(row.role).toBe('owner');
     expect(row.permissions).toBe('all');
@@ -53,7 +53,7 @@ describe('bootstrap.createFirstOwner', () => {
 
     const row = await t.run(async (ctx) => {
       const all = await ctx.db.query('employees').collect();
-      return all[0]!;
+      return all[0];
     });
     expect(row).not.toHaveProperty('pin');
     expect(row.pinHash).toBeDefined();
