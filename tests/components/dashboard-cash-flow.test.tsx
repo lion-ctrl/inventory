@@ -249,3 +249,29 @@ describe('Dashboard — the period selector re-windows the query', () => {
     );
   });
 });
+
+// The clock fix closed the timer door and left the selector one open: `cashNow`
+// only advances on a hop, so switching period reads a clock up to six hours old.
+describe('Dashboard — switching period reads the CURRENT clock', () => {
+  afterEach(() => vi.useRealTimers());
+
+  test('choosing Día after midnight shows today, not the day the tab was opened', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 15, 20, 0, 0)); // Mar 15, 20:00
+    H.cashFlow.current = cashFlowFixture;
+
+    render(<Dashboard />);
+
+    // Five hours pass — under the six-hour hop, so no timer has fired and the
+    // memo still holds a clock from yesterday evening.
+    await act(async () => {
+      vi.advanceTimersByTime(5 * 60 * 60 * 1000); // now Mar 16, 01:00
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Día' }));
+
+    const day = H.cashArgs.current!;
+    expect(new Date(day.from).getDate()).toBe(16);
+    expect(new Date(day.to).getDate()).toBe(16);
+  });
+});

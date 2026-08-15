@@ -110,6 +110,16 @@ export default function Dashboard() {
     const timer = setTimeout(() => setCashNow(Date.now()), delay);
     return () => clearTimeout(timer);
   }, [cashTo, cashNow]);
+  /**
+   * Changing the period re-reads the clock as well. The hop above can leave
+   * `cashNow` up to six hours stale, so switching to `Día` at 01:00 after a
+   * wake at 20:00 would compute yesterday's day — the same rot the timer
+   * closes, coming in through the selector instead.
+   */
+  const selectPeriod = (next: Period) => {
+    setPeriod(next);
+    setCashNow(Date.now());
+  };
   const cashFlow = useQuery(
     api.reports.cashFlow,
     token && can('view_reports')
@@ -318,7 +328,7 @@ export default function Dashboard() {
                   <Segmented
                     options={PERIOD_OPTIONS}
                     value={period}
-                    onChange={setPeriod}
+                    onChange={selectPeriod}
                   />
                 </div>
                 <div>
