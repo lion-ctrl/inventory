@@ -494,10 +494,11 @@ export default defineSchema({
   // `createdAt` is part of the index so the newest-first read and its cap agree
   // on the SAME field — ordering on the index's implicit _creationTime and then
   // re-sorting by createdAt would cut one set and display another.
-  purchases: defineTable(purchaseFields).index('by_supplier', [
-    'supplierId',
-    'createdAt',
-  ]),
+  // by_createdAt: `reports.cashFlow` needs a GLOBAL period range over every
+  // purchase, not scoped to one supplier — `by_supplier` cannot serve that.
+  purchases: defineTable(purchaseFields)
+    .index('by_supplier', ['supplierId', 'createdAt'])
+    .index('by_createdAt', ['createdAt']),
 
   employees: defineTable(employeeFields),
 
@@ -505,7 +506,16 @@ export default defineSchema({
     .index('by_invoice', ['invoiceNumber'])
     .index('by_soldAt', ['soldAt'])
     // Offline-first (Phase 6.3): idempotent replay lookup for `sales.syncOffline`.
-    .index('by_idempotencyKey', ['idempotencyKey']),
+    .index('by_idempotencyKey', ['idempotencyKey'])
+    // `reports.cashFlow` attributes a refund to the period it happened in, not
+    // the period the sale was made — this indexes that separately from
+    // `by_soldAt`. The path is on the OPTIONAL `refund` field: `v.optional()`
+    // preserves `FieldPaths` (verified against installed convex@^1.36.1), so
+    // `['refund.date']` typechecks. A non-refunded sale has
+    // `refund.date === undefined`, which sorts before every number and so
+    // self-excludes from a `gte` bound — no `filter` needed (forbidden by the
+    // project's query guideline).
+    .index('by_refundDate', ['refund.date']),
 
   // by_cashier: a cajero's "Ventas en espera" list is scoped to their OWN parked
   // sales, so the query must not scan the table to throw most rows away.

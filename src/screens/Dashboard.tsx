@@ -1,13 +1,15 @@
 // Dashboard — greeting, today's performance, quick actions, low stock & recent sales.
 // Pulls live data from Convex (sales history, products, clients, stored carts).
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from 'convex/react';
 import { api } from '@convex/_generated/api';
-import { AppBar, Banner, Chip, Icon } from '@/components';
+import { AppBar, Banner, Chip, Icon, Segmented } from '@/components';
 import { useSession } from '@/state/SessionContext';
 import { useOnline } from '@/state/useOnline';
 import { initialOf } from '@/lib/initials';
+import { periodBounds } from '@/lib/period';
+import type { Period } from '@/lib/period';
 import {
   useBsRate,
   useCategories,
@@ -16,6 +18,12 @@ import {
 } from '@/state/hooks';
 import { useCart } from '@/state/CartContext';
 import type { Sale } from '@/types';
+
+const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
+  { value: 'mes', label: 'Mes' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'dia', label: 'Día' },
+];
 
 function greetingFor(d: Date) {
   const h = d.getHours();
@@ -77,6 +85,31 @@ export default function Dashboard() {
   // the cap first, but the yesterday comparison breaks as soon as the two days
   // together exceed it.
   const salesPartial = salesHistoryRaw?.truncated === true;
+
+  // Cash-flow tiles: server-aggregated money in/out, gated server-side too
+  // (`requirePerm(employee, 'view_reports')`). Memoised like `salesFrom` above.
+  const [period, setPeriod] = useState<Period>('mes');
+  const { from: cashFrom, to: cashTo } = useMemo(
+    () => periodBounds(period, new Date()),
+    [period]
+  );
+  const cashFlow = useQuery(
+    api.reports.cashFlow,
+    token && can('view_reports')
+      ? { token, from: cashFrom, to: cashTo }
+      : 'skip'
+  );
+  const cashOfflineMsg = !online && cashFlow === undefined;
+  const cashTruncated = cashFlow?.truncated === true;
+  // `Diferencia` is the number the owner acts on, so a truncated window blanks
+  // all three tiles rather than showing a suspect-but-numeric figure.
+  const cashBlank = cashFlow === undefined || cashTruncated;
+  const cashCaption = cashOfflineMsg
+    ? 'No disponible sin conexión'
+    : cashTruncated
+      ? 'No disponible: el período tiene más movimientos de los que se pueden sumar.'
+      : 'Egresos = solo compras a proveedores. No incluye alquiler, sueldos ni servicios.';
+
   const products = useProducts();
   const clients = useClients();
   const categories = useCategories();
@@ -259,6 +292,39 @@ export default function Dashboard() {
               <div className="k">Productos</div>
               <div className="v">{salesUnavailable ? '—' : units}</div>
             </div>
+            {can('view_reports') && (
+              <>
+                <div>
+                  {/* .seg must stay a GRANDCHILD of .dash-hero-stats: as a
+                      direct child, `.dash-hero-stats > div` (0,1,1) would
+                      overwrite `.seg` (0,1,0)'s display/padding/border. */}
+                  <Segmented
+                    options={PERIOD_OPTIONS}
+                    value={period}
+                    onChange={setPeriod}
+                  />
+                </div>
+                <div>
+                  <div className="k">Ingresos</div>
+                  <div className="v">
+                    {cashBlank ? '—' : `$${cashFlow.income.toFixed(2)}`}
+                  </div>
+                </div>
+                <div>
+                  <div className="k">Egresos</div>
+                  <div className="v">
+                    {cashBlank ? '—' : `$${cashFlow.expenses.toFixed(2)}`}
+                  </div>
+                </div>
+                <div>
+                  <div className="k">Diferencia</div>
+                  <div className="v">
+                    {cashBlank ? '—' : `$${cashFlow.net.toFixed(2)}`}
+                  </div>
+                </div>
+                <div className="t-body-sm">{cashCaption}</div>
+              </>
+            )}
           </div>
         </div>
 

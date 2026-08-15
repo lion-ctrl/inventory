@@ -13,15 +13,18 @@ import type * as categories from "../categories.js";
 import type * as clients from "../clients.js";
 import type * as employees from "../employees.js";
 import type * as heldCarts from "../heldCarts.js";
+import type * as money from "../money.js";
 import type * as permissions from "../permissions.js";
 import type * as products from "../products.js";
 import type * as purchases from "../purchases.js";
+import type * as reports from "../reports.js";
 import type * as sales from "../sales.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as settings from "../settings.js";
 import type * as sku from "../sku.js";
 import type * as suppliers from "../suppliers.js";
+import type * as units from "../units.js";
 
 import type {
   ApiFromModules,
@@ -35,15 +38,18 @@ declare const fullApi: ApiFromModules<{
   clients: typeof clients;
   employees: typeof employees;
   heldCarts: typeof heldCarts;
+  money: typeof money;
   permissions: typeof permissions;
   products: typeof products;
   purchases: typeof purchases;
+  reports: typeof reports;
   sales: typeof sales;
   seed: typeof seed;
   sessions: typeof sessions;
   settings: typeof settings;
   sku: typeof sku;
   suppliers: typeof suppliers;
+  units: typeof units;
 }>;
 
 /**

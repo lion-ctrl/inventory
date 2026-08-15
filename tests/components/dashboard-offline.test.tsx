@@ -5,6 +5,9 @@
 // show "No disponible sin conexión" instead of a misleading $0 — and never throw.
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { useQuery } from 'convex/react';
+import { getFunctionName } from 'convex/server';
+import { api } from '@convex/_generated/api';
 
 const H = vi.hoisted(() => {
   const salesHistory: { current: unknown } = { current: undefined };
@@ -28,9 +31,14 @@ const H = vi.hoisted(() => {
 });
 
 vi.mock('react-router', () => ({ useNavigate: () => H.navigate }));
-vi.mock('convex/react', () => ({ useQuery: () => H.salesHistory.current }));
+// Bare vi.fn() sidesteps vi.mock hoisting; dispatch is wired in beforeEach.
+vi.mock('convex/react', () => ({ useQuery: vi.fn() }));
 vi.mock('@/state/SessionContext', () => ({
-  useSession: () => ({ user: { name: 'Carlos' }, token: 'tok', can: () => true }),
+  useSession: () => ({
+    user: { name: 'Carlos' },
+    token: 'tok',
+    can: () => true,
+  }),
 }));
 vi.mock('@/state/useOnline', () => ({ useOnline: () => H.online.current }));
 vi.mock('@/state/hooks', () => ({
@@ -43,9 +51,21 @@ vi.mock('@/state/CartContext', () => ({ useCart: () => ({ heldCarts: [] }) }));
 
 import Dashboard from '@/screens/Dashboard';
 
+// A Proxy mints a new `api.*` object per access, so `===` is always false
+// between two separate accesses — dispatch on the stable string instead.
+const salesHistoryName = getFunctionName(api.sales.history);
+
 beforeEach(() => {
   H.online.current = false;
   H.salesHistory.current = undefined;
+  // Dashboard now issues a SECOND query (reports.cashFlow); dispatch on which
+  // one is called, or cash-flow figures would leak into the sales tiles.
+  vi.mocked(useQuery).mockImplementation((query: unknown, args?: unknown) => {
+    if (args === 'skip') return undefined;
+    return getFunctionName(query as never) === salesHistoryName
+      ? H.salesHistory.current
+      : undefined;
+  });
 });
 afterEach(() => cleanup());
 

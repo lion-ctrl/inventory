@@ -1,0 +1,64 @@
+schema: spec-driven
+
+# Bootstrap-only file. openspec/changes/ and openspec/changes/archive/ already
+# existed with real history (5 changes) before this init and were left
+# untouched. openspec/specs/ (main spec source of truth) does not exist yet --
+# it is created the first time sdd-archive merges a change's delta specs.
+
+context: |
+  Convex backend (object-syntax fns, args+returns validators) + React 19/Vite
+  frontend, TypeScript, offline-first via Dexie mirrors + pendingOps sync queue.
+  Screens own their data (useQuery/useMutation); @/ and @convex/ path aliases,
+  one-way convex/ -> src/ pure-module imports only. RBAC via requireSession +
+  requirePerm (server-side re-check, never UI-only). UI copy in Spanish, all
+  identifiers/comments/DB fields in English. src/styles/ and designs/ are
+  verbatim ports -- never edit or add classes. Package manager: pnpm.
+
+rules:
+  proposal:
+    - Include a rollback plan for risky changes (schema migrations especially -- prefer optional-first, widen/narrow only with an explicit migration step)
+    - State the Spanish user-facing copy and the English identifiers/DB fields separately
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - New Convex fields are optional-first; call out any backfill/migration step explicitly
+    - Call out any new Convex table/index and any Dexie mirror table impact (src/state/db.ts version bump)
+  tasks:
+    - Group by phase/unit, hierarchical numbering
+    - Write the RED (failing test observed failing) task before the GREEN (implementation) task -- Strict TDD is enabled project-wide
+    - Keep tasks completable in one session; flag any single commit likely to exceed ~4-6 files
+  apply:
+    guidelines:
+      - Follow AGENTS.md exactly: object-syntax Convex functions with both args + returns; every privileged mutation re-checks permissions server-side via requirePerm; user-facing errors are ConvexError with a Spanish message; no new runtime dependency without an explicit owner request recorded in the commit message
+      - Never edit src/styles/ or designs/ (verbatim port, pixel-fidelity contract); reuse existing prototype classes only
+      - Fire-and-forget promises in void position must be explicitly voided
+      - No tsc/ESLint suppressions without a written reason on the line above
+    tdd: true
+    test_command: "pnpm test:run"
+  verify:
+    test_command: "pnpm test:run"
+    # pnpm build is the project's real build command but is CURRENTLY BROKEN for
+    # a reason unrelated to any SDD change: vite build fails resolving
+    # "workbox-window" (peer of vite-plugin-pwa, absent from node_modules and
+    # package.json, listed only in pnpm-lock.yaml peer metadata). Using it here
+    # would make every future sdd-verify fail from day one. pnpm lint (tsc -b +
+    # eslint --max-warnings 0) is the closest reliably-green build-adjacent gate.
+    # Swap this back to "pnpm build" once workbox-window is declared/installed.
+    build_command: "pnpm lint"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+    - Leave the five existing changes (product-form-enrichment, suppliers-purchases, offline-first-dexie, session-token-auth, login-hardening) exactly as they are unless the owner explicitly asks to archive one
+
+testing:
+  strict_tdd: true
+  runner: "Vitest v4.1.8 -- default environment edge-runtime (Convex backend), jsdom opt-in per file for UI tests"
+  layers:
+    unit: true
+    integration: true
+    e2e: false
+  coverage_provider: none
+  linter: "eslint . --report-unused-disable-directives --max-warnings 0"
+  type_checker: "tsc -b"
+  formatter: "prettier --check ."
