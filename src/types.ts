@@ -26,6 +26,9 @@ export type Supplier = Doc<'suppliers'>;
 // `createdBy` is stripped by purchases.bySupplier / create (AUTH-2), exactly like
 // `cashierId` on Sale and HeldCart; `createdByName` is what the UI displays.
 export type Purchase = Omit<Doc<'purchases'>, 'createdBy'>;
+// `cashierId` is stripped by closes.create / closes.list (AUTH-2), exactly like
+// Sale and HeldCart; `cashierName` is the frozen snapshot the UI displays.
+export type Close = Omit<Doc<'closes'>, 'cashierId'>;
 
 export type CategoryWithCount = Category & { count: number };
 

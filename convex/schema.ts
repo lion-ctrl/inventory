@@ -276,6 +276,37 @@ export const heldCartFields = {
   createdAt: v.number(),
 };
 
+/**
+ * A recorded cash-register close: a cashier counts their physical drawer and
+ * the server records what it computed as expected for that cashier's window,
+ * the count, and the difference — per currency. Every field is REQUIRED (D6
+ * in the design): this table starts with zero rows, so there is nothing to
+ * backfill, and an optional `expectedUsd` would permit a close with no
+ * expectation, which is not a close. See `convex/closes.ts` for why
+ * blindness, window continuity and immutability are structural here rather
+ * than checks that could be bypassed.
+ */
+export const closeFields = {
+  cashierId: v.id('employees'), // AUTH-2: stored for audit, stripped from returns
+  cashierName: v.string(), // frozen snapshot — what the UI displays
+  openedAt: v.number(), // window start, EXCLUSIVE
+  closedAt: v.number(), // window end, INCLUSIVE — server clock, never client-supplied
+  expectedUsd: v.number(),
+  expectedBs: v.number(), // Bs AS TYPED (Σ entered) — never amount × any rate
+  countedUsd: v.number(),
+  countedBs: v.number(),
+  differenceUsd: v.number(), // counted − expected; negative = Faltante
+  differenceBs: v.number(),
+  // Absent means the expected figures cover the WHOLE window — the normal case.
+  // Present means the window held more sales than one close transaction can
+  // read, so the cashier confirmed a partial close and the expected figures
+  // cover only (countedFrom, closedAt]. Recorded rather than silently applied:
+  // a close is a permanent financial record, and the surplus this produces has
+  // to be explainable years later. `closedAt` is still the true window end, so
+  // the NEXT close continues from it and nothing is skipped going forward.
+  countedFrom: v.optional(v.number()),
+};
+
 // Owner-configured barcode input: physical HID scanner (default) or device camera.
 export const scannerModeValidator = v.union(
   v.literal('physical'),
@@ -422,6 +453,23 @@ export const publicPurchaseDocValidator = v.object({
   ...publicPurchaseFields,
 });
 
+export const closeDocValidator = v.object({
+  _id: v.id('closes'),
+  _creationTime: v.number(),
+  ...closeFields,
+});
+
+// Same AUTH-2 rule as sales / held carts / purchases: `cashierId` is an
+// employee-identity surface, stripped from every returns validator while
+// staying STORED for audit (`by_cashier_closedAt` needs it). `cashierName` is
+// the frozen snapshot meant for display.
+const { cashierId: _closeCashierId, ...publicCloseFields } = closeFields;
+export const publicCloseDocValidator = v.object({
+  _id: v.id('closes'),
+  _creationTime: v.number(),
+  ...publicCloseFields,
+});
+
 export const settingsDocValidator = v.object({
   _id: v.id('settings'),
   _creationTime: v.number(),
@@ -515,11 +563,29 @@ export default defineSchema({
     // `refund.date === undefined`, which sorts before every number and so
     // self-excludes from a `gte` bound — no `filter` needed (forbidden by the
     // project's query guideline).
-    .index('by_refundDate', ['refund.date']),
+    .index('by_refundDate', ['refund.date'])
+    // `closes.create` bounds its read by ONE cashier's own window. Ranging on
+    // `by_soldAt` and filtering by cashier afterwards would let the whole
+    // shop's volume consume a single cashier's read cap — with three people on
+    // the register, a third of the cap locks each of them out. These two
+    // indexes put the cashier INSIDE the range so the cap measures only that
+    // cashier's own work.
+    .index('by_cashier_soldAt', ['cashierId', 'soldAt'])
+    .index('by_cashier_refundDate', ['cashierId', 'refund.date']),
 
   // by_cashier: a cajero's "Ventas en espera" list is scoped to their OWN parked
   // sales, so the query must not scan the table to throw most rows away.
   heldCarts: defineTable(heldCartFields).index('by_cashier', ['cashierId']),
+
+  // by_cashier_closedAt: `closes.create` looks up THIS cashier's own last close
+  // to derive the window start (D2/D4) — a duplicate window is unreachable
+  // because `from` is never a client input, only ever this lookup's result.
+  // Also backs `closes.list({scope:'own'})`, newest first.
+  // by_closedAt: backs `closes.list({scope:'all'})` — newest first across
+  // every cashier, capped + `truncated`, same shape as `sales.history`.
+  closes: defineTable(closeFields)
+    .index('by_cashier_closedAt', ['cashierId', 'closedAt'])
+    .index('by_closedAt', ['closedAt']),
 
   // Singleton row
   settings: defineTable(settingsFields),

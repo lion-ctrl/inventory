@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as categories from "../categories.js";
 import type * as clients from "../clients.js";
+import type * as closes from "../closes.js";
 import type * as employees from "../employees.js";
 import type * as heldCarts from "../heldCarts.js";
 import type * as money from "../money.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   bootstrap: typeof bootstrap;
   categories: typeof categories;
   clients: typeof clients;
+  closes: typeof closes;
   employees: typeof employees;
   heldCarts: typeof heldCarts;
   money: typeof money;
