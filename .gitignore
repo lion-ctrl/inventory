@@ -27,3 +27,5 @@ backups/
 *.sw?
 # Local AI runtime state
 .atl/
+# CodeGraph index — per-checkout, rebuilt on demand, never shared
+.codegraph/
