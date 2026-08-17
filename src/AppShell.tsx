@@ -30,6 +30,7 @@ import ScanScreen from '@/screens/Scan';
 import SaleScreen from '@/screens/Sale';
 import StoredCartsScreen from '@/screens/Stored';
 import HistoryScreen from '@/screens/History';
+import CashCloseScreen from '@/screens/CashClose';
 import ProductsScreen from '@/screens/Products';
 import ClientsScreen from '@/screens/Clients';
 import SuppliersScreen from '@/screens/Suppliers';
@@ -45,6 +46,7 @@ const ROUTE_IDS: Array<[string, string]> = [
   ['/venta', 'sale'],
   ['/ventas-en-espera', 'stored'],
   ['/historial', 'history'],
+  ['/cierre-de-caja', 'close'],
   ['/productos', 'products'],
   ['/clientes', 'clients'],
   ['/proveedores', 'suppliers'],
@@ -172,6 +174,15 @@ export default function AppShell() {
         icon: 'receipt',
         onClick: () => void navigate('/historial'),
         perm: 'view_reports',
+      },
+      {
+        id: 'close',
+        label: 'Cierre de caja',
+        icon: 'coins',
+        onClick: () => void navigate('/cierre-de-caja'),
+        // No perm: closing your OWN drawer is session-only, like
+        // clients.create — a cajero rarely holds view_reports and must
+        // still be able to close (matches closes.create's own gate).
       },
       {
         id: 'products',
@@ -364,6 +375,14 @@ export default function AppShell() {
             element={
               <Guard perm="view_reports">
                 <HistoryScreen />
+              </Guard>
+            }
+          />
+          <Route
+            path="/cierre-de-caja"
+            element={
+              <Guard>
+                <CashCloseScreen />
               </Guard>
             }
           />
