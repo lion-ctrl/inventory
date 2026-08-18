@@ -18,6 +18,10 @@ const owner = {
   email: 'carlos@mitienda.com',
   phone: '0414-1234567',
   pin: '482106',
+  storeName: 'Bodega La Esquina',
+  storeRif: 'J-40123456-7',
+  ivaPct: 16,
+  bsRate: 36.5,
 };
 
 describe('bootstrap.createFirstOwner', () => {
@@ -115,5 +119,86 @@ describe('bootstrap.createFirstOwner', () => {
       async (ctx) => (await ctx.db.query('employees').collect()).length
     );
     expect(count).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The settings singleton — without it the owner can log in and sell NOTHING
+// ---------------------------------------------------------------------------
+// `getSettings` throws when the row is absent, and `sales.checkout`,
+// `heldCarts.hold` and `purchases.create` all call it. `settings.update` cannot
+// rescue a deployment either: it patches an existing row, so it throws too.
+// Creating the owner without settings therefore produced exactly the shape this
+// whole module exists to prevent — a deployment with no way in from inside it.
+describe('bootstrap.createFirstOwner — the settings singleton', () => {
+  test('creates the row the sale, held-cart and purchase paths all read', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.bootstrap.createFirstOwner, owner);
+
+    const rows = await t.run((ctx) => ctx.db.query('settings').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].storeName).toBe('Bodega La Esquina');
+    expect(rows[0].storeRif).toBe('J-40123456-7');
+    expect(rows[0].ivaPct).toBe(16);
+    expect(rows[0].bsRate).toBe(36.5);
+    // A brand-new shop has issued nothing yet.
+    expect(rows[0].nextInvoiceNumber).toBe(1);
+    expect(rows[0].nextHeldCode).toBe(1);
+    // No printer can be assumed to exist on a deployment nobody has touched.
+    expect(rows[0].printAuto).toBe(false);
+  });
+
+  test('the shop is CONFIGURABLE afterwards — settings.update no longer throws', async () => {
+    // The integration this fix exists for. Before it, this call threw
+    // 'La configuración de la tienda no está disponible.' and the owner had no
+    // way to create the row from anywhere in the app.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.bootstrap.createFirstOwner, owner);
+
+    const session = await t.mutation(api.auth.login, {
+      email: owner.email,
+      pin: owner.pin,
+    });
+    if (!session.ok) throw new Error('login failed');
+
+    await t.mutation(api.settings.update, {
+      token: session.token,
+      patch: { bsRate: 40 },
+    });
+
+    const rows = await t.run((ctx) => ctx.db.query('settings').collect());
+    expect(rows[0].bsRate).toBe(40);
+  });
+
+  test('refuses figures it must not guess, leaving the deployment bootstrappable', async () => {
+    // Every guard runs BEFORE either insert, so a rejected call must leave BOTH
+    // tables empty — otherwise the first typo would burn the one-shot window.
+    const t = convexTest(schema, modules);
+
+    for (const [bad, message] of [
+      [
+        { storeName: '   ' },
+        'El nombre y el RIF de la tienda son obligatorios.',
+      ],
+      [{ storeRif: '' }, 'El nombre y el RIF de la tienda son obligatorios.'],
+      [{ ivaPct: -1 }, 'El porcentaje de IVA no es válido.'],
+      [{ ivaPct: 101 }, 'El porcentaje de IVA no es válido.'],
+      [{ ivaPct: Number.NaN }, 'El porcentaje de IVA no es válido.'],
+      [{ bsRate: 0 }, 'La tasa del bolívar no es válida.'],
+      [{ bsRate: -5 }, 'La tasa del bolívar no es válida.'],
+      [
+        { bsRate: Number.POSITIVE_INFINITY },
+        'La tasa del bolívar no es válida.',
+      ],
+    ] as const) {
+      await expect(
+        t.mutation(internal.bootstrap.createFirstOwner, { ...owner, ...bad })
+      ).rejects.toThrow(message);
+    }
+
+    const employees = await t.run((ctx) => ctx.db.query('employees').collect());
+    const settings = await t.run((ctx) => ctx.db.query('settings').collect());
+    expect(employees).toHaveLength(0);
+    expect(settings).toHaveLength(0);
   });
 });
