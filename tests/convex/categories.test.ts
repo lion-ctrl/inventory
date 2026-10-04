@@ -2,7 +2,7 @@
 // Categories: live product counts + the guided reassign-before-delete flow.
 import { convexTest } from 'convex-test';
 import { describe, expect, test } from 'vitest';
-import { api } from '@convex/_generated/api';
+import { api, internal } from '@convex/_generated/api';
 import schema from '@convex/schema';
 import { seedBase } from './fixtures';
 
@@ -44,7 +44,10 @@ describe('categories mutations', () => {
     const { t, fx } = await setup();
 
     await expect(
-      t.mutation(api.categories.create, { token: fx.cajeroVoidToken, label: 'X' })
+      t.mutation(api.categories.create, {
+        token: fx.cajeroVoidToken,
+        label: 'X',
+      })
     ).rejects.toThrow('Sin permisos para esta acción.');
 
     await t.mutation(api.categories.update, {
@@ -116,5 +119,49 @@ describe('categories mutations', () => {
         reassignToId: gone,
       })
     ).rejects.toThrow('Categoría no encontrada.');
+  });
+});
+
+// --- Default category --------------------------------------------------------
+// A deployment with zero categories cannot save a product. `ensureDefault` is
+// the one-time command for deployments that already exist (bootstrap runs the
+// same helper for new ones). It is keyed on the table being EMPTY, never on the
+// label: a default the owner renamed must not come back beside its new name.
+describe('categories.ensureDefault', () => {
+  test('leaves a populated table alone — no `General` beside `Bebidas`', async () => {
+    // seedBase inserts exactly one category, `Bebidas`, and nothing else.
+    const { t, fx } = await setup();
+
+    const id = await t.mutation(internal.categories.ensureDefault, {});
+
+    expect(id).toBe(fx.categoryId);
+    const rows = await t.run((ctx) => ctx.db.query('categories').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe('Bebidas');
+  });
+
+  test('an empty table gets exactly one `General`, however often it runs', async () => {
+    const t = convexTest(schema, modules);
+
+    const first = await t.mutation(internal.categories.ensureDefault, {});
+    const second = await t.mutation(internal.categories.ensureDefault, {});
+
+    const rows = await t.run((ctx) => ctx.db.query('categories').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe('General');
+    expect(first).toBe(rows[0]._id);
+    expect(second).toBe(rows[0]._id);
+  });
+
+  test('renaming `General` does not resurrect it', async () => {
+    const t = convexTest(schema, modules);
+    const id = await t.mutation(internal.categories.ensureDefault, {});
+    await t.run((ctx) => ctx.db.patch('categories', id, { label: 'Víveres' }));
+
+    await t.mutation(internal.categories.ensureDefault, {});
+
+    const rows = await t.run((ctx) => ctx.db.query('categories').collect());
+    expect(rows).toHaveLength(1);
+    expect(rows[0].label).toBe('Víveres');
   });
 });

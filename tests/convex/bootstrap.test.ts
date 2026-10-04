@@ -170,9 +170,25 @@ describe('bootstrap.createFirstOwner — the settings singleton', () => {
     expect(rows[0].bsRate).toBe(40);
   });
 
+  test('creates the default category `General`', async () => {
+    // Every product needs a category, so a deployment that opens with an empty
+    // `categories` table is one the owner cannot stock — the form has nothing
+    // to pick and the save is refused. Bootstrap closes that gap the same way
+    // it closes the settings one: by creating the row the next screen needs.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.bootstrap.createFirstOwner, owner);
+
+    const categories = await t.run((ctx) =>
+      ctx.db.query('categories').collect()
+    );
+    expect(categories).toHaveLength(1);
+    expect(categories[0].label).toBe('General');
+  });
+
   test('refuses figures it must not guess, leaving the deployment bootstrappable', async () => {
-    // Every guard runs BEFORE either insert, so a rejected call must leave BOTH
-    // tables empty — otherwise the first typo would burn the one-shot window.
+    // Every guard runs BEFORE any insert, so a rejected call must leave ALL
+    // three tables empty — otherwise the first typo would burn the one-shot
+    // window, or leave a stray `General` behind on a deployment with no owner.
     const t = convexTest(schema, modules);
 
     for (const [bad, message] of [
@@ -198,7 +214,11 @@ describe('bootstrap.createFirstOwner — the settings singleton', () => {
 
     const employees = await t.run((ctx) => ctx.db.query('employees').collect());
     const settings = await t.run((ctx) => ctx.db.query('settings').collect());
+    const categories = await t.run((ctx) =>
+      ctx.db.query('categories').collect()
+    );
     expect(employees).toHaveLength(0);
     expect(settings).toHaveLength(0);
+    expect(categories).toHaveLength(0);
   });
 });

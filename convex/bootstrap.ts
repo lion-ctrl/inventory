@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 import { internalMutation } from './_generated/server';
+import { ensureDefaultCategory } from './categories';
 import { assertPin } from './permissions';
 import { hashPin } from './sessions';
 
@@ -125,6 +126,12 @@ export const createFirstOwner = internalMutation({
         scannerMode: 'physical',
       });
     }
+
+    // The default category. Every product needs one, so a deployment that
+    // opens with an empty `categories` table is one the owner cannot stock.
+    // Guarded on its own emptiness, like the settings row above: a deployment
+    // seeded by any other route keeps exactly the categories it already has.
+    await ensureDefaultCategory(ctx);
 
     return ownerId;
   },

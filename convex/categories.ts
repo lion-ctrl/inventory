@@ -1,7 +1,47 @@
 import { ConvexError, v } from 'convex/values';
-import { mutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
+import type { MutationCtx } from './_generated/server';
+import type { Id } from './_generated/dataModel';
 import { requirePerm, requireSession } from './permissions';
 import { categoryFields } from './schema';
+
+/** The label of the category every deployment starts with. */
+export const DEFAULT_CATEGORY_LABEL = 'General';
+
+/**
+ * Guarantee the deployment has at least one category and return one that
+ * exists. Every product requires a category, so an empty table makes the
+ * product form unsaveable and tells a fresh owner nothing.
+ *
+ * Keyed on the table being EMPTY, never on the label: `first()` asks "is there
+ * any row" and one row is the whole answer. A label lookup would resurrect
+ * `General` beside a default the owner had renamed to `Víveres`, and
+ * `removeWithReassign` already refuses the last category, so emptiness is the
+ * one invariant that needs restoring. Shared with `bootstrap.createFirstOwner`
+ * as a plain helper rather than a nested mutation call.
+ */
+export async function ensureDefaultCategory(
+  ctx: MutationCtx
+): Promise<Id<'categories'>> {
+  const existing = await ctx.db.query('categories').first();
+  if (existing) return existing._id;
+  return await ctx.db.insert('categories', { label: DEFAULT_CATEGORY_LABEL });
+}
+
+/**
+ * One-time backfill for deployments that predate the default category.
+ * INTERNAL exactly like `bootstrap.createFirstOwner`: whoever can deploy may
+ * run it, nobody who merely knows the URL can. Invoked once from the CLI:
+ *
+ *   npx convex run categories:ensureDefault --prod
+ *
+ * Returns the id so the CLI prints proof; re-running is a no-op.
+ */
+export const ensureDefault = internalMutation({
+  args: {},
+  returns: v.id('categories'),
+  handler: async (ctx) => await ensureDefaultCategory(ctx),
+});
 
 // Internal POS — no public endpoints. Operational read (Venta/Escanear/Productos
 // all show category chips), so it is gated by requireSession only — any active

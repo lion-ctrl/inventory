@@ -164,7 +164,9 @@ interface ProductFormState {
   stock: string;
   minStock: string;
   exempt: boolean;
-  categoryId: string;
+  /** The user's explicit pick, or the edited product's stored category. Empty
+   *  string = nothing chosen yet; the EFFECTIVE id is derived at render time. */
+  categoryId: Id<'categories'> | '';
   sellable: boolean;
   /** Empty string = no preferred supplier; the picker offers that explicitly. */
   supplierId: string;
@@ -176,11 +178,13 @@ interface ProductFormState {
 
 type ProductFormValues = Omit<
   ProductFormState,
-  'price' | 'stock' | 'minStock'
+  'price' | 'stock' | 'minStock' | 'categoryId'
 > & {
   price: number;
   stock: number;
   minStock: number;
+  /** Always a real id: `submit` refuses to run without one, so `save` casts nothing. */
+  categoryId: Id<'categories'>;
 };
 
 function ProductForm({
@@ -209,7 +213,10 @@ function ProductForm({
     stock: initial?.stock != null ? String(initial.stock) : '0',
     minStock: initial?.minStock != null ? String(initial.minStock) : '5',
     exempt: initial?.exempt === true,
-    categoryId: initial?.categoryId || categories[0]?._id || '',
+    // No list fallback HERE: the list may still be loading when the form
+    // mounts, and a value captured once stays '' for the life of the form. The
+    // effective category is derived on every render instead (`categoryId`).
+    categoryId: initial?.categoryId ?? '',
     sellable: initial?.sellable !== false,
     supplierId: initial?.supplierId ?? '',
     imageId: initial?.imageId ?? '',
@@ -336,14 +343,30 @@ function ProductForm({
   // the field never teaches a code that turns out to be a different one.
   const skuPreview = initial ? initial.sku : skuFromName(form.name);
 
+  // The category the save will carry, resolved from the list AS CURRENTLY
+  // DELIVERED: the explicit or stored choice first — so a list that arrives
+  // later, in another order, never re-categorizes a product being edited —
+  // then the first category, then none. Re-evaluated on every render and at
+  // submit, never captured at mount; `null` is the one state that cannot save.
+  const categoryId: Id<'categories'> | null =
+    form.categoryId || categories[0]?._id || null;
+  const pickCategory = (e: FieldEvent) =>
+    setForm({
+      ...form,
+      categoryId: categories.find((c) => c._id === e.target.value)?._id ?? '',
+    });
+
   const valid =
     form.name.trim().length >= 2 &&
     form.barcode.trim().length >= 1 &&
-    parseFloat(form.price) > 0;
+    parseFloat(form.price) > 0 &&
+    categoryId !== null;
 
   const submit = () => {
+    if (categoryId === null) return;
     onSave({
       ...form,
+      categoryId,
       name: form.name.trim(),
       barcode: form.barcode.trim(),
       price: parseFloat(form.price) || 0,
@@ -481,18 +504,36 @@ function ProductForm({
       </div>
 
       <label className="client-field">
-        <span>Categoría</span>
+        <span>
+          Categoría<span className="req"> *</span>
+        </span>
         <select
           className="input cat-select"
-          value={form.categoryId}
-          onChange={set('categoryId')}
+          value={categoryId ?? ''}
+          onChange={pickCategory}
         >
+          {/* Loading and truly empty are the same honest state: a disabled
+              placeholder, never a silently empty select. */}
+          {categories.length === 0 && (
+            <option value="" disabled>
+              Sin categorías disponibles
+            </option>
+          )}
           {categories.map((c) => (
             <option key={c._id} value={c._id}>
               {c.label}
             </option>
           ))}
         </select>
+        {/* Shown IF AND ONLY IF nothing could be saved — the list is empty AND
+            no category is stored or picked. Keyed on the derived id, not on the
+            list, so it can never sit beside an enabled save. */}
+        {categoryId === null && (
+          <small className="muted">
+            Crea una categoría desde «Categorías» para poder guardar el
+            producto.
+          </small>
+        )}
       </label>
 
       {/* Preferred supplier — who to call to reorder, not sales data. Optional,
@@ -1213,7 +1254,7 @@ export default function ProductsScreen() {
             price: form.price,
             stock: form.stock,
             minStock: form.minStock,
-            categoryId: form.categoryId as Id<'categories'>,
+            categoryId: form.categoryId,
             exempt: form.exempt,
             sellable: form.sellable,
             unit: form.unit as ProductUnitId,
@@ -1234,7 +1275,7 @@ export default function ProductsScreen() {
           price: form.price,
           stock: form.stock,
           minStock: form.minStock,
-          categoryId: form.categoryId as Id<'categories'>,
+          categoryId: form.categoryId,
           exempt: form.exempt,
           // Omitted at the DEFAULT rather than stored: an absent unit is what
           // every product predating this capability has, and writing the default
