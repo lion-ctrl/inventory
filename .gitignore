@@ -29,3 +29,6 @@ backups/
 .atl/
 # CodeGraph index — per-checkout, rebuilt on demand, never shared
 .codegraph/
+
+# Local bootstrap payloads — carry a plaintext PIN, never in git
+*.local.json
